@@ -1,0 +1,127 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jade-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    # EXPONER 5432 para debugging desde la red local.
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [jadenet]
+
+  redis:
+    image: redis:7-alpine
+    container_name: jade-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [jadenet]
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: jade-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    # Console de MinIO (admin de archivos) expuesto en 9001.
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [jadenet]
+
+  migrate:
+    build:
+      context: ./infrastructure/postgres
+      dockerfile: migrate.Dockerfile
+    container_name: jade-migrate
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+    restart: on-failure
+    networks: [jadenet]
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: jade-api
+    restart: unless-stopped
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis:   { condition: service_healthy }
+      minio:   { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Include Error Detail=true
+      ConnectionStrings__Redis: redis:${REDIS_PASSWORD}@redis:6379
+      ConnectionStrings__Storage: Endpoint=http://minio:9000;AccessKey=${MINIO_ROOT_USER};SecretKey=${MINIO_ROOT_PASSWORD};Bucket=${STORAGE_BUCKET};Ssl=false
+      Jwt__Issuer: ${JWT_ISSUER}
+      Jwt__Audience: ${JWT_AUDIENCE}
+      Jwt__AccessTokenSecret: ${JWT_ACCESS_TOKEN_SECRET}
+      Jwt__RefreshTokenSecret: ${JWT_REFRESH_TOKEN_SECRET}
+      Jwt__AccessTokenTtlMinutes: ${JWT_ACCESS_TOKEN_TTL_MINUTES}
+      Jwt__RefreshTokenTtlDays: ${JWT_REFRESH_TOKEN_TTL_DAYS}
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Cors__Origins__0: ${CORS_ORIGIN}
+      Cors__Origins__1: http://localhost:4200
+      Cors__Origins__2: http://localhost:8080
+    # EXPONER 8080 — API + Swagger + Health + Hangfire.
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks: [jadenet]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jade-frontend
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    # EXPONER 4200 — Landing / Login / Register / Dashboard (puerto 80 interno).
+    ports: ["4200:80"]
+    networks: [jadenet]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+networks:
+  jadenet:
+    driver: bridge

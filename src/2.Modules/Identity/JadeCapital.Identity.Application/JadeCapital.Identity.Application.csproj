@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>JadeCapital.Identity.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.10.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\JadeCapital.Identity.Domain\JadeCapital.Identity.Domain.csproj" />
+    <ProjectReference Include="..\JadeCapital.Identity.Contracts\JadeCapital.Identity.Contracts.csproj" />
+  </ItemGroup>
+</Project>

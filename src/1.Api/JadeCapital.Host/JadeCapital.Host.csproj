@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);NU1902;NU1903;NU1603;NU1605;CA1707;CA1848;CA1014;CA1716;CA1812;CA2007;CA1000;CA1861;CA1859;CA1725;CA1873;CA1305;CA1862;CA1806;MSB9008</NoWarn>
+    <RootNamespace>JadeCapital.Host</RootNamespace>
+    <AssemblyName>JadeCapital.Host</AssemblyName>
+    <UserSecretsId>jade-capital-host</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="1.2.40" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Api\JadeCapital.Identity.Api.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Domain\JadeCapital.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

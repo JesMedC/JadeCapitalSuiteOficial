@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>JadeCapital.PublicPortal.Infrastructure</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
+    <ProjectReference Include="..\JadeCapital.PublicPortal.Application\JadeCapital.PublicPortal.Application.csproj" />
+  </ItemGroup>
+</Project>

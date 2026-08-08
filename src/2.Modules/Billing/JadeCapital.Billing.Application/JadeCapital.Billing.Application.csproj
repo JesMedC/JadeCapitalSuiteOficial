@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>JadeCapital.Billing.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="FluentValidation" Version="11.10.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\JadeCapital.Billing.Domain\JadeCapital.Billing.Domain.csproj" />
+    <ProjectReference Include="..\JadeCapital.Billing.Contracts\JadeCapital.Billing.Contracts.csproj" />
+  </ItemGroup>
+</Project>

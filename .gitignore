@@ -1,0 +1,39 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+appsettings.Development.json
+appsettings.Local.json
+*.trx
+TestResults/
+.tools/
+
+## Node / Angular
+node_modules/
+dist/
+.angular/
+coverage/
+*.log
+npm-debug.log*
+
+## Secrets
+.env
+.env.local
+*.pfx
+*.key
+
+## IDE
+.idea/
+*.swp
+.DS_Store
+
+## Infra
+data/postgres/
+data/redis/
+data/minio/
+
+## OS
+Thumbs.db
