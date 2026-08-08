@@ -12,7 +12,7 @@ CREATE SCHEMA IF NOT EXISTS identity;
 -- ============================================
 -- identity.users
 -- ============================================
-CREATE TABLE identity.users (
+CREATE TABLE IF NOT EXISTS identity.users (
     id                  UUID            PRIMARY KEY,
     email               VARCHAR(320)    NOT NULL,
     display_name        VARCHAR(80)     NOT NULL,
@@ -31,13 +31,13 @@ CREATE TABLE identity.users (
     CONSTRAINT ck_users_status CHECK (status IN ('Active', 'Suspended', 'Cancelled', 'LockedOut'))
 );
 
-CREATE UNIQUE INDEX ux_users_email ON identity.users (email);
-CREATE INDEX ix_users_status ON identity.users (status) WHERE status IN ('Active', 'LockedOut');
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_email ON identity.users (email);
+CREATE INDEX IF NOT EXISTS ix_users_status ON identity.users (status) WHERE status IN ('Active', 'LockedOut');
 
 -- ============================================
 -- identity.refresh_tokens
 -- ============================================
-CREATE TABLE identity.refresh_tokens (
+CREATE TABLE IF NOT EXISTS identity.refresh_tokens (
     id                  UUID            PRIMARY KEY,
     user_id             UUID            NOT NULL,
     token_hash          VARCHAR(128)    NOT NULL,
@@ -54,11 +54,11 @@ CREATE TABLE identity.refresh_tokens (
         FOREIGN KEY (user_id) REFERENCES identity.users(id) ON DELETE CASCADE
 );
 
-CREATE UNIQUE INDEX ux_refresh_tokens_hash ON identity.refresh_tokens (token_hash);
-CREATE INDEX ix_refresh_tokens_user_active
+CREATE UNIQUE INDEX IF NOT EXISTS ux_refresh_tokens_hash ON identity.refresh_tokens (token_hash);
+CREATE INDEX IF NOT EXISTS ix_refresh_tokens_user_active
     ON identity.refresh_tokens (user_id, revoked_at)
     WHERE revoked_at IS NULL;
-CREATE INDEX ix_refresh_tokens_expires
+CREATE INDEX IF NOT EXISTS ix_refresh_tokens_expires
     ON identity.refresh_tokens (expires_at)
     WHERE revoked_at IS NULL;
 
