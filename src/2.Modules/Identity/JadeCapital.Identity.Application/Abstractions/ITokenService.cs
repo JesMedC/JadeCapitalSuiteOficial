@@ -23,9 +23,3 @@ public interface ITokenService
     /// <summary>Parametros para validar JWT en middleware. Vive en Infrastructure porque requiere opciones.</summary>
     // Mantenido minimo aqui; la validacion real es responsabilidad de Microsoft.AspNetCore.Authentication.JwtBearer.
 }
-
-/// <summary>Reloj para tests deterministicos.</summary>
-public interface IClock
-{
-    DateTimeOffset UtcNow { get; }
-}

@@ -96,6 +96,8 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["Jwt:RefreshTokenSecret"] = "test_refresh_secret_for_integration_tests_also_32_xx",
                 ["Jwt:AccessTokenTtlMinutes"] = "15",
                 ["Jwt:RefreshTokenTtlDays"] = "14",
+                ["RateLimit:AuthPermit"] = "10000",
+                ["RateLimit:ApiPermit"] = "10000",
                 ["Cors:Origins:0"] = "http://localhost"
             });
         });

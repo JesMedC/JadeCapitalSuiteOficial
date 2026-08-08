@@ -15,6 +15,7 @@ public sealed record RegisterUserResult(
     Guid UserId,
     string Email,
     string DisplayName,
+    string Role,
     string AccessToken,
     string RefreshToken,
     DateTimeOffset AccessTokenExpiresAt,

@@ -35,7 +35,6 @@ public static class IdentityModuleRegistration
         services.AddSingleton<IPasswordHasher>(_ =>
             new Pbkdf2PasswordHasher(iterations: configuration.GetValue<int?>("Security:Pbkdf2Iterations") ?? 100_000));
         services.AddSingleton<ITokenService, JwtTokenService>();
-        services.AddSingleton<JadeCapital.Identity.Application.Abstractions.IClock, SystemClockAdapter>();
 
         // ===== Background services =====
         services.AddHostedService<RefreshTokenCleanupService>();

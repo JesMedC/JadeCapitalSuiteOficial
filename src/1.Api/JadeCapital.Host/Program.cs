@@ -79,6 +79,8 @@ builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
 
 // ===== Rate limiting =====
 // Politica estricta para /api/auth/login y /register (anti brute-force / spam).
+// Limites configurables via RateLimit:AuthPermit / RateLimit:ApiPermit
+// (defaults: 10/min IP y 100/min IP respectivamente).
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -90,6 +92,9 @@ builder.Services.AddRateLimiter(options =>
             ct);
     };
 
+    var authPermit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermit") ?? 10;
+    var apiPermit = builder.Configuration.GetValue<int?>("RateLimit:ApiPermit") ?? 100;
+
     options.AddPolicy("auth-strict", ctx =>
     {
         // 10 requests por IP por minuto (suficiente para uso legitimo, bloquea fuerza bruta).
@@ -98,7 +103,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: $"auth-{ip}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,
+                PermitLimit = authPermit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -113,7 +118,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: $"api-{ip}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = apiPermit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true

@@ -30,31 +30,29 @@ Bugs críticos y deudas arregladas en este sprint. Documentación de decisiones 
 - `docs/adr/` creado con los 3 ADRs arriba.
 
 ### Deuda que queda viva
-- **Integration tests: 4/11 pasan, 7/11 fallan con bug de aplicación real.** El infra quedó resuelto (4 tests E2E de Health, RateLimit y Swagger pasan limpio). Los 7 fallos son todos en `AuthFlowTests` y revelan un **bug de ordenamiento/transaction en `RegisterUserHandler`**: `INSERT INTO refresh_tokens` viola la FK `fk_refresh_tokens_user` porque el `User` insertado no es visible al insert del `RefreshToken` dentro de la misma transacción. Hipótesis: dos `SaveChangesAsync` separados (uno por `User`, otro por `RefreshToken`) o falta de `IUnitOfWork.SaveChangesAsync` único. **Pendiente para Sprint 0.5** — fuera del scope explícito de "refactor para destrabar infra".
+- **`RateLimit_Login_BlocksAfter10Attempts` test falla.**Para evitar contaminación entre tests se subió el rate limit a 10000 en `JadeApiFactory`. El test asume límite=10. Solución correcta: mover este test a una clase con su propio factory dedicado, o testear el rate limiter directamente sin HttpClient. Documentar en `tests/IntegrationTests/`.
 - `Money`/`Currency` value objects (necesarios para Sprint 1 / Trading).
 - Multi-tenant, soft-delete, seeders, OpenTelemetry.
 - Sin tests frontend (jest declarado pero sin config).
 - Sin CI/CD.
-- **Bugs preexistentes descubiertos durante la investigación:**
-  - `IClock` declarado en dos lugares (`Shared.Kernel.Time` y `Identity.Application.Abstractions`). El agent creó `SystemClockAdapter` como puente pero la solución correcta es consolidar.
-  - `<ProjectReference>` roto en `IntegrationTests.csproj` (apuntaba 2 niveles arriba, necesitaba 3).
-  - `JadeCapital.slnx.disabled` (archivo legacy vacío, no usado).
+- `<ProjectReference>` en IntegrationTests.csproj fixado en el refactor.
 
 ### Verificación
 - `dotnet build JadeCapital.slnx` → 0 errores, 1 warning pre-existente (Npgsql version conflict MSB3277).
-- `dotnet test JadeCapital.slnx` → 106 unit pass, 4/11 integration pass (Health x2, Swagger, RateLimit), 7/11 integration fail (FK bug, documentado en deuda).
+- `dotnet test JadeCapital.slnx` → 106 unit pass + 10/11 integration pass. Queda 1 integration test (RateLimit) que falla por trade-off conocido.
 - `npm run build` (frontend) → OK.
 
 ### Git
 - `git init` hecho en Sprint 0. Branch `main`.
 - `user.name = "Jesus"`, `user.email = "jmedinac25@gmail.com"`.
 - Commit inicial con Sprint 0.
+- Commit de Sprint 0.5 con integration tests refactor.
 
 ---
 
 ## TL;DR (snapshot al 2026-08-07)
 
-Esqueleto de **monolito modular .NET 10 / Angular 19** con buenas decisiones arquitectónicas en docs y **Sprint 0 cerrado** (auth flow end-to-end funciona, infra consolidada, ADRs documentados, integration tests parcialmente habilitados). Solo el módulo Identity está implementado de punta a punta. El resto (Trading, Billing, Admin, PublicPortal) son csproj vacíos. El Host no compone módulos — wirea Identity directo. **Bug residual en `RegisterUserHandler`** (FK violation al insertar refresh_token) descubierto por los integration tests; pendiente para Sprint 0.5.
+Esqueleto de **monolito modular .NET 10 / Angular 19** con buenas decisiones arquitectónicas en docs y **Sprint 0 + 0.5 cerrados** (auth flow end-to-end funciona, infra consolidada, FK bug fixeado, IClock dedup, integration tests 10/11 pass). Solo el módulo Identity está implementado de punta a punta. El resto (Trading, Billing, Admin, PublicPortal) son csproj vacíos. El Host no compone módulos — wirea Identity directo. Quedan 1 test de rate limit y la vertical de trading.
 
 ---
 

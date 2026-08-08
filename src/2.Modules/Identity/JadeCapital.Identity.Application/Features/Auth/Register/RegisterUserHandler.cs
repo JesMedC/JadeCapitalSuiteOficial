@@ -2,6 +2,7 @@ using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Shared.Kernel.Validation;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -86,6 +87,7 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
 
         return Result.Success(new RegisterUserResult(
             user.Id, user.Email, user.DisplayName,
+            user.Role.ToString(),
             access.Token, refreshOpaque,
             access.ExpiresAt, refreshExpiry));
     }

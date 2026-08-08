@@ -67,7 +67,7 @@ public static class AuthEndpoints
     private static async Task<IResult> LoginAsync(
         [Microsoft.AspNetCore.Mvc.FromBody] LoginRequest req,
         [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
-        [Microsoft.AspNetCore.Mvc.FromServices] HttpContext http,
+        HttpContext http,
         CancellationToken ct)
     {
         var ip = http.Connection.RemoteIpAddress?.ToString();
@@ -82,7 +82,7 @@ public static class AuthEndpoints
     private static async Task<IResult> RefreshAsync(
         [Microsoft.AspNetCore.Mvc.FromBody] RefreshTokenRequest req,
         [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
-        [Microsoft.AspNetCore.Mvc.FromServices] HttpContext http,
+        HttpContext http,
         CancellationToken ct)
     {
         var ip = http.Connection.RemoteIpAddress?.ToString();
@@ -97,7 +97,7 @@ public static class AuthEndpoints
     private static async Task<IResult> LogoutAsync(
         [Microsoft.AspNetCore.Mvc.FromBody] LogoutRequest req,
         [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
-        [Microsoft.AspNetCore.Mvc.FromServices] HttpContext http,
+        HttpContext http,
         CancellationToken ct)
     {
         var userIdClaim = http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

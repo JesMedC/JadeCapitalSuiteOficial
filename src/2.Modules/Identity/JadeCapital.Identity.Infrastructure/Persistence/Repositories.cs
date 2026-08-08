@@ -12,7 +12,7 @@ public sealed class UserRepository : IUserRepository
     public UserRepository(IdentityDbContext db) { _db = db; }
 
     public Task<User?> FindByEmailAsync(string email, CancellationToken ct)
-        => _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), ct);
+        => _db.Users.FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), ct);
 
     public Task<User?> FindByIdAsync(Guid id, CancellationToken ct)
         => _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);

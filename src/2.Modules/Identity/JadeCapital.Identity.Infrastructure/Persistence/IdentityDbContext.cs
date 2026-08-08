@@ -72,6 +72,14 @@ internal sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refre
         b.Property(r => r.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(r => r.UpdatedAt).HasColumnName("updated_at");
 
+        // FK to User. Without this EF Core doesn't know about the relationship and
+        // may insert refresh_tokens BEFORE users in the same SaveChanges, which
+        // violates the FK constraint at the DB level (FK is defined in the SQL migration).
+        b.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         b.HasIndex(r => r.TokenHash).IsUnique().HasDatabaseName("ux_refresh_tokens_hash");
         b.HasIndex(r => new { r.UserId, r.RevokedAt }).HasDatabaseName("ix_refresh_tokens_user_active");
     }
