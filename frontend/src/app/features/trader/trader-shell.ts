@@ -2,6 +2,12 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
 
+interface NavItem {
+  label: string;
+  path: string;
+  icon: 'dashboard' | 'trades' | 'calendar';
+}
+
 @Component({
   selector: 'jcs-trader-shell',
   standalone: true,
@@ -9,38 +15,364 @@ import { AuthState } from '@core/state/auth.state';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="shell">
+      <!-- ============== Sidebar ============== -->
       <aside class="sidebar">
-        <span class="brand">Jade Capital</span>
-        <nav class="jcs-stack">
-          <a routerLink="dashboard" routerLinkActive="active">Dashboard</a>
-          <a routerLink="trades" routerLinkActive="active">Trades</a>
-          <a routerLink="calendar" routerLinkActive="active">Calendario</a>
+        <!-- Brand -->
+        <a class="brand" routerLink="/">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"/>
+              <path d="M7 14l4-4 3 3 5-6"/>
+            </svg>
+          </span>
+          <span class="brand-text">
+            <span class="brand-name">JadeCapital<strong>Suite</strong></span>
+            <span class="brand-meta">Trading Journal</span>
+          </span>
+          <span class="brand-tag jcs-badge jcs-badge--neutral">PRO</span>
+        </a>
+
+        <!-- Nav -->
+        <nav class="nav">
+          <span class="nav-section">Trading</span>
+          @for (item of navItems; track item.path) {
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="nav-link">
+              <span class="nav-icon" aria-hidden="true">
+                @switch (item.icon) {
+                  @case ('dashboard') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="3" width="7" height="9"/>
+                      <rect x="14" y="3" width="7" height="5"/>
+                      <rect x="14" y="12" width="7" height="9"/>
+                      <rect x="3" y="16" width="7" height="5"/>
+                    </svg>
+                  }
+                  @case ('trades') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="8" y1="6" x2="21" y2="6"/>
+                      <line x1="8" y1="12" x2="21" y2="12"/>
+                      <line x1="8" y1="18" x2="21" y2="18"/>
+                      <line x1="3" y1="6" x2="3.01" y2="6"/>
+                      <line x1="3" y1="12" x2="3.01" y2="12"/>
+                      <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                  }
+                  @case ('calendar') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  }
+                }
+              </span>
+              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-pulse" aria-hidden="true"></span>
+            </a>
+          }
         </nav>
+
+        <!-- User card at bottom -->
         <div class="user">
-          <span class="jcs-muted">{{ auth.user()?.email }}</span>
-          <button class="jcs-btn jcs-btn--ghost" (click)="logout()">Salir</button>
+          <div class="user-card">
+            <div class="user-avatar" aria-hidden="true">
+              {{ userInitial() }}
+            </div>
+            <div class="user-info">
+              <span class="user-name">{{ userShort() }}</span>
+              <span class="user-email jcs-muted">{{ auth.user()?.email }}</span>
+            </div>
+            <button class="logout" (click)="logout()" aria-label="Cerrar sesión">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
+
+      <!-- ============== Main content ============== -->
       <main class="main">
         <router-outlet></router-outlet>
       </main>
     </div>
   `,
   styles: [`
-    .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-    .sidebar { background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); }
-    .brand { font-weight: 700; color: var(--green); }
-    nav a { display: block; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); color: var(--text-muted); }
-    nav a.active { background: var(--bg-elevated); color: var(--text-main); }
-    .user { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); }
-    .plan { font-size: var(--font-size-xs); }
-    .main { padding: var(--space-8); }
-    @media (max-width: 768px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
+    :host { display: block; min-height: 100vh; }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+      background: var(--bg-main);
+    }
+    @media (max-width: 960px) {
+      .shell { grid-template-columns: 1fr; }
+    }
+
+    /* ===== Sidebar ===== */
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: var(--sp-5) var(--sp-4);
+      gap: var(--sp-6);
+      overflow-y: auto;
+    }
+    @media (max-width: 960px) {
+      .sidebar { display: none; }
+    }
+
+    /* Brand */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-2);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      text-decoration: none;
+      transition: background 150ms;
+    }
+    .brand:hover { background: var(--bg-hover); }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--green-soft);
+      color: var(--green);
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-sm);
+      flex-shrink: 0;
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+    .brand-name {
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      font-size: var(--fs-base);
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .brand-name strong { color: var(--green); font-weight: 700; }
+    .brand-meta {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 500;
+    }
+    .brand-tag {
+      font-size: 0.6rem;
+      padding: 2px var(--sp-2);
+      flex-shrink: 0;
+    }
+
+    /* Nav */
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-1);
+      flex: 1;
+    }
+    .nav-section {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-soft);
+      padding: 0 var(--sp-3);
+      margin-bottom: var(--sp-2);
+    }
+
+    .nav-link {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-3);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      transition: all 150ms ease;
+      overflow: hidden;
+    }
+    .nav-link:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+    }
+    .nav-link.active {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+    .nav-link.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: var(--sp-2);
+      bottom: var(--sp-2);
+      width: 3px;
+      background: var(--green);
+      border-radius: 0 2px 2px 0;
+    }
+
+    .nav-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 200ms;
+    }
+    .nav-link:hover .nav-icon { transform: scale(1.08); }
+    .nav-link.active .nav-icon { color: var(--green); }
+
+    .nav-label { flex: 1; }
+
+    .nav-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      opacity: 0;
+      box-shadow: 0 0 0 0 rgba(47, 219, 120, 0.6);
+      flex-shrink: 0;
+    }
+    .nav-link.active .nav-pulse {
+      opacity: 1;
+      animation: nav-pulse 2s ease-out infinite;
+    }
+    @keyframes nav-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(47, 219, 120, 0.6); }
+      70%  { box-shadow: 0 0 0 8px rgba(47, 219, 120, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(47, 219, 120, 0); }
+    }
+
+    /* User card */
+    .user {
+      margin-top: auto;
+    }
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-3);
+      background: var(--bg-card-soft);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      transition: border-color 200ms;
+    }
+    .user-card:hover { border-color: var(--border-active); }
+
+    .user-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--green) 0%, var(--green-hover) 100%);
+      color: #050B10;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: var(--fs-sm);
+      flex-shrink: 0;
+    }
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+    }
+    .user-name {
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-email {
+      font-size: 0.7rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .logout {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 150ms;
+      flex-shrink: 0;
+    }
+    .logout:hover {
+      background: rgba(255, 64, 87, 0.12);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* ===== Main ===== */
+    .main {
+      padding: var(--sp-6);
+      min-width: 0;
+      overflow-x: hidden;
+    }
+    @media (max-width: 960px) {
+      .main { padding: var(--sp-4); }
+    }
   `],
 })
 export class TraderShell {
   readonly auth = inject(AuthState);
   private readonly router = inject(Router);
+
+  readonly navItems: NavItem[] = [
+    { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
+    { label: 'Operaciones', path: 'trades',    icon: 'trades' },
+    { label: 'Calendario',  path: 'calendar',  icon: 'calendar' },
+  ];
+
+  userInitial(): string {
+    const email = this.auth.user()?.email ?? '?';
+    return email.charAt(0).toUpperCase();
+  }
+
+  userShort(): string {
+    const email = this.auth.user()?.email ?? '';
+    const local = email.split('@')[0] ?? email;
+    return local.length > 16 ? local.slice(0, 14) + '…' : local;
+  }
 
   logout(): void {
     this.auth.logout();

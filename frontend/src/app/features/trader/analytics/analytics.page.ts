@@ -1,44 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, NgClass } from '@angular/common';
-
-interface TradeDto {
-  id: string;
-  symbol: string;
-  direction: 'Long' | 'Short';
-  volume: number;
-  pnl: number;
-  openedAt: string;
-}
-
-// 24 operaciones mock — secuencia diseñada para que la equity curve tenga
-// un max drawdown cercano a -$450 USD (peak trade 9 = +$1633, trough
-// trade 13 = +$1182 → DD ≈ -$451). 16 wins / 8 losses → win rate 66.7%.
-const MOCK_TRADES: TradeDto[] = [
-  { id: '1',  symbol: 'EUR/USD',  direction: 'Long',  volume: 1.5, pnl:  125.00, openedAt: '2026-06-01' },
-  { id: '2',  symbol: 'XAU/USD',  direction: 'Short', volume: 0.5, pnl:  700.00, openedAt: '2026-06-02' },
-  { id: '3',  symbol: 'BTC/USD',  direction: 'Long',  volume: 0.1, pnl:  210.00, openedAt: '2026-06-03' },
-  { id: '4',  symbol: 'GBP/USD',  direction: 'Long',  volume: 2.0, pnl:   85.00, openedAt: '2026-06-04' },
-  { id: '5',  symbol: 'USD/JPY',  direction: 'Short', volume: 1.0, pnl:   45.00, openedAt: '2026-06-05' },
-  { id: '6',  symbol: 'ETH/USD',  direction: 'Long',  volume: 2.0, pnl:   95.00, openedAt: '2026-06-07' },
-  { id: '7',  symbol: 'AUD/USD',  direction: 'Short', volume: 1.5, pnl:  180.00, openedAt: '2026-06-08' },
-  { id: '8',  symbol: 'USD/CHF',  direction: 'Long',  volume: 1.0, pnl:   38.00, openedAt: '2026-06-09' },
-  { id: '9',  symbol: 'XAU/USD',  direction: 'Short', volume: 0.4, pnl:  155.00, openedAt: '2026-06-10' },
-  { id: '10', symbol: 'BTC/USD',  direction: 'Long',  volume: 0.1, pnl:  -78.00, openedAt: '2026-06-12' },
-  { id: '11', symbol: 'EUR/USD',  direction: 'Long',  volume: 1.0, pnl: -110.00, openedAt: '2026-06-13' },
-  { id: '12', symbol: 'GBP/USD',  direction: 'Long',  volume: 1.5, pnl:  -95.00, openedAt: '2026-06-15' },
-  { id: '13', symbol: 'USD/JPY',  direction: 'Short', volume: 1.0, pnl: -168.00, openedAt: '2026-06-16' },
-  { id: '14', symbol: 'ETH/USD',  direction: 'Long',  volume: 1.5, pnl:   28.00, openedAt: '2026-06-17' },
-  { id: '15', symbol: 'AUD/USD',  direction: 'Short', volume: 1.0, pnl:   52.00, openedAt: '2026-06-18' },
-  { id: '16', symbol: 'EUR/USD',  direction: 'Long',  volume: 1.5, pnl:  155.00, openedAt: '2026-06-20' },
-  { id: '17', symbol: 'XAU/USD',  direction: 'Short', volume: 0.3, pnl:  -65.00, openedAt: '2026-06-22' },
-  { id: '18', symbol: 'BTC/USD',  direction: 'Long',  volume: 0.1, pnl:   85.00, openedAt: '2026-06-23' },
-  { id: '19', symbol: 'GBP/USD',  direction: 'Long',  volume: 1.0, pnl:  -42.00, openedAt: '2026-06-24' },
-  { id: '20', symbol: 'USD/JPY',  direction: 'Short', volume: 1.5, pnl:   95.00, openedAt: '2026-06-25' },
-  { id: '21', symbol: 'ETH/USD',  direction: 'Long',  volume: 1.0, pnl:   27.00, openedAt: '2026-06-26' },
-  { id: '22', symbol: 'XAU/USD',  direction: 'Short', volume: 0.3, pnl:  -78.00, openedAt: '2026-06-27' },
-  { id: '23', symbol: 'BTC/USD',  direction: 'Long',  volume: 0.1, pnl:  -88.00, openedAt: '2026-06-28' },
-  { id: '24', symbol: 'USD/CHF',  direction: 'Long',  volume: 1.0, pnl:   38.00, openedAt: '2026-06-29' },
-];
+import {
+  ASSET_CLASS_LABEL,
+  TRADE_DIRECTION_LABEL,
+  TRADE_STATUS_LABEL,
+  TradeApiService,
+  TradeDto,
+} from '@core/api/trade-api.service';
 
 interface SymbolStat {
   symbol: string;
@@ -50,63 +18,43 @@ interface SymbolStat {
   worstTrade: number;
 }
 
-// Mapear las 24 operaciones a 30 días (algunos días sin trades → plateau
-// en la equity curve). El índice es "día desde hoy - 29".
-const TRADE_BY_DAY: Record<number, TradeDto> = {
-  1: MOCK_TRADES[0],
-  2: MOCK_TRADES[1],
-  3: MOCK_TRADES[2],
-  4: MOCK_TRADES[3],
-  5: MOCK_TRADES[4],
-  7: MOCK_TRADES[5],
-  8: MOCK_TRADES[6],
-  9: MOCK_TRADES[7],
-  10: MOCK_TRADES[8],
-  12: MOCK_TRADES[9],
-  13: MOCK_TRADES[10],
-  15: MOCK_TRADES[11],
-  16: MOCK_TRADES[12],
-  17: MOCK_TRADES[13],
-  18: MOCK_TRADES[14],
-  20: MOCK_TRADES[15],
-  22: MOCK_TRADES[16],
-  23: MOCK_TRADES[17],
-  24: MOCK_TRADES[18],
-  25: MOCK_TRADES[19],
-  26: MOCK_TRADES[20],
-  27: MOCK_TRADES[21],
-  28: MOCK_TRADES[22],
-  29: MOCK_TRADES[23],
-};
-
-// P&L acumulado día por día (30 días).
-function buildEquityCurve(): number[] {
-  const pts: number[] = [];
-  let cum = 0;
-  for (let i = 0; i < 30; i++) {
-    cum += TRADE_BY_DAY[i]?.pnl ?? 0;
-    pts.push(Number(cum.toFixed(2)));
-  }
-  return pts;
+interface DayPoint {
+  date: string;
+  pnl: number;
 }
 
-// Balance mock: deposit inicial + P&L acumulado + yield diario compuesto.
-// Lo normalizamos contra el inicial para que viva en la misma escala que
-// la equity curve en el line chart.
-function buildBalanceCurve(): number[] {
-  const pts: number[] = [];
-  const initial = 10000;
-  let bal = initial;
-  for (let i = 0; i < 30; i++) {
-    bal += TRADE_BY_DAY[i]?.pnl ?? 0;
-    bal += bal * 0.0006; // ~0.06% diario (mock)
-    pts.push(Number((bal - initial).toFixed(2)));
+// Construye puntos diarios agregados (P&L por día) ordenados por fecha.
+function buildDailyPoints(items: TradeDto[]): DayPoint[] {
+  const closed = items.filter(t => t.status === 2 && t.pnl !== null && t.closedAt !== null);
+  const byDate = new Map<string, number>();
+  for (const t of closed) {
+    const day = (t.closedAt ?? '').slice(0, 10);
+    byDate.set(day, (byDate.get(day) ?? 0) + (t.pnl ?? 0));
   }
-  return pts;
+  return Array.from(byDate.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, pnl]) => ({ date, pnl: Number(pnl.toFixed(2)) }));
 }
 
-const EQUITY_POINTS = buildEquityCurve();
-const BALANCE_POINTS = buildBalanceCurve();
+function buildEquityCurve(points: DayPoint[]): number[] {
+  let acc = 0;
+  return points.map(p => {
+    acc += p.pnl;
+    return Number(acc.toFixed(2));
+  });
+}
+
+// Balance mock: capital inicial + P&L acumulado + yield diario compuesto.
+// Se mantiene la misma forma que la versión anterior, pero ahora se calcula
+// sobre los trades reales del período seleccionado.
+function buildBalanceCurve(points: DayPoint[], initialBalance: number, dailyYield: number): number[] {
+  let bal = initialBalance;
+  return points.map(p => {
+    bal += p.pnl;
+    bal += bal * dailyYield;
+    return Number((bal - initialBalance).toFixed(2));
+  });
+}
 
 type Period = '7d' | '30d' | '90d' | 'all';
 const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
@@ -115,6 +63,15 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
   { key: '90d', label: '90 días' },
   { key: 'all', label: 'Todo'    },
 ];
+
+function daysForPeriod(p: Period): number | null {
+  switch (p) {
+    case '7d':  return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    case 'all': return null;
+  }
+}
 
 @Component({
   selector: 'jcs-analytics',
@@ -155,12 +112,21 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
               [class.is-active]="selectedPeriod() === p.key"
               (click)="setPeriod(p.key)"
               role="tab"
-              [attr.aria-selected]="selectedPeriod() === p.key">
+              [attr.aria-selected]="selectedPeriod() === p.key"
+              [disabled]="refreshing()">
               {{ p.label }}
             </button>
           }
         </div>
       </header>
+
+      <!-- ============== Error banner ============== -->
+      @if (error()) {
+        <div class="analytics-error" role="alert">
+          <span>No se pudo cargar la analítica: {{ error() }}</span>
+          <button type="button" class="analytics-error-retry" (click)="reload()">Reintentar</button>
+        </div>
+      }
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -184,7 +150,7 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
         <article class="kpi kpi--danger" style="animation-delay: 0.2s">
           <span class="kpi-label">Max drawdown</span>
           <span class="kpi-value jcs-num jcs-neg">{{ maxDrawdown() | number:'1.2-2' }}</span>
-          <span class="kpi-foot jcs-muted">USD · peor caída</span>
+          <span class="kpi-foot jcs-muted">{{ pnlCurrency() }} · peor caída</span>
         </article>
       </section>
 
@@ -236,6 +202,16 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
                       {{ s.worstTrade | number:'1.2-2' }}
                     </td>
                   </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="6" class="sym-empty">
+                      @if (loading()) {
+                        Cargando…
+                      } @else {
+                        Sin datos para el período seleccionado.
+                      }
+                    </td>
+                  </tr>
                 }
               </tbody>
             </table>
@@ -263,17 +239,14 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
                     <stop offset="100%" stop-color="#FF6B7E" stop-opacity="0.95"/>
                   </linearGradient>
                 </defs>
-                <!-- Track -->
                 <circle cx="50" cy="50" r="40" fill="none"
                   stroke="var(--bg-elevated)" stroke-width="14"/>
-                <!-- Wins arc -->
                 <circle cx="50" cy="50" r="40" fill="none"
                   stroke="url(#winGrad)" stroke-width="14"
                   [attr.stroke-dasharray]="donutWinDash()"
                   stroke-dashoffset="0"
                   stroke-linecap="butt"
                   transform="rotate(-90 50 50)"/>
-                <!-- Losses arc -->
                 <circle cx="50" cy="50" r="40" fill="none"
                   stroke="url(#lossGrad)" stroke-width="14"
                   [attr.stroke-dasharray]="donutLossDash()"
@@ -309,7 +282,7 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
         <header class="panel-head">
           <div>
             <h2>P&amp;L acumulado vs balance</h2>
-            <p class="jcs-muted">Últimos 30 días · series normalizadas</p>
+            <p class="jcs-muted">{{ periodLabel() }} · series normalizadas</p>
           </div>
           <div class="line-legend">
             <span class="leg">
@@ -322,36 +295,38 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
             </span>
           </div>
         </header>
-        <svg class="line-svg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%"   stop-color="#2FDB78" stop-opacity="0.30"/>
-              <stop offset="100%" stop-color="#2FDB78" stop-opacity="0"/>
-            </linearGradient>
-            <linearGradient id="lineStroke" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%"   stop-color="#2FDB78" stop-opacity="0.55"/>
-              <stop offset="100%" stop-color="#2FDB78" stop-opacity="1"/>
-            </linearGradient>
-          </defs>
-          <!-- Grid -->
-          <g stroke="#1C2A33" stroke-width="0.5" stroke-dasharray="4 4">
-            <line x1="0" y1="40"  x2="600" y2="40"/>
-            <line x1="0" y1="100" x2="600" y2="100"/>
-            <line x1="0" y1="160" x2="600" y2="160"/>
-          </g>
-          <!-- Area bajo P&L -->
-          <path [attr.d]="pnlAreaPath()" fill="url(#lineFill)"/>
-          <!-- P&L line -->
-          <path [attr.d]="pnlLinePath()" fill="none"
-            stroke="url(#lineStroke)" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Balance line (dashed) -->
-          <path [attr.d]="balanceLinePath()" fill="none"
-            stroke="var(--blue)" stroke-width="2"
-            stroke-dasharray="5 4"
-            stroke-linecap="round" stroke-linejoin="round"
-            opacity="0.85"/>
-        </svg>
+        @if (equityPoints().length > 1) {
+          <svg class="line-svg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%"   stop-color="#2FDB78" stop-opacity="0.30"/>
+                <stop offset="100%" stop-color="#2FDB78" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="lineStroke" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%"   stop-color="#2FDB78" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#2FDB78" stop-opacity="1"/>
+              </linearGradient>
+            </defs>
+            <g stroke="#1C2A33" stroke-width="0.5" stroke-dasharray="4 4">
+              <line x1="0" y1="40"  x2="600" y2="40"/>
+              <line x1="0" y1="100" x2="600" y2="100"/>
+              <line x1="0" y1="160" x2="600" y2="160"/>
+            </g>
+            <path [attr.d]="pnlAreaPath()" fill="url(#lineFill)"/>
+            <path [attr.d]="pnlLinePath()" fill="none"
+              stroke="url(#lineStroke)" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+            <path [attr.d]="balanceLinePath()" fill="none"
+              stroke="var(--blue)" stroke-width="2"
+              stroke-dasharray="5 4"
+              stroke-linecap="round" stroke-linejoin="round"
+              opacity="0.85"/>
+          </svg>
+        } @else {
+          <div class="line-empty">
+            <p class="jcs-muted">Sin trades cerrados en este período para graficar.</p>
+          </div>
+        }
       </section>
 
       <!-- ============== Top 5 operaciones ============== -->
@@ -368,17 +343,19 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
             <li class="top-row">
               <span class="rank jcs-num">#{{ i + 1 }}</span>
               <span class="jcs-badge"
-                [ngClass]="t.direction === 'Long' ? 'long' : 'short'">
-                {{ t.direction === 'Long' ? '↑ Long' : '↓ Short' }}
+                [ngClass]="t.direction === 1 ? 'long' : 'short'">
+                {{ t.direction === 1 ? '↑ Long' : '↓ Short' }}
               </span>
               <span class="top-symbol">{{ t.symbol }}</span>
               <span class="top-vol jcs-muted jcs-num">vol {{ t.volume }}</span>
               <span class="top-spacer"></span>
               <span class="top-pnl jcs-num"
-                [ngClass]="t.pnl >= 0 ? 'jcs-pos' : 'jcs-neg'">
-                {{ t.pnl >= 0 ? '+' : '' }}{{ t.pnl | number:'1.2-2' }} USD
+                [ngClass]="(t.pnl ?? 0) >= 0 ? 'jcs-pos' : 'jcs-neg'">
+                {{ t.pnl === null ? '—' : ((t.pnl >= 0 ? '+' : '') + (t.pnl | number:'1.2-2')) }} {{ pnlCurrency() }}
               </span>
             </li>
+          } @empty {
+            <li class="top-empty jcs-muted">Sin operaciones cerradas en el período.</li>
           }
         </ol>
       </section>
@@ -393,6 +370,32 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
       gap: var(--sp-6);
       animation: fade-up 0.4s ease-out;
     }
+
+    .analytics-error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: rgba(255, 64, 87, 0.08);
+      border: 1px solid rgba(255, 64, 87, 0.35);
+      border-radius: var(--radius-md);
+      color: var(--red);
+      font-size: var(--fs-sm);
+    }
+    .analytics-error-retry {
+      background: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: var(--sp-1) var(--sp-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      transition: background 150ms;
+    }
+    .analytics-error-retry:hover { background: rgba(255, 64, 87, 0.15); }
 
     /* Ticker tape — mismo patrón que dashboard. */
     .ticker {
@@ -480,10 +483,11 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
       cursor: pointer;
       transition: background 150ms, color 150ms;
     }
-    .period-pill:hover {
+    .period-pill:hover:not(:disabled) {
       color: var(--text-main);
       background: var(--bg-hover);
     }
+    .period-pill:disabled { opacity: 0.5; cursor: not-allowed; }
     .period-pill.is-active {
       background: var(--green-soft);
       color: var(--green);
@@ -573,6 +577,12 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
     .sym-name { font-weight: 600; }
     .sym tr { transition: background 150ms; }
     .sym tbody tr:hover td { background: var(--bg-hover); }
+    .sym-empty {
+      text-align: center;
+      color: var(--text-muted);
+      padding: var(--sp-6);
+      font-size: var(--fs-sm);
+    }
 
     /* Mini win rate bar. */
     .wr-cell {
@@ -689,6 +699,12 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
       height: 200px;
       display: block;
     }
+    .line-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+    }
 
     /* Top 5 list. */
     .top-list {
@@ -720,6 +736,11 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
     .top-row:nth-child(3) { animation-delay: 0.15s; }
     .top-row:nth-child(4) { animation-delay: 0.20s; }
     .top-row:nth-child(5) { animation-delay: 0.25s; }
+    .top-empty {
+      text-align: center;
+      padding: var(--sp-6);
+      font-size: var(--fs-sm);
+    }
     .rank {
       font-size: var(--fs-xs);
       font-weight: 700;
@@ -753,42 +774,69 @@ const PERIODS: ReadonlyArray<{ key: Period; label: string }> = [
   `],
 })
 export class AnalyticsPage {
+  private readonly api = inject(TradeApiService);
+
   readonly periods = PERIODS;
   readonly selectedPeriod = signal<Period>('30d');
 
-  readonly items = signal<TradeDto[]>(MOCK_TRADES);
+  readonly refreshing = signal(false);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
 
-  // Métricas base.
+  readonly items = signal<TradeDto[]>([]);
+  readonly summary = signal<{
+    totalCount: number;
+    winsCount: number;
+    lossesCount: number;
+    winRate: number;
+    totalPnL: number;
+    bestTrade: number;
+    worstTrade: number;
+    avgTrade: number;
+    currency: string;
+  } | null>(null);
+
+  // ===== Computeds base =====
   readonly totalCount = computed(() => this.items().length);
-  readonly winsCount = computed(() => this.items().filter(t => t.pnl > 0).length);
-  readonly lossesCount = computed(() => this.items().filter(t => t.pnl < 0).length);
+  readonly pnlCurrency = computed(() => this.summary()?.currency ?? this.items()[0]?.pnlCurrency ?? this.items()[0]?.accountCurrency ?? 'USD');
+
+  readonly winsCount = computed(() =>
+    this.items().filter(t => t.status === 2 && (t.pnl ?? 0) > 0).length
+  );
+  readonly lossesCount = computed(() =>
+    this.items().filter(t => t.status === 2 && (t.pnl ?? 0) < 0).length
+  );
+
   readonly winRate = computed(() => {
-    const n = this.totalCount();
+    const s = this.summary();
+    if (s) return s.winRate;
+    const n = this.winsCount() + this.lossesCount();
     return n === 0 ? 0 : (this.winsCount() / n) * 100;
   });
+
   readonly lossRate = computed(() => 100 - this.winRate());
 
   readonly grossWins = computed(() =>
-    this.items().filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0)
+    this.items().filter(t => (t.pnl ?? 0) > 0).reduce((acc, t) => acc + (t.pnl ?? 0), 0)
   );
   readonly grossLosses = computed(() =>
-    Math.abs(this.items().filter(t => t.pnl < 0).reduce((acc, t) => acc + t.pnl, 0))
+    Math.abs(this.items().filter(t => (t.pnl ?? 0) < 0).reduce((acc, t) => acc + (t.pnl ?? 0), 0))
   );
 
   readonly expectancy = computed(() => {
-    const n = this.totalCount();
+    const n = this.items().filter(t => t.status === 2).length;
     return n === 0 ? 0 : (this.grossWins() - this.grossLosses()) / n;
   });
+
   readonly profitFactor = computed(() => {
     const loss = this.grossLosses();
     return loss === 0 ? 0 : this.grossWins() / loss;
   });
 
-  // Max drawdown sobre la equity curve cumulative.
   readonly maxDrawdown = computed(() => {
     let peak = -Infinity;
     let maxDD = 0;
-    for (const v of EQUITY_POINTS) {
+    for (const v of this.equityPoints()) {
       if (v > peak) peak = v;
       const dd = v - peak; // dd ≤ 0
       if (dd < maxDD) maxDD = dd;
@@ -796,10 +844,11 @@ export class AnalyticsPage {
     return Number(maxDD.toFixed(2));
   });
 
-  // Stats por símbolo.
+  // ===== Stats por símbolo =====
   readonly symbolStats = computed<SymbolStat[]>(() => {
     const map = new Map<string, SymbolStat>();
     for (const t of this.items()) {
+      if (t.status !== 2 || t.pnl === null) continue;
       const s = map.get(t.symbol) ?? {
         symbol: t.symbol,
         trades: 0,
@@ -821,11 +870,11 @@ export class AnalyticsPage {
       .sort((a, b) => b.netPnl - a.netPnl);
   });
 
-  // Donut chart: geometría sobre r=40, circumference ≈ 251.327.
+  // ===== Donut chart =====
   private readonly CIRCUMFERENCE = 2 * Math.PI * 40;
 
   readonly donutWinFraction = computed(() => {
-    const n = this.totalCount();
+    const n = this.winsCount() + this.lossesCount();
     return n === 0 ? 0 : this.winsCount() / n;
   });
 
@@ -842,32 +891,90 @@ export class AnalyticsPage {
     return -Number(winArc.toFixed(2));
   });
 
-  // Line chart paths (comparten min/max para vivir en la misma escala).
+  // ===== Line chart =====
   private readonly chartW = 600;
   private readonly chartH = 200;
+  // Capital inicial arbitrario para que el "balance" viva en la misma escala
+  // que el equity acumulado. No es una posición real; cuando llegue el módulo
+  // de cuentas se reemplaza por el balance auténtico.
+  private readonly initialBalance = 10000;
+  private readonly dailyYield = 0.0006; // ~0.06% diario
 
-  readonly pnlLinePath = computed(() => this.buildPath(EQUITY_POINTS));
+  readonly dailyPoints = computed(() => buildDailyPoints(this.items()));
+  readonly equityPoints = computed(() => buildEquityCurve(this.dailyPoints()));
+  readonly balancePoints = computed(() =>
+    buildBalanceCurve(this.dailyPoints(), this.initialBalance, this.dailyYield)
+  );
+
+  readonly pnlLinePath = computed(() => this.buildPath(this.equityPoints()));
   readonly pnlAreaPath = computed(() => {
     const line = this.pnlLinePath();
+    if (!line) return '';
     return `${line} L${this.chartW},${this.chartH} L0,${this.chartH} Z`;
   });
-  readonly balanceLinePath = computed(() => this.buildPath(BALANCE_POINTS));
+  readonly balanceLinePath = computed(() => this.buildPath(this.balancePoints()));
 
-  // Top 5 operaciones (por P&L).
+  // ===== Top 5 =====
   readonly topTrades = computed(() =>
     [...this.items()]
-      .sort((a, b) => b.pnl - a.pnl)
+      .filter(t => t.status === 2 && t.pnl !== null)
+      .sort((a, b) => (b.pnl ?? 0) - (a.pnl ?? 0))
       .slice(0, 5)
   );
 
-  setPeriod(p: Period): void {
-    // Cuando llegue el endpoint real, acá filtramos `items` según `p`.
-    this.selectedPeriod.set(p);
+  readonly periodLabel = computed(() => PERIODS.find(p => p.key === this.selectedPeriod())?.label ?? '');
+
+  constructor() {
+    void this.reload();
   }
 
-  // Genera el `d` de un polyline SVG compartido entre las dos series.
+  setPeriod(p: Period): void {
+    if (p === this.selectedPeriod() && !this.loading()) return;
+    this.selectedPeriod.set(p);
+    void this.reload();
+  }
+
+  async reload(): Promise<void> {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    this.error.set(null);
+    try {
+      const days = daysForPeriod(this.selectedPeriod());
+      const from = days === null ? undefined : this.isoDaysAgo(days);
+      const to = days === null ? undefined : this.isoNow();
+
+      const [summary, page] = await Promise.all([
+        this.api.dashboard(from, to),
+        this.api.list(1, 100),
+      ]);
+
+      this.summary.set({
+        totalCount: summary.totalCount,
+        winsCount: summary.winsCount,
+        lossesCount: summary.lossesCount,
+        winRate: summary.winRate,
+        totalPnL: summary.totalPnL,
+        bestTrade: summary.bestTrade,
+        worstTrade: summary.worstTrade,
+        avgTrade: summary.avgTrade,
+        currency: summary.currency,
+      });
+      this.items.set(page.items);
+    } catch (e) {
+      this.error.set(this.toMessage(e));
+      this.items.set([]);
+      this.summary.set(null);
+    } finally {
+      this.refreshing.set(false);
+      this.loading.set(false);
+    }
+  }
+
+  // ===== Internals =====
   private buildPath(values: number[]): string {
-    const all = [...EQUITY_POINTS, ...BALANCE_POINTS];
+    if (values.length < 2) return '';
+    const all = [...this.equityPoints(), ...this.balancePoints()];
+    if (all.length === 0) return '';
     const min = Math.min(...all);
     const max = Math.max(...all);
     const range = max - min || 1;
@@ -879,5 +986,21 @@ export class AnalyticsPage {
         return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(' ');
+  }
+
+  private isoDaysAgo(days: number): string {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString();
+  }
+
+  private isoNow(): string {
+    return new Date().toISOString();
+  }
+
+  private toMessage(e: unknown): string {
+    if (e instanceof Error && e.message) return e.message;
+    if (typeof e === 'string') return e;
+    return 'Error inesperado.';
   }
 }

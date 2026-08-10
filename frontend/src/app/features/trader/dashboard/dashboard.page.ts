@@ -1,52 +1,36 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, DatePipe, NgClass } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
+import {
+  ASSET_CLASS_LABEL,
+  TRADE_DIRECTION_LABEL,
+  TRADE_STATUS_LABEL,
+  TradeApiService,
+  TradeDto,
+} from '@core/api/trade-api.service';
 
-// Mock data — el módulo /api/trades es scaffold, se va a reemplazar
-// cuando llegue el vertical de Trading (Sprint 1).
-interface TradeDto {
-  id: string;
-  symbol: string;
-  direction: 'Long' | 'Short';
-  status: 'Open' | 'Closed';
-  volume: number;
-  entryPrice: number;
-  exitPrice: number | null;
-  pnl: number | null;
-  pnlCurrency: string;
-  openedAt: string;
-  closedAt: string | null;
-}
-
-const MOCK_TRADES: TradeDto[] = [
-  { id: '1', symbol: 'EUR/USD', direction: 'Long',  status: 'Closed', volume: 1.5, entryPrice: 1.0842, exitPrice: 1.0872, pnl: 45.00,  pnlCurrency: 'USD', openedAt: '2026-06-15', closedAt: '2026-06-15' },
-  { id: '2', symbol: 'XAU/USD', direction: 'Short', status: 'Closed', volume: 0.5, entryPrice: 2362.40, exitPrice: 2348.40, pnl: 700.00, pnlCurrency: 'USD', openedAt: '2026-06-14', closedAt: '2026-06-14' },
-  { id: '3', symbol: 'BTC/USD', direction: 'Long',  status: 'Closed', volume: 0.1,  entryPrice: 67200, exitPrice: 66420, pnl: -78.00, pnlCurrency: 'USD', openedAt: '2026-06-13', closedAt: '2026-06-13' },
-  { id: '4', symbol: 'GBP/USD', direction: 'Long',  status: 'Closed', volume: 2.0, entryPrice: 1.2621, exitPrice: 1.2641, pnl: 40.00,  pnlCurrency: 'USD', openedAt: '2026-06-12', closedAt: '2026-06-12' },
-  { id: '5', symbol: 'USD/JPY', direction: 'Short', status: 'Closed', volume: 1.0, entryPrice: 154.92, exitPrice: 154.27, pnl: 4.21,   pnlCurrency: 'USD', openedAt: '2026-06-11', closedAt: '2026-06-11' },
-  { id: '6', symbol: 'EUR/USD', direction: 'Long',  status: 'Open',   volume: 1.0, entryPrice: 1.0868, exitPrice: null,   pnl: null,   pnlCurrency: 'USD', openedAt: '2026-06-16', closedAt: null },
-  { id: '7', symbol: 'ETH/USD', direction: 'Long',  status: 'Closed', volume: 2.0, entryPrice: 3168, exitPrice: 3182, pnl: 28.00, pnlCurrency: 'USD', openedAt: '2026-06-10', closedAt: '2026-06-10' },
-  { id: '8', symbol: 'AUD/USD', direction: 'Short', status: 'Closed', volume: 1.5, entryPrice: 0.6632, exitPrice: 0.6614, pnl: 27.00, pnlCurrency: 'USD', openedAt: '2026-06-09', closedAt: '2026-06-09' },
-];
-
-// Serie mock de equity curve (P&L acumulado en el tiempo).
-function buildEquityCurve(): number[] {
-  const points: number[] = [];
+// Construye una serie de equity curve (P&L acumulado) a partir de trades
+// cerrados ordenados por fecha. Devuelve `number[]` con un punto por trade.
+function buildEquityCurve(items: TradeDto[]): number[] {
+  const closed = items
+    .filter(t => t.status === 2 && t.pnl !== null && t.closedAt !== null)
+    .sort((a, b) => (a.closedAt ?? '').localeCompare(b.closedAt ?? ''));
+  if (closed.length === 0) return [];
   let acc = 0;
-  for (let i = 0; i < 30; i++) {
-    const drift = 50 + Math.sin(i * 0.4) * 80;
-    const noise = Math.cos(i * 1.7) * 60;
-    acc += drift + noise;
-    points.push(Math.round(acc));
-  }
-  return points;
+  return closed.map(t => {
+    acc += t.pnl ?? 0;
+    return Number(acc.toFixed(2));
+  });
 }
-const EQUITY_POINTS = buildEquityCurve();
+
+type DirectionLabel = 'Long' | 'Short';
+type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 
 @Component({
   selector: 'jcs-dashboard',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass],
+  imports: [DecimalPipe, DatePipe, NgClass, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dash">
@@ -74,12 +58,20 @@ const EQUITY_POINTS = buildEquityCurve();
         </div>
         <div class="dash-actions">
           <span class="dash-period">Últimos 30 días</span>
-          <button class="jcs-btn jcs-btn--primary" (click)="reload()">
+          <button class="jcs-btn jcs-btn--primary" (click)="reload()" [disabled]="refreshing()">
             <span class="reload-dot" [class.spin]="refreshing()"></span>
             Actualizar
           </button>
         </div>
       </header>
+
+      <!-- ============== Error banner ============== -->
+      @if (error()) {
+        <div class="dash-error" role="alert">
+          <span>No se pudo cargar el dashboard: {{ error() }}</span>
+          <button type="button" class="dash-error-retry" (click)="reload()">Reintentar</button>
+        </div>
+      }
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -119,28 +111,31 @@ const EQUITY_POINTS = buildEquityCurve();
             <span class="jcs-muted">P&amp;L acumulado</span>
           </div>
         </header>
-        <svg class="equity-svg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="equityFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stop-color="#2FDB78" stop-opacity="0.35"/>
-              <stop offset="100%" stop-color="#2FDB78" stop-opacity="0"/>
-            </linearGradient>
-            <linearGradient id="equityLine" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%" stop-color="#2FDB78" stop-opacity="0.5"/>
-              <stop offset="100%" stop-color="#2FDB78" stop-opacity="1"/>
-            </linearGradient>
-          </defs>
-          <!-- Grid lines -->
-          <g stroke="#1C2A33" stroke-width="0.5" stroke-dasharray="4 4">
-            <line x1="0" y1="40" x2="600" y2="40"/>
-            <line x1="0" y1="100" x2="600" y2="100"/>
-            <line x1="0" y1="160" x2="600" y2="160"/>
-          </g>
-          <!-- Area fill -->
-          <path [attr.d]="areaPath()" fill="url(#equityFill)"/>
-          <!-- Line -->
-          <path [attr.d]="linePath()" fill="none" stroke="url(#equityLine)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        @if (equityPoints().length > 1) {
+          <svg class="equity-svg" viewBox="0 0 600 200" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="equityFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#2FDB78" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#2FDB78" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="equityLine" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stop-color="#2FDB78" stop-opacity="0.5"/>
+                <stop offset="100%" stop-color="#2FDB78" stop-opacity="1"/>
+              </linearGradient>
+            </defs>
+            <g stroke="#1C2A33" stroke-width="0.5" stroke-dasharray="4 4">
+              <line x1="0" y1="40" x2="600" y2="40"/>
+              <line x1="0" y1="100" x2="600" y2="100"/>
+              <line x1="0" y1="160" x2="600" y2="160"/>
+            </g>
+            <path [attr.d]="areaPath()" fill="url(#equityFill)"/>
+            <path [attr.d]="linePath()" fill="none" stroke="url(#equityLine)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        } @else {
+          <div class="chart-empty">
+            <p class="jcs-muted">Aún no hay operaciones cerradas para graficar.</p>
+          </div>
+        }
       </section>
 
       <!-- ============== Resumen + Trades ============== -->
@@ -173,7 +168,7 @@ const EQUITY_POINTS = buildEquityCurve();
             </div>
           </div>
           <div class="quick-actions">
-            <a class="quick" href="#">
+            <a class="quick" routerLink="/app/trades">
               <span class="quick-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"/>
@@ -185,7 +180,7 @@ const EQUITY_POINTS = buildEquityCurve();
                 <span class="jcs-muted">Registra un trade manualmente</span>
               </span>
             </a>
-            <a class="quick" href="#">
+            <a class="quick" routerLink="/app/calendar">
               <span class="quick-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -206,41 +201,49 @@ const EQUITY_POINTS = buildEquityCurve();
         <div class="jcs-card trades-card">
           <header class="trades-head">
             <h2>Operaciones recientes</h2>
-            <span class="jcs-badge jcs-badge--neutral">Mock data</span>
+            <span class="jcs-badge jcs-badge--neutral">{{ recentItems().length }} / {{ totalCount() }}</span>
           </header>
           <div class="trades-wrap">
-            <table class="trades">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Símbolo</th>
-                  <th>Sentido</th>
-                  <th class="num">Vol</th>
-                  <th class="num">Entrada</th>
-                  <th class="num">Salida</th>
-                  <th class="num">P&amp;L</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (t of items(); track t.id) {
+            @if (recentItems().length > 0) {
+              <table class="trades">
+                <thead>
                   <tr>
-                    <td class="jcs-num">{{ t.openedAt | date:'shortDate' }}</td>
-                    <td class="symbol">{{ t.symbol }}</td>
-                    <td>
-                      <span class="jcs-badge" [ngClass]="t.direction === 'Long' ? 'jcs-pos long' : 'jcs-badge--neutral short'">
-                        {{ t.direction === 'Long' ? '↑ Long' : '↓ Short' }}
-                      </span>
-                    </td>
-                    <td class="num jcs-num">{{ t.volume }}</td>
-                    <td class="num jcs-num">{{ t.entryPrice | number:'1.2-5' }}</td>
-                    <td class="num jcs-num">{{ t.exitPrice === null ? '—' : (t.exitPrice | number:'1.2-5') }}</td>
-                    <td class="num jcs-num" [ngClass]="(t.pnl ?? 0) >= 0 ? 'jcs-pos' : 'jcs-neg'">
-                      {{ t.pnl === null ? '—' : ((t.pnl >= 0 ? '+' : '') + (t.pnl | number:'1.2-2')) }}
-                    </td>
+                    <th>Fecha</th>
+                    <th>Símbolo</th>
+                    <th>Sentido</th>
+                    <th class="num">Vol</th>
+                    <th class="num">Entrada</th>
+                    <th class="num">Salida</th>
+                    <th class="num">P&amp;L</th>
                   </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  @for (t of recentItems(); track t.id) {
+                    <tr>
+                      <td class="jcs-num">{{ t.openedAt | date:'shortDate' }}</td>
+                      <td class="symbol">{{ t.symbol }}</td>
+                      <td>
+                        <span class="jcs-badge" [ngClass]="directionLabel(t.direction) === 'Long' ? 'jcs-pos long' : 'jcs-badge--neutral short'">
+                          {{ directionLabel(t.direction) === 'Long' ? '↑ Long' : '↓ Short' }}
+                        </span>
+                      </td>
+                      <td class="num jcs-num">{{ t.volume }}</td>
+                      <td class="num jcs-num">{{ t.entryPrice | number:'1.2-5' }}</td>
+                      <td class="num jcs-num">{{ t.exitPrice === null ? '—' : (t.exitPrice | number:'1.2-5') }}</td>
+                      <td class="num jcs-num" [ngClass]="(t.pnl ?? 0) >= 0 ? 'jcs-pos' : 'jcs-neg'">
+                        {{ t.pnl === null ? '—' : ((t.pnl >= 0 ? '+' : '') + (t.pnl | number:'1.2-2')) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <div class="trades-empty">
+                <p class="jcs-muted">Tu primera operación</p>
+                <p class="jcs-muted trades-empty-sub">Aún no registraste ningún trade. Empezá creando una operación.</p>
+                <a class="jcs-btn jcs-btn--primary" routerLink="/app/trades">Crear operación</a>
+              </div>
+            }
           </div>
         </div>
       </section>
@@ -255,6 +258,32 @@ const EQUITY_POINTS = buildEquityCurve();
       gap: var(--sp-6);
       animation: fade-up 0.4s ease-out;
     }
+
+    .dash-error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: rgba(255, 64, 87, 0.08);
+      border: 1px solid rgba(255, 64, 87, 0.35);
+      border-radius: var(--radius-md);
+      color: var(--red);
+      font-size: var(--fs-sm);
+    }
+    .dash-error-retry {
+      background: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: var(--sp-1) var(--sp-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      transition: background 150ms;
+    }
+    .dash-error-retry:hover { background: rgba(255, 64, 87, 0.15); }
 
     /* Ticker tape. */
     .ticker {
@@ -399,6 +428,12 @@ const EQUITY_POINTS = buildEquityCurve();
       height: 200px;
       display: block;
     }
+    .chart-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+    }
 
     /* Grid row: resumen + trades. */
     .grid-row {
@@ -512,6 +547,23 @@ const EQUITY_POINTS = buildEquityCurve();
     .trades tr { transition: background 150ms; }
     .trades tbody tr:hover td { background: var(--bg-hover); }
 
+    .trades-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sp-2);
+      padding: var(--sp-8) var(--sp-4);
+      text-align: center;
+    }
+    .trades-empty p:first-child {
+      font-size: var(--fs-lg);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .trades-empty-sub { font-size: var(--fs-sm); margin: 0; }
+    .trades-empty .jcs-btn { margin-top: var(--sp-3); }
+
     .jcs-badge.long {
       background: rgba(47, 219, 120, 0.15);
       color: var(--green);
@@ -529,38 +581,101 @@ const EQUITY_POINTS = buildEquityCurve();
 })
 export class DashboardPage {
   readonly auth = inject(AuthState);
+  private readonly api = inject(TradeApiService);
 
   readonly refreshing = signal(false);
-  readonly items = signal<TradeDto[]>(MOCK_TRADES);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
 
-  readonly totalCount = computed(() => this.items().length);
-  readonly openCount = computed(() => this.items().filter(t => t.status === 'Open').length);
-  readonly closedCount = computed(() => this.items().filter(t => t.status === 'Closed').length);
-  readonly winsCount = computed(() => this.items().filter(t => t.status === 'Closed' && (t.pnl ?? 0) > 0).length);
+  readonly items = signal<TradeDto[]>([]);
+  readonly summary = signal<{
+    totalCount: number;
+    openCount: number;
+    closedCount: number;
+    winsCount: number;
+    winRate: number;
+    totalPnL: number;
+    bestTrade: number;
+    worstTrade: number;
+    avgTrade: number;
+    currency: string;
+  } | null>(null);
+
+  // 30 días por defecto (alineado con `from` que usa el endpoint dashboard).
+  private readonly fromDate = this.isoDaysAgo(30);
+  private readonly toDate = this.isoNow();
+
+  // ===== UI mappers =====
+  directionLabel(d: 1 | 2): DirectionLabel { return TRADE_DIRECTION_LABEL[d]; }
+  statusLabel(s: 1 | 2 | 3): StatusLabel { return TRADE_STATUS_LABEL[s]; }
+  assetClassLabel(a: 1 | 2 | 3 | 4 | 5): string { return ASSET_CLASS_LABEL[a]; }
+
+  // ===== KPIs — preferimos el summary autoritativo del backend; caemos a
+  // los items cargados solo cuando el summary aún no llegó.
+  readonly totalCount = computed(() => this.summary()?.totalCount ?? this.items().length);
+  readonly openCount = computed(() => this.summary()?.openCount ?? this.items().filter(t => t.status === 1).length);
+  readonly closedCount = computed(() => this.summary()?.closedCount ?? this.items().filter(t => t.status === 2).length);
+  readonly winsCount = computed(() => this.summary()?.winsCount ?? this.items().filter(t => t.status === 2 && (t.pnl ?? 0) > 0).length);
   readonly winRate = computed(() => {
+    const s = this.summary();
+    if (s) return s.winRate;
     const c = this.closedCount();
     return c === 0 ? 0 : (this.winsCount() / c) * 100;
   });
-  readonly totalPnL = computed(() => this.items().reduce((acc, t) => acc + (t.pnl ?? 0), 0));
-  readonly pnlCurrency = computed(() => this.items()[0]?.pnlCurrency ?? 'USD');
-  readonly bestTrade = computed(() => Math.max(0, ...this.items().map(t => t.pnl ?? 0)));
-  readonly worstTrade = computed(() => Math.min(0, ...this.items().map(t => t.pnl ?? 0)));
-  readonly bestSymbol = computed(() => {
-    const t = this.items().reduce((best, x) => ((x.pnl ?? 0) > (best?.pnl ?? 0) ? x : best), null as TradeDto | null);
-    return t?.symbol ?? '—';
+  readonly totalPnL = computed(() => this.summary()?.totalPnL ?? this.items().reduce((acc, t) => acc + (t.pnl ?? 0), 0));
+  readonly pnlCurrency = computed(() =>
+    this.summary()?.currency ?? this.items()[0]?.pnlCurrency ?? this.items()[0]?.accountCurrency ?? 'USD'
+  );
+  readonly bestTrade = computed(() => {
+    const s = this.summary();
+    if (s) return s.bestTrade;
+    const pnls = this.items().map(t => t.pnl ?? 0);
+    return pnls.length === 0 ? 0 : Math.max(0, ...pnls);
   });
-  readonly worstSymbol = computed(() => {
-    const t = this.items().reduce((worst, x) => ((x.pnl ?? 0) < (worst?.pnl ?? 0) ? x : worst), null as TradeDto | null);
-    return t?.symbol ?? '—';
+  readonly worstTrade = computed(() => {
+    const s = this.summary();
+    if (s) return s.worstTrade;
+    const pnls = this.items().map(t => t.pnl ?? 0);
+    return pnls.length === 0 ? 0 : Math.min(0, ...pnls);
   });
   readonly avgTrade = computed(() => {
+    const s = this.summary();
+    if (s) return s.avgTrade;
     const n = this.closedCount();
     return n === 0 ? 0 : this.totalPnL() / n;
   });
 
-  // Build SVG path for equity curve.
+  // Símbolos del mejor/peor trade requieren items (el summary no los incluye).
+  readonly bestSymbol = computed(() => {
+    const t = this.items().reduce<TradeDto | null>((best, x) => {
+      if (x.pnl === null) return best;
+      if (best === null || x.pnl > (best.pnl ?? 0)) return x;
+      return best;
+    }, null);
+    return t?.symbol ?? '—';
+  });
+  readonly worstSymbol = computed(() => {
+    const t = this.items().reduce<TradeDto | null>((worst, x) => {
+      if (x.pnl === null) return worst;
+      if (worst === null || x.pnl < (worst.pnl ?? 0)) return x;
+      return worst;
+    }, null);
+    return t?.symbol ?? '—';
+  });
+
+  // Solo los últimos N trades para la tabla "Operaciones recientes".
+  readonly recentItems = computed(() =>
+    [...this.items()]
+      .sort((a, b) => b.openedAt.localeCompare(a.openedAt))
+      .slice(0, 8)
+  );
+
+  // ===== Equity curve =====
+  readonly equityPoints = computed(() => buildEquityCurve(this.items()));
+
   readonly linePath = computed(() => {
-    const pts = EQUITY_POINTS;
+    const pts = this.equityPoints();
+    if (pts.length < 2) return '';
     const w = 600, h = 200;
     const min = Math.min(...pts);
     const max = Math.max(...pts);
@@ -577,6 +692,7 @@ export class DashboardPage {
 
   readonly areaPath = computed(() => {
     const line = this.linePath();
+    if (!line) return '';
     return `${line} L600,200 L0,200 Z`;
   });
 
@@ -588,9 +704,44 @@ export class DashboardPage {
     return 'Buenas noches';
   });
 
-  reload(): void {
-    // Mock: refresco visual. Cuando llegue el endpoint real, llamar a /api/trades acá.
+  constructor() {
+    void this.reload();
+  }
+
+  async reload(): Promise<void> {
+    if (this.refreshing()) return;
     this.refreshing.set(true);
-    setTimeout(() => this.refreshing.set(false), 800);
+    this.error.set(null);
+    try {
+      // 1) Summary autoritativa del backend para KPIs principales.
+      const summary = await this.api.dashboard(this.fromDate, this.toDate);
+      // 2) Lista paginada para tabla + equity curve.
+      const page = await this.api.list(1, 100);
+      this.summary.set(summary);
+      this.items.set(page.items);
+    } catch (e) {
+      this.error.set(this.toMessage(e));
+      this.items.set([]);
+      this.summary.set(null);
+    } finally {
+      this.refreshing.set(false);
+      this.loading.set(false);
+    }
+  }
+
+  private isoDaysAgo(days: number): string {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - days);
+    return d.toISOString();
+  }
+
+  private isoNow(): string {
+    return new Date().toISOString();
+  }
+
+  private toMessage(e: unknown): string {
+    if (e instanceof Error && e.message) return e.message;
+    if (typeof e === 'string') return e;
+    return 'Error inesperado.';
   }
 }

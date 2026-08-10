@@ -1,44 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, DatePipe, NgClass } from '@angular/common';
-
-// Mock data — el módulo /api/trades es scaffold, se va a reemplazar
-// cuando llegue el vertical de Trading (Sprint 1).
-interface TradeDto {
-  id: string;
-  symbol: string;
-  direction: 'Long' | 'Short';
-  status: 'Open' | 'Closed';
-  volume: number;
-  entryPrice: number;
-  exitPrice: number | null;
-  pnl: number | null;
-  pnlCurrency: string;
-  openedAt: string;
-  closedAt: string | null;
-}
-
-const MOCK_TRADES: TradeDto[] = [
-  { id: '1',  symbol: 'EUR/USD',  direction: 'Long',  status: 'Closed', volume: 1.5,  entryPrice: 1.0842,  exitPrice: 1.0872,  pnl: 45.00,    pnlCurrency: 'USD', openedAt: '2026-06-15', closedAt: '2026-06-15' },
-  { id: '2',  symbol: 'XAU/USD',  direction: 'Short', status: 'Closed', volume: 0.5,  entryPrice: 2362.40, exitPrice: 2348.40, pnl: 700.00,   pnlCurrency: 'USD', openedAt: '2026-06-14', closedAt: '2026-06-14' },
-  { id: '3',  symbol: 'BTC/USD',  direction: 'Long',  status: 'Closed', volume: 0.1,  entryPrice: 67200,   exitPrice: 66420,   pnl: -78.00,   pnlCurrency: 'USD', openedAt: '2026-06-13', closedAt: '2026-06-13' },
-  { id: '4',  symbol: 'GBP/USD',  direction: 'Long',  status: 'Closed', volume: 2.0,  entryPrice: 1.2621,  exitPrice: 1.2641,  pnl: 40.00,    pnlCurrency: 'USD', openedAt: '2026-06-12', closedAt: '2026-06-12' },
-  { id: '5',  symbol: 'USD/JPY',  direction: 'Short', status: 'Closed', volume: 1.0,  entryPrice: 154.92,  exitPrice: 154.27,  pnl: 4.21,     pnlCurrency: 'USD', openedAt: '2026-06-11', closedAt: '2026-06-11' },
-  { id: '6',  symbol: 'EUR/USD',  direction: 'Long',  status: 'Open',   volume: 1.0,  entryPrice: 1.0868,  exitPrice: null,    pnl: null,     pnlCurrency: 'USD', openedAt: '2026-06-16', closedAt: null },
-  { id: '7',  symbol: 'ETH/USD',  direction: 'Long',  status: 'Closed', volume: 2.0,  entryPrice: 3168,    exitPrice: 3182,    pnl: 28.00,    pnlCurrency: 'USD', openedAt: '2026-06-10', closedAt: '2026-06-10' },
-  { id: '8',  symbol: 'AUD/USD',  direction: 'Short', status: 'Closed', volume: 1.5,  entryPrice: 0.6632,  exitPrice: 0.6614,  pnl: 27.00,    pnlCurrency: 'USD', openedAt: '2026-06-09', closedAt: '2026-06-09' },
-  { id: '9',  symbol: 'USD/CHF',  direction: 'Long',  status: 'Closed', volume: 1.0,  entryPrice: 0.9012,  exitPrice: 0.8980,  pnl: -32.50,   pnlCurrency: 'USD', openedAt: '2026-06-08', closedAt: '2026-06-08' },
-  { id: '10', symbol: 'NZD/USD',  direction: 'Short', status: 'Closed', volume: 2.0,  entryPrice: 0.6098,  exitPrice: 0.6082,  pnl: 18.00,    pnlCurrency: 'USD', openedAt: '2026-06-07', closedAt: '2026-06-07' },
-  { id: '11', symbol: 'USD/CAD',  direction: 'Long',  status: 'Closed', volume: 1.5,  entryPrice: 1.3680,  exitPrice: 1.3690,  pnl: 22.00,    pnlCurrency: 'USD', openedAt: '2026-06-06', closedAt: '2026-06-06' },
-  { id: '12', symbol: 'BTC/USD',  direction: 'Short', status: 'Closed', volume: 0.05, entryPrice: 67800,   exitPrice: 68520,   pnl: -120.00,  pnlCurrency: 'USD', openedAt: '2026-06-05', closedAt: '2026-06-05' },
-  { id: '13', symbol: 'EUR/USD',  direction: 'Short', status: 'Closed', volume: 1.2,  entryPrice: 1.0900,  exitPrice: 1.0882,  pnl: 35.00,    pnlCurrency: 'USD', openedAt: '2026-06-04', closedAt: '2026-06-04' },
-  { id: '14', symbol: 'XAU/USD',  direction: 'Long',  status: 'Closed', volume: 0.5,  entryPrice: 2340,    exitPrice: 2351.20, pnl: 560.00,   pnlCurrency: 'USD', openedAt: '2026-06-03', closedAt: '2026-06-03' },
-  { id: '15', symbol: 'GBP/USD',  direction: 'Short', status: 'Closed', volume: 1.5,  entryPrice: 1.2700,  exitPrice: 1.2727,  pnl: -55.00,   pnlCurrency: 'USD', openedAt: '2026-06-02', closedAt: '2026-06-02' },
-  { id: '16', symbol: 'ETH/USD',  direction: 'Short', status: 'Open',   volume: 0.5,  entryPrice: 3200,    exitPrice: null,    pnl: null,     pnlCurrency: 'USD', openedAt: '2026-06-16', closedAt: null },
-  { id: '17', symbol: 'USD/JPY',  direction: 'Long',  status: 'Closed', volume: 1.0,  entryPrice: 153.80,  exitPrice: 154.20,  pnl: 38.00,    pnlCurrency: 'USD', openedAt: '2026-06-01', closedAt: '2026-06-01' },
-  { id: '18', symbol: 'AUD/USD',  direction: 'Long',  status: 'Closed', volume: 2.0,  entryPrice: 0.6600,  exitPrice: 0.6614,  pnl: 24.00,    pnlCurrency: 'USD', openedAt: '2026-05-31', closedAt: '2026-05-31' },
-];
+import { TradeApiService, TradeDto, TradeStatus } from '@core/api/trade-api.service';
 
 type DirectionFilter = 'All' | 'Long' | 'Short';
+type StatusFilter = 'All' | TradeStatus;
 
 @Component({
   selector: 'jcs-trades-list',
@@ -71,12 +36,20 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
         </div>
         <div class="page-actions">
           <span class="count-badge jcs-num">{{ filteredCount() }} / {{ totalCount() }} trades</span>
-          <button class="jcs-btn jcs-btn--primary" (click)="reload()">
+          <button class="jcs-btn jcs-btn--primary" (click)="reload()" [disabled]="refreshing()">
             <span class="reload-dot" [class.spin]="refreshing()"></span>
             Actualizar
           </button>
         </div>
       </header>
+
+      <!-- ============== Error banner ============== -->
+      @if (error()) {
+        <div class="trades-error" role="alert">
+          <span>No se pudo cargar el listado: {{ error() }}</span>
+          <button type="button" class="trades-error-retry" (click)="reload()">Reintentar</button>
+        </div>
+      }
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -85,7 +58,7 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
           <span class="kpi-value jcs-num" [ngClass]="periodPnL() >= 0 ? 'jcs-pos' : 'jcs-neg'">
             {{ periodPnL() >= 0 ? '+' : '' }}{{ periodPnL() | number:'1.2-2' }}
           </span>
-          <span class="kpi-foot jcs-muted">USD · período filtrado</span>
+          <span class="kpi-foot jcs-muted">{{ pnlCurrency() }} · período filtrado</span>
         </article>
         <article class="kpi" style="animation-delay: 0.1s">
           <span class="kpi-label">Win rate</span>
@@ -151,6 +124,33 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
               <span class="dot dot--short" aria-hidden="true"></span> Short
             </button>
           </div>
+
+          <div class="dir-toggle" role="tablist" aria-label="Estado">
+            <button
+              class="dir-pill"
+              role="tab"
+              [attr.aria-selected]="statusFilter() === 'All'"
+              [ngClass]="statusFilter() === 'All' ? 'dir-pill--active' : ''"
+              (click)="setStatus('All')">Todos</button>
+            <button
+              class="dir-pill"
+              role="tab"
+              [attr.aria-selected]="statusFilter() === 1"
+              [ngClass]="statusFilter() === 1 ? 'dir-pill--active' : ''"
+              (click)="setStatus(1)">Abiertas</button>
+            <button
+              class="dir-pill"
+              role="tab"
+              [attr.aria-selected]="statusFilter() === 2"
+              [ngClass]="statusFilter() === 2 ? 'dir-pill--active' : ''"
+              (click)="setStatus(2)">Cerradas</button>
+            <button
+              class="dir-pill"
+              role="tab"
+              [attr.aria-selected]="statusFilter() === 3"
+              [ngClass]="statusFilter() === 3 ? 'dir-pill--active' : ''"
+              (click)="setStatus(3)">Canceladas</button>
+          </div>
         </div>
 
         <div class="symbol-pills" role="tablist" aria-label="Símbolo">
@@ -169,7 +169,7 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
               [attr.aria-selected]="symbolFilter() === s"
               [ngClass]="symbolFilter() === s ? 'sym-pill--active' : ''"
               (click)="setSymbol(s)">
-              {{ s }} <span class="sym-count jcs-num">{{ countBySymbol(s) }}</span>
+              {{ s }}
             </button>
           }
         </div>
@@ -181,7 +181,7 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
           <div>
             <h2 class="table-title">Listado de trades</h2>
             <p class="jcs-muted table-sub">
-              {{ filteredCount() }} operaciones coinciden con los filtros activos
+              {{ filteredCount() }} operaciones coinciden con los filtros activos en esta página
             </p>
           </div>
           @if (hasActiveFilters()) {
@@ -211,13 +211,18 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
                   <td class="jcs-num">{{ t.openedAt | date:'shortDate' }}</td>
                   <td class="symbol">{{ t.symbol }}</td>
                   <td>
-                    <span class="jcs-badge" [ngClass]="t.direction === 'Long' ? 'dir-long' : 'dir-short'">
-                      {{ t.direction === 'Long' ? '↑ Long' : '↓ Short' }}
+                    <span class="jcs-badge" [ngClass]="t.direction === 1 ? 'dir-long' : 'dir-short'">
+                      {{ t.direction === 1 ? '↑ Long' : '↓ Short' }}
                     </span>
                   </td>
                   <td>
-                    <span class="jcs-badge" [ngClass]="t.status === 'Open' ? 'status-open' : 'status-closed'">
-                      {{ t.status === 'Open' ? '● Abierta' : '✓ Cerrada' }}
+                    <span class="jcs-badge"
+                      [ngClass]="t.status === 1 ? 'status-open' : (t.status === 2 ? 'status-closed' : 'status-cancelled')">
+                      @switch (t.status) {
+                        @case (1) { ● Abierta }
+                        @case (2) { ✓ Cerrada }
+                        @case (3) { ⊘ Cancelada }
+                      }
                     </span>
                   </td>
                   <td class="num jcs-num">{{ t.volume | number:'1.2-5' }}</td>
@@ -234,7 +239,11 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
               } @empty {
                 <tr>
                   <td colspan="8" class="empty">
-                    No hay operaciones que coincidan con los filtros activos.
+                    @if (loading()) {
+                      Cargando operaciones…
+                    } @else {
+                      No hay operaciones que coincidan con los filtros activos.
+                    }
                   </td>
                 </tr>
               }
@@ -243,7 +252,7 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
         </div>
 
         <!-- ============== Pagination ============== -->
-        @if (filteredCount() > 0) {
+        @if (totalCount() > 0) {
           <footer class="pagination">
             <span class="page-info jcs-muted jcs-num">
               Mostrando {{ range().start }}–{{ range().end }} de {{ range().total }}
@@ -291,7 +300,33 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
       animation: fade-up 0.4s ease-out;
     }
 
-    /* ============== Ticker tape (mismo que dashboard) ============== */
+    .trades-error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: rgba(255, 64, 87, 0.08);
+      border: 1px solid rgba(255, 64, 87, 0.35);
+      border-radius: var(--radius-md);
+      color: var(--red);
+      font-size: var(--fs-sm);
+    }
+    .trades-error-retry {
+      background: transparent;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: var(--sp-1) var(--sp-3);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      transition: background 150ms;
+    }
+    .trades-error-retry:hover { background: rgba(255, 64, 87, 0.15); }
+
+    /* ============== Ticker tape ============== */
     .ticker {
       position: relative;
       background: linear-gradient(180deg, rgba(8,16,24,0.7) 0%, rgba(8,16,24,0.3) 100%);
@@ -507,10 +542,6 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
       color: var(--text-muted);
       border-radius: 999px;
     }
-    .sym-pill--active .sym-count {
-      background: rgba(47, 219, 120, 0.15);
-      color: var(--green);
-    }
 
     /* ============== Table card ============== */
     .table-card {
@@ -571,6 +602,10 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
       background: var(--bg-elevated);
       color: var(--text-muted);
     }
+    .jcs-badge.status-cancelled {
+      background: rgba(255, 64, 87, 0.10);
+      color: var(--red);
+    }
 
     /* ============== Pagination ============== */
     .pagination {
@@ -624,54 +659,49 @@ type DirectionFilter = 'All' | 'Long' | 'Short';
   `],
 })
 export class TradesListPage {
+  private readonly api = inject(TradeApiService);
+
   readonly refreshing = signal(false);
-  readonly items = signal<TradeDto[]>(MOCK_TRADES);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
+
+  readonly items = signal<TradeDto[]>([]);
+  readonly total = signal(0);
 
   readonly search = signal('');
   readonly symbolFilter = signal<string | null>(null);
   readonly directionFilter = signal<DirectionFilter>('All');
+  readonly statusFilter = signal<StatusFilter>('All');
   readonly page = signal(1);
   readonly pageSize = 10;
 
+  // Catálogo de símbolos en la página actual — alimenta los pills.
   readonly symbols = computed(() => {
     const set = new Set<string>();
     this.items().forEach(t => set.add(t.symbol));
     return Array.from(set).sort();
   });
 
+  // Filtros client-side sobre la página actual del backend.
   readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
-    const sym = this.symbolFilter();
     const dir = this.directionFilter();
     return this.items().filter(t => {
-      if (sym && t.symbol !== sym) return false;
-      if (dir !== 'All' && t.direction !== dir) return false;
+      if (dir !== 'All' && t.direction !== (dir === 'Long' ? 1 : 2)) return false;
       if (q && !t.symbol.toLowerCase().includes(q)) return false;
       return true;
     });
   });
 
-  readonly totalPages = computed(() => Math.ceil(this.filtered().length / this.pageSize));
-
-  readonly currentPage = computed(() => {
-    const total = this.totalPages();
-    if (total === 0) return 1;
-    return Math.min(Math.max(1, this.page()), total);
-  });
-
-  readonly displayed = computed(() => {
-    const f = this.filtered();
-    if (f.length === 0) return [];
-    const p = this.currentPage();
-    return f.slice((p - 1) * this.pageSize, p * this.pageSize);
-  });
-
-  readonly totalCount = computed(() => this.items().length);
+  readonly totalCount = computed(() => this.total());
   readonly filteredCount = computed(() => this.filtered().length);
 
-  readonly closedCount = computed(() => this.filtered().filter(t => t.status === 'Closed').length);
-  readonly winsCount = computed(() => this.filtered().filter(t => t.status === 'Closed' && (t.pnl ?? 0) > 0).length);
-  readonly lossesCount = computed(() => this.filtered().filter(t => t.status === 'Closed' && (t.pnl ?? 0) < 0).length);
+  // Tabla = lo que sobrevivió a los filtros client-side (server ya paginó).
+  readonly displayed = computed(() => this.filtered());
+
+  readonly closedCount = computed(() => this.filtered().filter(t => t.status === 2).length);
+  readonly winsCount = computed(() => this.filtered().filter(t => t.status === 2 && (t.pnl ?? 0) > 0).length);
+  readonly lossesCount = computed(() => this.filtered().filter(t => t.status === 2 && (t.pnl ?? 0) < 0).length);
 
   readonly winRate = computed(() => {
     const c = this.closedCount();
@@ -679,23 +709,32 @@ export class TradesListPage {
   });
 
   readonly periodPnL = computed(() => this.filtered().reduce((acc, t) => acc + (t.pnl ?? 0), 0));
+  readonly pnlCurrency = computed(() => this.items()[0]?.pnlCurrency ?? this.items()[0]?.accountCurrency ?? 'USD');
 
   readonly avgWin = computed(() => {
     const n = this.winsCount();
     if (n === 0) return 0;
-    const wins = this.filtered().filter(t => t.status === 'Closed' && (t.pnl ?? 0) > 0);
+    const wins = this.filtered().filter(t => t.status === 2 && (t.pnl ?? 0) > 0);
     return wins.reduce((acc, t) => acc + (t.pnl ?? 0), 0) / n;
   });
 
   readonly avgLoss = computed(() => {
     const n = this.lossesCount();
     if (n === 0) return 0;
-    const losses = this.filtered().filter(t => t.status === 'Closed' && (t.pnl ?? 0) < 0);
+    const losses = this.filtered().filter(t => t.status === 2 && (t.pnl ?? 0) < 0);
     return losses.reduce((acc, t) => acc + (t.pnl ?? 0), 0) / n;
   });
 
+  // Paginación server-side: totalPages en base al total del backend.
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.total() / this.pageSize)));
+
+  readonly currentPage = computed(() => {
+    const total = this.totalPages();
+    return Math.min(Math.max(1, this.page()), total);
+  });
+
   readonly range = computed(() => {
-    const total = this.filtered().length;
+    const total = this.total();
     if (total === 0) return { start: 0, end: 0, total: 0 };
     const p = this.currentPage();
     const start = (p - 1) * this.pageSize + 1;
@@ -709,50 +748,95 @@ export class TradesListPage {
   });
 
   readonly hasActiveFilters = computed(() =>
-    this.search() !== '' || this.symbolFilter() !== null || this.directionFilter() !== 'All'
+    this.search() !== '' || this.symbolFilter() !== null || this.directionFilter() !== 'All' || this.statusFilter() !== 'All'
   );
 
-  countBySymbol(s: string): number {
-    return this.items().filter(t => t.symbol === s).length;
+  constructor() {
+    void this.reload();
   }
 
   setSearch(value: string): void {
     this.search.set(value);
-    this.page.set(1);
+    // search es client-side sobre la página actual, no requiere reload.
   }
 
   setSymbol(symbol: string | null): void {
     this.symbolFilter.set(symbol);
     this.page.set(1);
+    void this.reload();
   }
 
   setDirection(dir: DirectionFilter): void {
     this.directionFilter.set(dir);
+    // client-side filter, sin reload.
+  }
+
+  setStatus(status: StatusFilter): void {
+    this.statusFilter.set(status);
     this.page.set(1);
+    void this.reload();
   }
 
   clearFilters(): void {
+    const hadServerFilter = this.symbolFilter() !== null || this.statusFilter() !== 'All';
     this.search.set('');
     this.symbolFilter.set(null);
     this.directionFilter.set('All');
+    this.statusFilter.set('All');
     this.page.set(1);
+    if (hadServerFilter) {
+      void this.reload();
+    }
   }
 
   gotoPage(p: number): void {
     this.page.set(p);
+    void this.reload();
   }
 
   nextPage(): void {
-    this.page.update(p => Math.min(p + 1, this.totalPages()));
+    const next = Math.min(this.currentPage() + 1, this.totalPages());
+    if (next !== this.currentPage()) {
+      this.page.set(next);
+      void this.reload();
+    }
   }
 
   prevPage(): void {
-    this.page.update(p => Math.max(p - 1, 1));
+    const prev = Math.max(this.currentPage() - 1, 1);
+    if (prev !== this.currentPage()) {
+      this.page.set(prev);
+      void this.reload();
+    }
   }
 
-  reload(): void {
-    // Mock: refresco visual. Cuando llegue el endpoint real, llamar a /api/trades acá.
+  async reload(): Promise<void> {
+    if (this.refreshing()) return;
     this.refreshing.set(true);
-    setTimeout(() => this.refreshing.set(false), 800);
+    this.error.set(null);
+    try {
+      const status = this.statusFilter() === 'All' ? undefined : (this.statusFilter() as TradeStatus);
+      const symbol = this.symbolFilter() ?? undefined;
+      const resp = await this.api.list(this.page(), this.pageSize, status, symbol);
+      this.items.set(resp.items);
+      this.total.set(resp.total);
+      // Si el backend devolvió una página fuera de rango, recargar al final.
+      if (resp.page !== this.page()) {
+        this.page.set(resp.page);
+      }
+    } catch (e) {
+      this.error.set(this.toMessage(e));
+      this.items.set([]);
+      this.total.set(0);
+    } finally {
+      this.refreshing.set(false);
+      this.loading.set(false);
+    }
+  }
+
+  private toMessage(e: unknown): string {
+    if (e instanceof Error && e.message) return e.message;
+    if (typeof e === 'string') return e;
+    return 'Error inesperado.';
   }
 }
