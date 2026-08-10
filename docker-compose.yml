@@ -83,7 +83,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Include Error Detail=true
-      ConnectionStrings__Redis: redis:${REDIS_PASSWORD}@redis:6379
+      ConnectionStrings__Redis: redis:6379,password=${REDIS_PASSWORD},abortConnect=false
       ConnectionStrings__Storage: Endpoint=http://minio:9000;AccessKey=${MINIO_ROOT_USER};SecretKey=${MINIO_ROOT_PASSWORD};Bucket=${STORAGE_BUCKET};Ssl=false
       Jwt__Issuer: ${JWT_ISSUER}
       Jwt__Audience: ${JWT_AUDIENCE}

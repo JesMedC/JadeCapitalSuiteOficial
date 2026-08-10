@@ -6,6 +6,8 @@ using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Trading.Api.Endpoints;
+using JadeCapital.Trading.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -65,14 +67,18 @@ builder.Services.AddAuthorization();
 // ===== Identity module =====
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
 
+// ===== Trading module =====
+builder.Services.AddTradingInfrastructure(builder.Configuration);
+
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
 
-// ===== MediatR (handlers de Identity.Application) =====
+// ===== MediatR (handlers de Identity.Application + Trading.Application) =====
 // ValidationBehavior ya queda registrado como IPipelineBehavior<,> via AddSharedInfrastructure.
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblies(
-        typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly));
+        typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
+        typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly));
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -260,6 +266,7 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ===== Modules =====
 app.MapAuthEndpoints();
+app.MapTradeEndpoints();
 
 app.Run();
 

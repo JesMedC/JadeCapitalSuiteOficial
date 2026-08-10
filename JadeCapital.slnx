@@ -26,6 +26,7 @@
     <Project Path="src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Infrastructure/JadeCapital.PublicPortal.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/2.Modules/Trading/">
+    <Project Path="src/2.Modules/Trading/JadeCapital.Trading.Api/JadeCapital.Trading.Api.csproj" />
     <Project Path="src/2.Modules/Trading/JadeCapital.Trading.Application/JadeCapital.Trading.Application.csproj" />
     <Project Path="src/2.Modules/Trading/JadeCapital.Trading.Contracts/JadeCapital.Trading.Contracts.csproj" />
     <Project Path="src/2.Modules/Trading/JadeCapital.Trading.Domain/JadeCapital.Trading.Domain.csproj" />

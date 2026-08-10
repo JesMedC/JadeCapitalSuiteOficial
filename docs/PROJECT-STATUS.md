@@ -1,58 +1,73 @@
 # Estado actual del proyecto — JadeCapitalSuite
 
 > **Snapshot base:** 2026-08-07 (exploración exhaustiva del código).
-> **Última actualización:** 2026-08-07 (Sprint 0 cerrado — ver §0).
+> **Última actualización:** 2026-08-09 (Sprint 1 cerrado — ver §0).
 > Cualquier afirmación acá fue leída de los archivos; nada es supuesto.
 
 ---
 
-## 0. Sprint 0 — cerrado el 2026-08-07
+## 0. Sprint 1 — cerrado el 2026-08-09
 
-Bugs críticos y deudas arregladas en este sprint. Documentación de decisiones en `docs/adr/`.
+El vertical **Trading** queda implementado end-to-end con backend real + frontend conectado. La página `/app/dashboard` muestra trades reales de la BD, los KPIs se calculan en el backend, y `/api/trades` está vivo.
 
-### Bugs críticos resueltos
-| # | Bug | Solución | ADR |
-|---|-----|----------|-----|
-| 1 | `User.ConfirmEmail` nunca invocado → cuentas en `PendingEmailConfirmation` → refresh falla → **login no funciona end-to-end** | Auto-confirm en `Register`. `User` nace `Active` con `EmailConfirmedAt` set. Eliminado `PendingEmailConfirmation` del enum, `ConfirmEmail()` y domain event `UserEmailConfirmed`. Migración SQL actualizada. Tests ajustados. | [ADR-0001](./adr/0001-auto-confirm-on-register.md) |
-| 2 | FluentValidation validators huérfanos (no había `ValidationBehavior` en pipeline MediatR) | `ValidationBehavior<TRequest,TResponse>` creado en `Shared.Infrastructure` y registrado en el Host. Validators ahora se ejecutan. | — |
-| 3 | Frontend esperaba `tier` que el backend no devolvía | `tier` eliminado de la interface `User` en frontend. `loadUser()` limpia `localStorage` viejo. UI que mostraba plan removida. | [ADR-0003](./adr/0003-remove-tier-field-from-frontend-user.md) |
-| 4 | `/api/trades` 404 | Resuelto a nivel de Sprint 0. **Quedó pendiente**: el endpoint no existe (módulo Trading es scaffold). Se resolvió el `tier` que crash en el cast, pero el 404 persiste. | — |
-| 5 | Refresh token no se renovaba automáticamente en frontend | `errorInterceptor` ahora intenta `AuthState.refresh$()` antes de desloguar. Si el refresh funciona, reintenta la request. Excluye `/api/auth/*` para evitar loop infinito. Comparte la llamada HTTP entre requests concurrentes con `shareReplay`. | — |
-| 6 | Hangfire apagado → refresh tokens expirados se acumulaban | `BackgroundService` (`RefreshTokenCleanupService`) con loop infinito + `ExecuteDeleteAsync` batch de 1000. Intervalo configurable vía `Jwt:CleanupIntervalHours` (default 6h). | [ADR-0002](./adr/0002-background-service-over-hangfire.md) |
-| 7 | `RefreshTokenTtlDays` config ignorado (hardcode 14 días) | `_jwtOptions.RefreshTokenTtlDays` inyectado en `RegisterUserHandler`, `LoginHandler`, `RefreshTokenHandler`. | — |
+### Backend (1A–1E)
 
-### Smells corregidos
-- `SystemClock` duplicado consolidado en `Shared.Kernel.Time`. JwtTokenService usa `IClock` del Kernel.
-- `JwtOptions` registrado una sola vez (Host). Eliminado el registro duplicado en `IdentityModuleRegistration`.
-- `Hangfire.AspNetCore` y compañía eliminados de csproj.
-- Rate-limit policies aplicadas a endpoints `/api/auth/login`, `/register`, `/refresh` (`.RequireRateLimiting("auth-strict")`).
-- README, `docs/architecture/clean-modular-monolith.md` y `docs/runbooks/local-dev.md` actualizados con paths reales y stack real (.NET 10).
-- `docs/adr/` creado con los 3 ADRs arriba.
+- **1A Shared.Kernel Money + Currency** — value objects inmutables. `Money` con `Amount` (decimal) + `CurrencyCode` (string), invariante `Math.Abs(Amount) < 10^16` para entrar en NUMERIC(24,8). Currency con 12 monedas pre-cargadas (USD, EUR, GBP, JPY, CHF, AUD, CAD, NZD, XAU, XAG, BTC, ETH). Operadores `+`, `-`, `*` que devuelven `Result<Money>`. 27+19 tests unit.
+- **1B Trading.Domain** — Aggregate `Trade : AggregateRoot<Guid>` con factory `Open()`, métodos `Close()`, `Cancel()`, `UpdateMetadata()`. 3 domain events. 3 enums: `TradeDirection` (Long/Short), `TradeStatus` (Open/Closed/Cancelled), `AssetClass` (Forex/Crypto/Binary/Commodity/Other). Value Object `Symbol` con `DetectAssetClass()` e `InferQuoteCurrencyCode()`. 35+ tests unit.
+- **1C Trading.Infrastructure** — `TradingDbContext` con schema `trading` + `TradeConfiguration` (IEntityTypeConfiguration). FK a `identity.users(id)` ON DELETE RESTRICT. Migración SQL `20260806_0002_TradingSchema.sql` (idempotente, snake_case, NUMERIC(24,8), 4 índices). `migrate.Dockerfile` actualizado para aplicar Identity + Trading en orden con retry. `TradeRepository` + `TradingUnitOfWork`. Converters `Money`/`Symbol` para EF.
+- **1D Trading.Application** — 4 commands (Open, Close, UpdateNotes, Delete) + 4 queries (GetTrades, GetTradeById, GetDashboardSummary, GetPnlCalendar). Todos con validator + handler + tests unit (36 nuevos). `TradingApplicationErrors` con códigos `trade.*` siguiendo convención `Error.X("lower.case.dotted", "msg")`.
+- **1E Trading.Api** — 8 endpoints:
+  - `POST /api/trades` (open)
+  - `GET /api/trades` (lista paginada con `status` y `symbol` filters)
+  - `GET /api/trades/dashboard` (KPIs)
+  - `GET /api/trades/calendar` (P&L por día)
+  - `GET /api/trades/{id}` (single)
+  - `PUT /api/trades/{id}/close` (cierra + calcula P&L)
+  - `PATCH /api/trades/{id}` (update strategy/notes)
+  - `DELETE /api/trades/{id}` (solo Open o Cancelled)
+  - Todos con `RequireAuthorization()`. Escritura con `auth-strict`, lectura con `api-general`. OpenUserId extraído del claim `NameIdentifier`. `MapTradeEndpoints()` agregado al Host.
 
-### Deuda que queda viva
-- **`RateLimit_Login_BlocksAfter10Attempts` test falla.**Para evitar contaminación entre tests se subió el rate limit a 10000 en `JadeApiFactory`. El test asume límite=10. Solución correcta: mover este test a una clase con su propio factory dedicado, o testear el rate limiter directamente sin HttpClient. Documentar en `tests/IntegrationTests/`.
-- `Money`/`Currency` value objects (necesarios para Sprint 1 / Trading).
-- Multi-tenant, soft-delete, seeders, OpenTelemetry.
-- Sin tests frontend (jest declarado pero sin config).
-- Sin CI/CD.
-- `<ProjectReference>` en IntegrationTests.csproj fixado en el refactor.
+### Frontend (1G)
 
-### Verificación
-- `dotnet build JadeCapital.slnx` → 0 errores, 1 warning pre-existente (Npgsql version conflict MSB3277).
-- `dotnet test JadeCapital.slnx` → 106 unit pass + 10/11 integration pass. Queda 1 integration test (RateLimit) que falla por trade-off conocido.
-- `npm run build` (frontend) → OK.
+- **`TradeApiService`** (`core/api/`) — `firstValueFrom(this.http.get/post/put/patch/delete)` para los 8 endpoints. Tipos `TradeDto`, `PagedTradesDto`, `DashboardSummaryDto`, `CalendarDto`. Enums numéricos con mappers a label.
+- **Dashboard** — mock data eliminado. Llama `api.dashboard()` + `api.list(1, 100)` en `reload()`. KPIs del summary autoritativo. Equity curve reconstruida client-side desde trades. Empty state + retry banner.
+- **Trades list** — paginación server-side real. Symbol pills generadas de la página actual. Status pills (Open/Closed/Cancelled). Error/empty/retry states.
+- **Analytics** — datos reales con filtro de período (7d/30d/90d/todo). KPIs, donut, line chart, top 5, breakdown por símbolo.
+- **Calendar** — heatmap mensual real consumiendo `api.calendar(year, month)`. Navegación ‹ › + "Hoy". Buckets de intensidad por P&L.
 
-### Git
-- `git init` hecho en Sprint 0. Branch `main`.
-- `user.name = "Jesus"`, `user.email = "jmedinac25@gmail.com"`.
-- Commit inicial con Sprint 0.
-- Commit de Sprint 0.5 con integration tests refactor.
+### Bug fixes encontrados durante 1H (verificación e2e)
+
+- **`Money` constructor refactor**: el ctor `(decimal, Currency)` no mapeaba en EF (Currency no es propiedad mapeada). Refactor a `(decimal, string currencyCode)` con `Currency` derivado. Agregado `Currency.FromTrusted`. `Money.FromTrusted(decimal, string)` para hidratación desde DB.
+- **`Symbol` SymbolConverter**: `Symbol` value object no se mapeaba con OwnsOne. Creado `ValueConverter<Symbol, string>` + `ValueComparer<Symbol>` para serializar como VARCHAR(20).
+- **Redis connection string**: formato `redis:password@host:port` no es reconocido por `StackExchange.Redis`. Cambiado a `host:port,password=xxx,abortConnect=false`.
+
+### Verificación end-to-end
+
+Probado con curl contra el backend levantado:
+- `POST /api/trades` → 201 con TradeDto completo
+- `GET /api/trades` → PagedTradesDto con `total=1`
+- `PUT /api/trades/{id}/close` → P&L calculado: `(1.0900 - 1.0850) * 1.0 = 0.005 USD` ✓
+- `GET /api/trades/dashboard` → `{totalCount: 1, openCount: 0, closedCount: 1, winsCount: 1, winRate: 1.0, totalPnL: 0.005}`
+
+### Tests
+
+- **223 unit tests pasan** (76 Identity + 76 Shared.Kernel + 71 Trading).
+- **0 integration tests** del módulo Trading (Sprint 1F fue diferido — la infra del API está cubierta por curl end-to-end).
+
+### Deuda viva
+
+- **Sin tests integration** de `/api/trades/*` (Sprint 1F).
+- **RateLimit_Login_BlocksAfter10Attempts** test sigue fallando (Sprint 0.5).
+- Mocks en analytics: `initialBalance` (10.000) y `dailyYield` (0.06%) son mockeados, no vienen del backend.
+- Sin CI/CD, tests frontend, OpenTelemetry, multi-tenant, soft-delete.
 
 ---
 
-## TL;DR (snapshot al 2026-08-07)
+## TL;DR (snapshot al 2026-08-09)
 
-Esqueleto de **monolito modular .NET 10 / Angular 19** con buenas decisiones arquitectónicas en docs y **Sprint 0 + 0.5 cerrados** (auth flow end-to-end funciona, infra consolidada, FK bug fixeado, IClock dedup, integration tests 10/11 pass). Solo el módulo Identity está implementado de punta a punta. El resto (Trading, Billing, Admin, PublicPortal) son csproj vacíos. El Host no compone módulos — wirea Identity directo. Quedan 1 test de rate limit y la vertical de trading.
+**Sprint 1 cerrado**: el módulo **Trading** está implementado end-to-end. Backend con 8 endpoints REST, aggregate root con invariantes monetarias, value objects `Money`/`Symbol`/`Currency`, 4 commands + 4 queries, 71 tests unit. Frontend conectado al backend real (no más mock data). `/api/trades` responde, P&L se calcula correctamente. Sprint 0.5 + 1 verificados con curl e2e + Playwright.
+
+**Pendientes principales**: Sprint 1F (integration tests), Billing module (siguiente vertical), RateLimit test pendiente.
 
 ---
 
