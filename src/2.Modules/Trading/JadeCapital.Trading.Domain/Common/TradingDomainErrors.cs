@@ -1,4 +1,5 @@
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.Domain.Common;
 
@@ -106,8 +107,14 @@ public static class TradingDomainErrors
         public static readonly Error LeverageMustBePositive =
             Error.Validation("account.leverage_must_be_positive", "Leverage must be greater than zero.");
 
-        public static readonly Error PayoutPercentOutOfRange =
-            Error.Validation("account.payout_percent_out_of_range", "Payout percent must be between 0 and 1.");
+        public static readonly Error LeverageRequiredForForex =
+            Error.Validation("account.leverage_required_for_forex", "Leverage is required for Forex accounts.");
+
+        public static readonly Error MarketTypeRequired =
+            Error.Validation("account.market_type_required", "Market type is required.");
+
+        public static readonly Error InvalidMarketType =
+            Error.Validation("account.invalid_market_type", "Invalid market type.");
 
         public static readonly Error AlreadyInactive =
             Error.Conflict("account.already_inactive", "Account is already inactive.");

@@ -2,15 +2,22 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
+export type MarketType = 1 | 2; // 1=Forex, 2=Binary
+
+export const MARKET_TYPE_LABELS: Record<MarketType, string> = {
+  1: 'Forex',
+  2: 'Binarias',
+};
+
 export interface AccountDto {
   id: string;
   userId: string;
   name: string;
   broker: string;
+  marketType: MarketType;
   currency: string;
   initialBalance: number;
-  leverage: number;
-  payoutPercent: number;
+  leverage: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -33,7 +40,7 @@ export class AccountApiService {
     return firstValueFrom(this.http.post<AccountDto>(this.base, req));
   }
 
-  async update(id: string, req: Pick<AccountDto, 'name' | 'broker' | 'currency' | 'leverage' | 'payoutPercent'>): Promise<AccountDto> {
+  async update(id: string, req: Pick<AccountDto, 'name' | 'broker' | 'marketType' | 'currency' | 'leverage'>): Promise<AccountDto> {
     return firstValueFrom(this.http.patch<AccountDto>(`${this.base}/${id}`, req));
   }
 
@@ -46,6 +53,6 @@ export class AccountApiService {
   }
 
   async delete(id: string): Promise<void> {
-    await firstValueFrom(this.http.delete<void>(`${this.base}/${id}`));
+    await firstValueFrom(this.http.delete<void>(this.base + '/' + id));
   }
 }

@@ -2,7 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { DecimalPipe, NgClass } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { AccountApiService, AccountDto } from '@core/api/account-api.service';
+import {
+  AccountApiService,
+  AccountDto,
+  MARKET_TYPE_LABELS,
+  MarketType,
+} from '@core/api/account-api.service';
 import {
   ASSET_CLASS_LABELS,
   AssetClass,
@@ -104,6 +109,9 @@ interface DeleteTarget {
                       <h3>{{ account.name }}</h3>
                       <p class="jcs-muted">{{ account.broker }}</p>
                     </div>
+                    <span class="jcs-badge market-badge" [ngClass]="'market-badge--' + marketKey(account.marketType)">
+                      {{ marketTypeLabel(account.marketType) }}
+                    </span>
                     <span class="jcs-badge" [ngClass]="account.isActive ? 'status-active' : 'status-inactive'">
                       {{ account.isActive ? 'Activa' : 'Inactiva' }}
                     </span>
@@ -116,11 +124,13 @@ interface DeleteTarget {
                     </div>
                     <div>
                       <dt>Leverage</dt>
-                      <dd class="jcs-num">1:{{ account.leverage | number:'1.0-2' }}</dd>
-                    </div>
-                    <div>
-                      <dt>Payout</dt>
-                      <dd class="jcs-num">{{ account.payoutPercent * 100 | number:'1.0-2' }}%</dd>
+                      <dd class="jcs-num">
+                        @if (account.marketType === 1 && account.leverage !== null) {
+                          1:{{ account.leverage | number:'1.0-2' }}
+                        } @else {
+                          <span class="jcs-muted">Sin apalancamiento</span>
+                        }
+                      </dd>
                     </div>
                     <div>
                       <dt>Moneda</dt>
@@ -149,7 +159,7 @@ interface DeleteTarget {
               <header class="form-head">
                 <div>
                   <h3>{{ accountFormTitle() }}</h3>
-                  <p class="jcs-muted">Los porcentajes se ingresan entre 0 y 100.</p>
+                  <p class="jcs-muted">Elegí el tipo de mercado antes de completar el resto.</p>
                 </div>
                 <button type="button" class="close-btn" (click)="closeAccountForm()" aria-label="Cerrar formulario">×</button>
               </header>
@@ -168,6 +178,14 @@ interface DeleteTarget {
                   @if (isInvalid(accountForm.controls.broker)) { <span class="field-error">Ingresá un broker de hasta 80 caracteres.</span> }
                 </div>
                 <div class="field">
+                  <label class="jcs-label" for="account-market">Tipo de mercado</label>
+                  <select id="account-market" class="jcs-input" formControlName="marketType">
+                    @for (mt of marketTypes; track mt.value) {
+                      <option [ngValue]="mt.value">{{ mt.label }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="field">
                   <label class="jcs-label" for="account-currency">Moneda</label>
                   <input id="account-currency" class="jcs-input uppercase" formControlName="currency" maxlength="3" placeholder="USD"
                     [class.jcs-input--error]="isInvalid(accountForm.controls.currency)">
@@ -180,18 +198,14 @@ interface DeleteTarget {
                   @if (editingAccount()) { <span class="field-hint">El balance inicial no puede cambiarse después de crear la cuenta.</span> }
                   @else if (isInvalid(accountForm.controls.initialBalance)) { <span class="field-error">El balance debe ser 0 o mayor.</span> }
                 </div>
-                <div class="field">
-                  <label class="jcs-label" for="account-leverage">Leverage</label>
-                  <input id="account-leverage" class="jcs-input jcs-num" type="number" min="0.01" step="0.01" formControlName="leverage"
-                    [class.jcs-input--error]="isInvalid(accountForm.controls.leverage)">
-                  @if (isInvalid(accountForm.controls.leverage)) { <span class="field-error">El leverage debe ser mayor a 0.</span> }
-                </div>
-                <div class="field">
-                  <label class="jcs-label" for="account-payout">Payout (%)</label>
-                  <input id="account-payout" class="jcs-input jcs-num" type="number" min="0" max="100" step="0.01" formControlName="payoutPercent"
-                    [class.jcs-input--error]="isInvalid(accountForm.controls.payoutPercent)">
-                  @if (isInvalid(accountForm.controls.payoutPercent)) { <span class="field-error">El payout debe estar entre 0 y 100.</span> }
-                </div>
+                @if (accountForm.controls.marketType.value === 1) {
+                  <div class="field">
+                    <label class="jcs-label" for="account-leverage">Leverage</label>
+                    <input id="account-leverage" class="jcs-input jcs-num" type="number" min="0.01" step="0.01" formControlName="leverage"
+                      [class.jcs-input--error]="isInvalid(accountForm.controls.leverage)">
+                    @if (isInvalid(accountForm.controls.leverage)) { <span class="field-error">El leverage debe ser mayor a 0.</span> }
+                  </div>
+                }
               </div>
 
               @if (accountFormError()) { <div class="form-error" role="alert">{{ accountFormError() }}</div> }
@@ -581,6 +595,9 @@ interface DeleteTarget {
     .status-active { background: rgba(47, 219, 120, 0.14); color: var(--green); }
     .status-inactive { background: var(--bg-elevated); color: var(--text-muted); }
     .asset-badge { background: rgba(74, 168, 255, 0.12); color: var(--blue); }
+    .market-badge { font-size: 0.65rem; }
+    .market-badge--forex { background: rgba(47, 219, 120, 0.14); color: var(--green); }
+    .market-badge--binary { background: rgba(245, 183, 66, 0.14); color: var(--yellow, #f5b742); }
     .entity-icon.asset-2 { background: rgba(245, 183, 66, 0.1); color: var(--yellow, #f5b742); border-color: rgba(245, 183, 66, 0.3); }
     .entity-icon.asset-3 { background: rgba(74, 168, 255, 0.1); color: var(--blue); border-color: rgba(74, 168, 255, 0.3); }
     .entity-icon.asset-4 { background: rgba(229, 191, 92, 0.1); color: #e5bf5c; border-color: rgba(229, 191, 92, 0.3); }
@@ -803,13 +820,19 @@ export class SettingsPage {
     { value: 5, label: ASSET_CLASS_LABELS[5] },
   ];
 
+  readonly marketTypes: ReadonlyArray<{ value: MarketType; label: string }> = [
+    { value: 1, label: MARKET_TYPE_LABELS[1] },
+    { value: 2, label: MARKET_TYPE_LABELS[2] },
+  ];
+
   readonly accountForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(80)]],
     broker: ['', [Validators.required, Validators.maxLength(80)]],
+    marketType: [1 as MarketType, [Validators.required]],
     currency: ['USD', [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)]],
     initialBalance: [0, [Validators.required, Validators.min(0)]],
-    leverage: [1, [Validators.required, Validators.min(0.01)]],
-    payoutPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
+    // Nullable: solo se usa para Forex; Binary lo ignora.
+    leverage: [1 as number | null, [Validators.min(0.01)]],
   });
 
   readonly instrumentForm = this.fb.nonNullable.group({
@@ -861,10 +884,10 @@ export class SettingsPage {
     this.accountForm.reset({
       name: '',
       broker: '',
+      marketType: 1,
       currency: 'USD',
       initialBalance: 0,
       leverage: 1,
-      payoutPercent: 0,
     });
     this.accountForm.controls.initialBalance.enable();
     this.accountFormError.set(null);
@@ -877,10 +900,10 @@ export class SettingsPage {
     this.accountForm.reset({
       name: account.name,
       broker: account.broker,
+      marketType: account.marketType,
       currency: account.currency,
       initialBalance: account.initialBalance,
       leverage: account.leverage,
-      payoutPercent: account.payoutPercent * 100,
     });
     this.accountForm.controls.initialBalance.disable();
     this.accountFormError.set(null);
@@ -904,12 +927,14 @@ export class SettingsPage {
     this.saving.set(true);
     this.accountFormError.set(null);
     const value = this.accountForm.getRawValue();
+    // Para Binary, leverage no se usa: mandamos 1.0 default. Para Forex, lo que esté en el form.
+    const leverage = value.marketType === 2 ? 1 : value.leverage;
     const common = {
       name: value.name.trim(),
       broker: value.broker.trim(),
+      marketType: value.marketType,
       currency: value.currency.trim().toUpperCase(),
-      leverage: value.leverage,
-      payoutPercent: value.payoutPercent / 100,
+      leverage,
     };
 
     try {
@@ -1080,6 +1105,14 @@ export class SettingsPage {
   assetIcon(assetClass: AssetClass): string {
     const icons: Record<AssetClass, string> = { 1: 'FX', 2: '₿', 3: '01', 4: 'Au', 5: '↗' };
     return icons[assetClass];
+  }
+
+  marketTypeLabel(marketType: MarketType): string {
+    return MARKET_TYPE_LABELS[marketType];
+  }
+
+  marketKey(marketType: MarketType): 'forex' | 'binary' {
+    return marketType === 1 ? 'forex' : 'binary';
   }
 
   private toMessage(error: unknown): string {

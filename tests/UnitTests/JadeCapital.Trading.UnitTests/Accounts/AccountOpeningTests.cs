@@ -1,4 +1,5 @@
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.UnitTests.Accounts;
 
@@ -18,10 +19,10 @@ public class AccountOpeningTests
             id, userId,
             name: "IC Markets EUR",
             broker: "IC Markets",
+            marketType: MarketType.Forex,
             currency: "USD",
             initialBalance: 1000m,
             leverage: 100m,
-            payoutPercent: 0.85m,
             clock: Clock);
 
         r.IsSuccess.Should().BeTrue();
@@ -30,10 +31,10 @@ public class AccountOpeningTests
         account.UserId.Should().Be(userId);
         account.Name.Should().Be("IC Markets EUR");
         account.Broker.Should().Be("IC Markets");
+        account.MarketType.Should().Be(MarketType.Forex);
         account.Currency.Should().Be("USD");
         account.InitialBalance.Should().Be(1000m);
         account.Leverage.Should().Be(100m);
-        account.PayoutPercent.Should().Be(0.85m);
         account.IsActive.Should().BeTrue();
         account.CreatedAt.Should().Be(now);
         account.UpdatedAt.Should().BeNull();
@@ -41,12 +42,90 @@ public class AccountOpeningTests
     }
 
     [Fact]
+    public void Open_BinaryWithoutLeverage_DefaultsLeverageToOne()
+    {
+        var id = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        Clock.UtcNow.Returns(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        var r = Account.Open(
+            id, userId,
+            name: "Deriv Synthetic",
+            broker: "Deriv",
+            marketType: MarketType.Binary,
+            currency: "USD",
+            initialBalance: 100m,
+            leverage: null,
+            clock: Clock);
+
+        r.IsSuccess.Should().BeTrue();
+        r.Value.MarketType.Should().Be(MarketType.Binary);
+        r.Value.Leverage.Should().Be(1m);
+        r.Value.DomainEvents.OfType<AccountOpenedDomainEvent>().Single().MarketType.Should().Be(MarketType.Binary);
+    }
+
+    [Fact]
+    public void Open_BinaryWithLeverage_KeepsProvidedLeverage()
+    {
+        Clock.UtcNow.Returns(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+        var r = Account.Open(
+            Guid.NewGuid(), Guid.NewGuid(),
+            name: "Deriv",
+            broker: "Deriv",
+            marketType: MarketType.Binary,
+            currency: "USD",
+            initialBalance: 0m,
+            leverage: 50m,
+            clock: Clock);
+
+        r.IsSuccess.Should().BeTrue();
+        r.Value.Leverage.Should().Be(50m);
+    }
+
+    [Fact]
+    public void Open_ForexWithoutLeverage_Fails()
+    {
+        var r = Account.Open(
+            Guid.NewGuid(), Guid.NewGuid(),
+            "name", "broker", MarketType.Forex, "USD",
+            0m, null, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.account.leverage_required_for_forex");
+    }
+
+    [Fact]
+    public void Open_ForexWithZeroLeverage_Fails()
+    {
+        var r = Account.Open(
+            Guid.NewGuid(), Guid.NewGuid(),
+            "name", "broker", MarketType.Forex, "USD",
+            0m, 0m, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.account.leverage_required_for_forex");
+    }
+
+    [Fact]
+    public void Open_WithInvalidMarketType_Fails()
+    {
+        var r = Account.Open(
+            Guid.NewGuid(), Guid.NewGuid(),
+            "name", "broker", (MarketType)999, "USD",
+            0m, 100m, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.account.invalid_market_type");
+    }
+
+    [Fact]
     public void Open_WithEmptyId_Fails()
     {
         var r = Account.Open(
             Guid.Empty, Guid.NewGuid(),
-            "name", "broker", "USD",
-            0m, 100m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "USD",
+            0m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.id_required");
@@ -57,8 +136,8 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.Empty,
-            "name", "broker", "USD",
-            0m, 100m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "USD",
+            0m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.user_id_required");
@@ -69,8 +148,8 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "", "broker", "USD",
-            0m, 100m, 0.85m, Clock);
+            "", "broker", MarketType.Forex, "USD",
+            0m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.name_required");
@@ -81,8 +160,8 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            new string('a', Account.MaxNameLength + 1), "broker", "USD",
-            0m, 100m, 0.85m, Clock);
+            new string('a', Account.MaxNameLength + 1), "broker", MarketType.Forex, "USD",
+            0m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.name_too_long");
@@ -94,8 +173,8 @@ public class AccountOpeningTests
         // "USDA" no es 3 letras. Currency.Create falla.
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USDA",
-            0m, 100m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "USDA",
+            0m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.currency_code_invalid");
@@ -106,8 +185,8 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "usd",
-            0m, 100m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "usd",
+            0m, 100m, Clock);
 
         r.IsSuccess.Should().BeTrue();
         r.Value.Currency.Should().Be("USD");
@@ -118,8 +197,8 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USD",
-            -1m, 100m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "USD",
+            -1m, 100m, Clock);
 
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.account.initial_balance_must_be_non_negative");
@@ -131,23 +210,11 @@ public class AccountOpeningTests
         // Cuentas demo con balance 0 son validas.
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "Demo", "broker", "USD",
-            0m, 100m, 0.85m, Clock);
+            "Demo", "broker", MarketType.Forex, "USD",
+            0m, 100m, Clock);
 
         r.IsSuccess.Should().BeTrue();
         r.Value.InitialBalance.Should().Be(0m);
-    }
-
-    [Fact]
-    public void Open_WithZeroLeverage_Fails()
-    {
-        var r = Account.Open(
-            Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USD",
-            0m, 0m, 0.85m, Clock);
-
-        r.IsFailure.Should().BeTrue();
-        r.Error.Code.Should().Be("validation.account.leverage_must_be_positive");
     }
 
     [Fact]
@@ -155,34 +222,10 @@ public class AccountOpeningTests
     {
         var r = Account.Open(
             Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USD",
-            0m, -10m, 0.85m, Clock);
+            "name", "broker", MarketType.Forex, "USD",
+            0m, -10m, Clock);
 
         r.IsFailure.Should().BeTrue();
-        r.Error.Code.Should().Be("validation.account.leverage_must_be_positive");
-    }
-
-    [Fact]
-    public void Open_WithPayoutPercentBelowZero_Fails()
-    {
-        var r = Account.Open(
-            Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USD",
-            0m, 100m, -0.01m, Clock);
-
-        r.IsFailure.Should().BeTrue();
-        r.Error.Code.Should().Be("validation.account.payout_percent_out_of_range");
-    }
-
-    [Fact]
-    public void Open_WithPayoutPercentAboveOne_Fails()
-    {
-        var r = Account.Open(
-            Guid.NewGuid(), Guid.NewGuid(),
-            "name", "broker", "USD",
-            0m, 100m, 1.01m, Clock);
-
-        r.IsFailure.Should().BeTrue();
-        r.Error.Code.Should().Be("validation.account.payout_percent_out_of_range");
+        r.Error.Code.Should().Be("validation.account.leverage_required_for_forex");
     }
 }

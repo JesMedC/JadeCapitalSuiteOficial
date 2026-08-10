@@ -191,13 +191,11 @@ type StatusFilter = 'All' | TradeStatus;
         </div>
       </section>
 
-      <!-- ============== Create trade form (inline) ============== -->
-      <div id="create-trade-form">
-        <jcs-create-trade-form
-          [visible]="showCreateForm()"
-          (saved)="onTradeCreated()"
-          (cancelled)="showCreateForm.set(false)" />
-      </div>
+      <!-- ============== Create trade form (slide-out panel) ============== -->
+      <jcs-create-trade-form
+        [visible]="showCreateForm()"
+        (saved)="onTradeCreated()"
+        (cancelled)="showCreateForm.set(false)" />
 
       <!-- ============== Trades table ============== -->
       <section class="jcs-card table-card" style="animation: fade-up 0.5s 0.3s ease-out both">

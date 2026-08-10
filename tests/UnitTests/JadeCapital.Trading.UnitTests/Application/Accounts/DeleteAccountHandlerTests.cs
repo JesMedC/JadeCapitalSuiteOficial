@@ -1,5 +1,6 @@
 using NSubstitute.ReturnsExtensions;
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.UnitTests.Application.Accounts;
 
@@ -18,8 +19,8 @@ public class DeleteAccountHandlerTests
         c.UtcNow.Returns(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero));
         return Account.Open(
             Guid.NewGuid(), userId,
-            "Name", "Broker", "USD",
-            1000m, 100m, 0.85m, c).Value;
+            "Name", "Broker", MarketType.Forex, "USD",
+            1000m, 100m, c).Value;
     }
 
     [Fact]

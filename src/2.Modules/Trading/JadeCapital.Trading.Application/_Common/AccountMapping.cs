@@ -1,4 +1,5 @@
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.Application._Common;
 
@@ -15,10 +16,10 @@ internal static class AccountMapping
             account.UserId,
             account.Name,
             account.Broker,
+            account.MarketType,
             account.Currency,
             account.InitialBalance,
             account.Leverage,
-            account.PayoutPercent,
             account.IsActive,
             account.CreatedAt,
             account.UpdatedAt ?? account.CreatedAt);

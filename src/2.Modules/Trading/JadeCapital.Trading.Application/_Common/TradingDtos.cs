@@ -66,18 +66,19 @@ public sealed record InstrumentDto(
 
 /// <summary>
 /// Projection completa de una Account para los endpoints CRUD
-/// (/api/accounts). Incluye identificador, owner, configuracion del broker
-/// y timestamps.
+/// (/api/accounts). Incluye identificador, owner, market type, configuracion
+/// del broker y timestamps.
+/// El PayoutPercent NO vive en la cuenta: viene del Instrument operado.
 /// </summary>
 public sealed record AccountDto(
     Guid Id,
     Guid UserId,
     string Name,
     string Broker,
+    MarketType MarketType,
     string Currency,
     decimal InitialBalance,
-    decimal Leverage,
-    decimal PayoutPercent,
+    decimal? Leverage,
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);

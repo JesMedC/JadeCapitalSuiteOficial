@@ -37,8 +37,15 @@ CREATE INDEX IF NOT EXISTS ix_accounts_user
 CREATE INDEX IF NOT EXISTS ix_accounts_user_active
     ON trading.accounts (user_id, is_active);
 
-COMMENT ON TABLE  trading.accounts IS 'Cuentas de trading del usuario. Un User puede tener N cuentas en distintos brokers.';
-COMMENT ON COLUMN trading.accounts.payout_percent IS 'Para opciones binarias: % payout (0.85 = 85%).';
+COMMENT ON TABLE trading.accounts IS 'Cuentas de trading del usuario. Un User puede tener N cuentas en distintos brokers.';
+-- COMMENT de payout_percent con guard: si la columna ya no existe (fue dropeada en 0004), no falla.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'trading' AND table_name = 'accounts' AND column_name = 'payout_percent') THEN
+        COMMENT ON COLUMN trading.accounts.payout_percent IS 'Para opciones binarias: % payout (0.85 = 85%).';
+    END IF;
+END $$;
 
 -- ============================================
 -- trading.instruments
@@ -109,13 +116,24 @@ ALTER TABLE trading.trades
     ALTER COLUMN account_id    SET NOT NULL,
     ALTER COLUMN instrument_id SET NOT NULL;
 
-ALTER TABLE trading.trades
-    ADD CONSTRAINT fk_trades_account
-        FOREIGN KEY (account_id) REFERENCES trading.accounts(id) ON DELETE RESTRICT;
+-- FKs con idempotencia via DO block (Postgres no soporta ADD CONSTRAINT IF NOT EXISTS).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_trades_account') THEN
+        ALTER TABLE trading.trades
+            ADD CONSTRAINT fk_trades_account
+            FOREIGN KEY (account_id) REFERENCES trading.accounts(id) ON DELETE RESTRICT;
+    END IF;
+END $$;
 
-ALTER TABLE trading.trades
-    ADD CONSTRAINT fk_trades_instrument
-        FOREIGN KEY (instrument_id) REFERENCES trading.instruments(id) ON DELETE RESTRICT;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_trades_instrument') THEN
+        ALTER TABLE trading.trades
+            ADD CONSTRAINT fk_trades_instrument
+            FOREIGN KEY (instrument_id) REFERENCES trading.instruments(id) ON DELETE RESTRICT;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS ix_trades_account_opened_at
     ON trading.trades (account_id, opened_at DESC);

@@ -1,5 +1,6 @@
 using NSubstitute.ReturnsExtensions;
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.UnitTests.Application.Accounts;
 
@@ -18,8 +19,8 @@ public class ReactivateAccountHandlerTests
         c.UtcNow.Returns(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero));
         var account = Account.Open(
             Guid.NewGuid(), userId,
-            "Name", "Broker", "USD",
-            1000m, 100m, 0.85m, c).Value;
+            "Name", "Broker", MarketType.Forex, "USD",
+            1000m, 100m, c).Value;
         account.Deactivate(c);
         return account;
     }
@@ -47,8 +48,8 @@ public class ReactivateAccountHandlerTests
         c.UtcNow.Returns(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero));
         var account = Account.Open(
             Guid.NewGuid(), userId,
-            "Name", "Broker", "USD",
-            1000m, 100m, 0.85m, c).Value; // ya activo por defecto
+            "Name", "Broker", MarketType.Forex, "USD",
+            1000m, 100m, c).Value; // ya activo por defecto
         _accounts.FindByIdAsync(account.Id, Arg.Any<CancellationToken>()).Returns(account);
 
         var result = await CreateSut().Handle(new ReactivateAccountCommand(account.Id, userId), CancellationToken.None);

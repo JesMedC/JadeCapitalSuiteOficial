@@ -2,6 +2,7 @@ using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Validation;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application._Common;
+using JadeCapital.Trading.Domain.Enums;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -33,12 +34,17 @@ public sealed class UpdateAccountHandler : IRequestHandler<UpdateAccountCommand,
         if (account is null || account.UserId != req.UserId)
             return Result.Failure<AccountDto>(TradingApplicationErrors.Accounts.NotFound);
 
+        // Binary no usa leverage, default 1.0 si el cliente omite.
+        var leverage = req.Leverage;
+        if (req.MarketType == MarketType.Binary && (!leverage.HasValue || leverage.Value <= 0m))
+            leverage = 1m;
+
         var updateResult = account.UpdateMetadata(
             req.Name,
             req.Broker,
+            req.MarketType,
             req.Currency,
-            req.Leverage,
-            req.PayoutPercent);
+            leverage);
 
         if (updateResult.IsFailure)
             return Result.Failure<AccountDto>(updateResult.Error);
@@ -46,7 +52,7 @@ public sealed class UpdateAccountHandler : IRequestHandler<UpdateAccountCommand,
         var saved = await _uow.SaveChangesAsync(ct);
         DomainGuard.EnsureSuccess(saved);
 
-        _logger.LogInformation("Account {AccountId} metadata updated.", account.Id);
+        _logger.LogInformation("Account {AccountId} metadata updated to {MarketType}.", account.Id, account.MarketType);
 
         return Result.Success(account.ToDto());
     }

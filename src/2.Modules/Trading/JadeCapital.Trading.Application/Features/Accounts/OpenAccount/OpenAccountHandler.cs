@@ -4,6 +4,7 @@ using JadeCapital.Shared.Kernel.Validation;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application._Common;
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -11,8 +12,8 @@ namespace JadeCapital.Trading.Application.Features.Accounts.OpenAccount;
 
 /// <summary>
 /// Abre una cuenta. La validacion de shape corrio via FluentValidation;
-/// las invariantes de negocio (currency valida, leverage positivo, payout
-/// en [0,1], name/broker no vacios) las enforce el factory
+/// las invariantes de negocio (currency valida, leverage positivo segun
+/// MarketType, market type valido) las enforce el factory
 /// <see cref="Account.Open"/>, que es la unica via de creacion.
 /// </summary>
 public sealed class OpenAccountHandler : IRequestHandler<OpenAccountCommand, Result<AccountDto>>
@@ -38,15 +39,21 @@ public sealed class OpenAccountHandler : IRequestHandler<OpenAccountCommand, Res
     {
         var accountId = Guid.NewGuid();
 
+        // Binary no usa leverage, pero el factory espera un valor. Default 1.0
+        // (sin apalancamiento) para mantener consistencia si el cliente omite.
+        var leverage = req.Leverage;
+        if (req.MarketType == MarketType.Binary && (!leverage.HasValue || leverage.Value <= 0m))
+            leverage = 1m;
+
         var openResult = Account.Open(
             accountId,
             req.UserId,
             req.Name,
             req.Broker,
+            req.MarketType,
             req.Currency,
             req.InitialBalance,
-            req.Leverage,
-            req.PayoutPercent,
+            leverage,
             _clock);
 
         if (openResult.IsFailure)
@@ -58,7 +65,7 @@ public sealed class OpenAccountHandler : IRequestHandler<OpenAccountCommand, Res
         var saved = await _uow.SaveChangesAsync(ct);
         DomainGuard.EnsureSuccess(saved);
 
-        _logger.LogInformation("Account {AccountId} opened for user {UserId}.", account.Id, account.UserId);
+        _logger.LogInformation("Account {AccountId} opened for user {UserId} as {MarketType}.", account.Id, account.UserId, account.MarketType);
 
         return Result.Success(account.ToDto());
     }

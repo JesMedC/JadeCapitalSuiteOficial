@@ -1,4 +1,5 @@
 using JadeCapital.Shared.Kernel.Primitives;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.Domain.Accounts;
 
@@ -6,6 +7,7 @@ public sealed record AccountOpenedDomainEvent(
     Guid AccountId,
     Guid UserId,
     string Name,
+    MarketType MarketType,
     string Currency,
     decimal InitialBalance,
     DateTimeOffset OpenedAt) : IDomainEvent
@@ -16,6 +18,7 @@ public sealed record AccountOpenedDomainEvent(
 public sealed record AccountUpdatedDomainEvent(
     Guid AccountId,
     Guid UserId,
+    MarketType MarketType,
     DateTimeOffset UpdatedAt) : IDomainEvent
 {
     public DateTimeOffset OccurredOn => UpdatedAt;

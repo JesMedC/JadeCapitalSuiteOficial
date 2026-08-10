@@ -1,5 +1,6 @@
 using NSubstitute.ReturnsExtensions;
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.UnitTests.Application.Accounts;
 
@@ -11,14 +12,14 @@ public class UpdateAccountHandlerTests
 
     private UpdateAccountHandler CreateSut() => new(_accounts, _uow, _logger);
 
-    private static Account CreateActiveAccount(Guid userId)
+    private static Account CreateActiveAccount(Guid userId, MarketType marketType = MarketType.Forex, decimal? leverage = 100m)
     {
         var clock = Substitute.For<IClock>();
         clock.UtcNow.Returns(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero));
         return Account.Open(
             Guid.NewGuid(), userId,
-            "Original Name", "Original Broker", "USD",
-            1000m, 100m, 0.85m, clock).Value;
+            "Original Name", "Original Broker", marketType, "USD",
+            1000m, leverage, clock).Value;
     }
 
     private static UpdateAccountCommand ValidCommand(Guid accountId, Guid userId) => new(
@@ -26,9 +27,9 @@ public class UpdateAccountHandlerTests
         UserId: userId,
         Name: "Renamed",
         Broker: "Renamed Broker",
+        MarketType: MarketType.Forex,
         Currency: "EUR",
-        Leverage: 200m,
-        PayoutPercent: 0.90m);
+        Leverage: 200m);
 
     [Fact]
     public async Task Handle_OwnAccount_UpdatesAndReturnsDto()
@@ -46,7 +47,7 @@ public class UpdateAccountHandlerTests
         result.Value.Broker.Should().Be("Renamed Broker");
         result.Value.Currency.Should().Be("EUR");
         result.Value.Leverage.Should().Be(200m);
-        result.Value.PayoutPercent.Should().Be(0.90m);
+        result.Value.MarketType.Should().Be(MarketType.Forex);
 
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
@@ -92,5 +93,36 @@ public class UpdateAccountHandlerTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().StartWith("validation.");
         await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SwitchBinaryToForexWithNullLeverage_ReturnsDomainFailure()
+    {
+        var userId = Guid.NewGuid();
+        var account = CreateActiveAccount(userId, MarketType.Binary, leverage: 50m);
+        _accounts.FindByIdAsync(account.Id, Arg.Any<CancellationToken>()).Returns(account);
+
+        var cmd = ValidCommand(account.Id, userId) with { MarketType = MarketType.Forex, Leverage = null };
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.account.leverage_required_for_forex");
+        await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_SwitchForexToBinary_DefaultsLeverageWhenNull()
+    {
+        var userId = Guid.NewGuid();
+        var account = CreateActiveAccount(userId, MarketType.Forex, leverage: 100m);
+        _accounts.FindByIdAsync(account.Id, Arg.Any<CancellationToken>()).Returns(account);
+        _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(1));
+
+        var cmd = ValidCommand(account.Id, userId) with { MarketType = MarketType.Binary, Leverage = null };
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.MarketType.Should().Be(MarketType.Binary);
+        result.Value.Leverage.Should().Be(1m);
     }
 }

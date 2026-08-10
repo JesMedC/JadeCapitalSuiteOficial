@@ -7,6 +7,7 @@ using JadeCapital.Trading.Application.Features.Accounts.OpenAccount;
 using JadeCapital.Trading.Application.Features.Accounts.ReactivateAccount;
 using JadeCapital.Trading.Application.Features.Accounts.UpdateAccount;
 using JadeCapital.Trading.Application._Common;
+using JadeCapital.Trading.Domain.Enums;
 using MediatR;
 
 namespace JadeCapital.Trading.Api.Endpoints;
@@ -124,10 +125,10 @@ public static class AccountEndpoints
             userId,
             req.Name,
             req.Broker,
+            req.MarketType,
             req.Currency,
             req.InitialBalance,
-            req.Leverage,
-            req.PayoutPercent);
+            req.Leverage);
 
         var result = await sender.Send(cmd, ct);
         return result.IsSuccess
@@ -184,9 +185,9 @@ public static class AccountEndpoints
             userId,
             req.Name,
             req.Broker,
+            req.MarketType,
             req.Currency,
-            req.Leverage,
-            req.PayoutPercent);
+            req.Leverage);
 
         var result = await sender.Send(cmd, ct);
         return result.IsSuccess
@@ -251,14 +252,14 @@ public static class AccountEndpoints
 public sealed record OpenAccountRequest(
     string Name,
     string Broker,
+    MarketType MarketType,
     string Currency,
     decimal InitialBalance,
-    decimal Leverage,
-    decimal PayoutPercent);
+    decimal? Leverage);
 
 public sealed record UpdateAccountRequest(
     string Name,
     string Broker,
+    MarketType MarketType,
     string Currency,
-    decimal Leverage,
-    decimal PayoutPercent);
+    decimal? Leverage);

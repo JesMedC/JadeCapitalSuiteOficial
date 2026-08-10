@@ -3,6 +3,7 @@ using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Trading.Domain.Common;
+using JadeCapital.Trading.Domain.Enums;
 
 namespace JadeCapital.Trading.Domain.Accounts;
 
@@ -18,8 +19,10 @@ namespace JadeCapital.Trading.Domain.Accounts;
 /// - Currency es el codigo de la cuenta (3 letras mayusculas, mismo set
 ///   restringido que <see cref="Currency"/>).
 /// - InitialBalance &gt;= 0 (cuentas sin deposito inicial validas, p.ej. demo).
-/// - Leverage &gt; 0 (1:100 leverage -> 100.0).
-/// - PayoutPercent en [0, 1]: para opciones binarias.
+/// - MarketType determina el resto:
+///   - Forex: Leverage &gt; 0 requerido (1:100 leverage -&gt; 100.0).
+///   - Binary: Leverage opcional (default 1.0 = "sin apalancamiento").
+/// - PayoutPercent vive en Instrument, NO en Account.
 /// - IsActive default true; desactivacion preserva historial (los trades
 ///   existentes siguen siendo accesibles).
 ///
@@ -34,10 +37,10 @@ public sealed class Account : AggregateRoot<Guid>
     public Guid UserId { get; private set; }
     public string Name { get; private set; } = default!;
     public string Broker { get; private set; } = default!;
+    public MarketType MarketType { get; private set; }
     public string Currency { get; private set; } = default!;
     public decimal InitialBalance { get; private set; }
-    public decimal Leverage { get; private set; }
-    public decimal PayoutPercent { get; private set; }
+    public decimal? Leverage { get; private set; }
     public bool IsActive { get; private set; }
 
     // EF Core.
@@ -48,19 +51,19 @@ public sealed class Account : AggregateRoot<Guid>
         Guid userId,
         string name,
         string broker,
+        MarketType marketType,
         string currency,
         decimal initialBalance,
-        decimal leverage,
-        decimal payoutPercent,
+        decimal? leverage,
         DateTimeOffset openedAt) : base(id)
     {
         UserId = userId;
         Name = name;
         Broker = broker;
+        MarketType = marketType;
         Currency = currency;
         InitialBalance = initialBalance;
         Leverage = leverage;
-        PayoutPercent = payoutPercent;
         IsActive = true;
         // CreatedAt ya lo setea Entity<TId>; lo reescribimos al "openedAt" de negocio
         // para consistencia temporal con el resto del dominio.
@@ -69,9 +72,10 @@ public sealed class Account : AggregateRoot<Guid>
 
     /// <summary>
     /// Abre una nueva cuenta. Validaciones: id != Guid.Empty, userId != Guid.Empty,
-    /// name y broker no vacios y dentro del max length, currency valida (3 letras
-    /// mayusculas via <see cref="Currency.Create"/>), initialBalance &gt;= 0,
-    /// leverage &gt; 0, payoutPercent en [0, 1]. Estado inicial: IsActive = true.
+    /// name y broker no vacios y dentro del max length, marketType valido,
+    /// currency valida (3 letras mayusculas via <see cref="Currency.Create"/>),
+    /// initialBalance &gt;= 0, leverage segun MarketType (Forex &gt; 0, Binary
+    /// opcional default 1.0). Estado inicial: IsActive = true.
     /// Emite <see cref="AccountOpenedDomainEvent"/>.
     /// </summary>
     public static Result<Account> Open(
@@ -79,10 +83,10 @@ public sealed class Account : AggregateRoot<Guid>
         Guid userId,
         string name,
         string broker,
+        MarketType marketType,
         string currency,
         decimal initialBalance,
-        decimal leverage,
-        decimal payoutPercent,
+        decimal? leverage,
         IClock clock)
     {
         if (id == Guid.Empty)
@@ -105,6 +109,9 @@ public sealed class Account : AggregateRoot<Guid>
         if (trimmedBroker.Length > MaxBrokerLength)
             return Result.Failure<Account>(TradingDomainErrors.Account.BrokerTooLong);
 
+        if (!Enum.IsDefined<MarketType>(marketType))
+            return Result.Failure<Account>(TradingDomainErrors.Account.InvalidMarketType);
+
         var currencyResult = JadeCapital.Shared.Kernel.Money.Currency.Create(currency);
         if (currencyResult.IsFailure)
             return Result.Failure<Account>(TradingDomainErrors.Account.CurrencyCodeInvalid);
@@ -112,11 +119,17 @@ public sealed class Account : AggregateRoot<Guid>
         if (initialBalance < 0m)
             return Result.Failure<Account>(TradingDomainErrors.Account.InitialBalanceMustBeNonNegative);
 
-        if (leverage <= 0m)
-            return Result.Failure<Account>(TradingDomainErrors.Account.LeverageMustBePositive);
-
-        if (payoutPercent < 0m || payoutPercent > 1m)
-            return Result.Failure<Account>(TradingDomainErrors.Account.PayoutPercentOutOfRange);
+        // Leverage validation depende del MarketType.
+        if (marketType == MarketType.Forex)
+        {
+            if (!leverage.HasValue || leverage.Value <= 0m)
+                return Result.Failure<Account>(TradingDomainErrors.Account.LeverageRequiredForForex);
+        }
+        else // Binary: leverage opcional, default 1.0.
+        {
+            if (!leverage.HasValue || leverage.Value <= 0m)
+                leverage = 1m;
+        }
 
         var openedAt = clock.UtcNow;
 
@@ -125,16 +138,17 @@ public sealed class Account : AggregateRoot<Guid>
             userId,
             trimmedName,
             trimmedBroker,
+            marketType,
             currencyResult.Value.Code,
             initialBalance,
             leverage,
-            payoutPercent,
             openedAt);
 
         account.RaiseDomainEvent(new AccountOpenedDomainEvent(
             account.Id,
             account.UserId,
             account.Name,
+            account.MarketType,
             account.Currency,
             account.InitialBalance,
             openedAt));
@@ -150,9 +164,9 @@ public sealed class Account : AggregateRoot<Guid>
     public Result UpdateMetadata(
         string name,
         string broker,
+        MarketType marketType,
         string currency,
-        decimal leverage,
-        decimal payoutPercent)
+        decimal? leverage)
     {
         if (string.IsNullOrWhiteSpace(name))
             return Result.Failure(TradingDomainErrors.Account.NameRequired);
@@ -168,25 +182,34 @@ public sealed class Account : AggregateRoot<Guid>
         if (trimmedBroker.Length > MaxBrokerLength)
             return Result.Failure(TradingDomainErrors.Account.BrokerTooLong);
 
+        if (!Enum.IsDefined<MarketType>(marketType))
+            return Result.Failure(TradingDomainErrors.Account.InvalidMarketType);
+
         var currencyResult = JadeCapital.Shared.Kernel.Money.Currency.Create(currency);
         if (currencyResult.IsFailure)
             return Result.Failure(TradingDomainErrors.Account.CurrencyCodeInvalid);
 
-        if (leverage <= 0m)
-            return Result.Failure(TradingDomainErrors.Account.LeverageMustBePositive);
-
-        if (payoutPercent < 0m || payoutPercent > 1m)
-            return Result.Failure(TradingDomainErrors.Account.PayoutPercentOutOfRange);
+        // Leverage validation depende del MarketType.
+        if (marketType == MarketType.Forex)
+        {
+            if (!leverage.HasValue || leverage.Value <= 0m)
+                return Result.Failure(TradingDomainErrors.Account.LeverageRequiredForForex);
+        }
+        else // Binary: leverage opcional, default 1.0 (no se borra si ya tenia).
+        {
+            if (!leverage.HasValue || leverage.Value <= 0m)
+                leverage = 1m;
+        }
 
         Name = trimmedName;
         Broker = trimmedBroker;
+        MarketType = marketType;
         Currency = currencyResult.Value.Code;
         Leverage = leverage;
-        PayoutPercent = payoutPercent;
         Touch();
 
         RaiseDomainEvent(new AccountUpdatedDomainEvent(
-            Id, UserId, UpdatedAt!.Value));
+            Id, UserId, MarketType, UpdatedAt!.Value));
 
         return Result.Success();
     }

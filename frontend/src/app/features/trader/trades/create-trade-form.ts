@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   OnDestroy,
   computed,
   effect,
@@ -13,7 +14,12 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { AccountApiService, AccountDto } from '@core/api/account-api.service';
+import {
+  AccountApiService,
+  AccountDto,
+  MARKET_TYPE_LABELS,
+  MarketType,
+} from '@core/api/account-api.service';
 import {
   ASSET_CLASS_LABELS,
   AssetClass,
@@ -27,241 +33,693 @@ import {
   TradeDto,
 } from '@core/api/trade-api.service';
 
+type TradeTab = MarketType;
+
+const SESSION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'london', label: 'London' },
+  { value: 'new-york', label: 'New York' },
+  { value: 'asia', label: 'Asia' },
+  { value: 'sydney', label: 'Sydney' },
+];
+
+const SLIDE_ANIMATION_MS = 280;
+
 @Component({
   selector: 'jcs-create-trade-form',
   standalone: true,
   imports: [ReactiveFormsModule, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (visible()) {
-      <form
-        class="jcs-card jcs-card--glow inline-form"
-        [formGroup]="form"
-        (ngSubmit)="submit()"
-        aria-labelledby="ct-title">
-        <header class="form-head">
-          <div>
-            <h3 id="ct-title">Nueva operación</h3>
-            <p class="jcs-muted">Registrar un trade manualmente. La operación queda abierta hasta que la cierres.</p>
-          </div>
-          <button
-            type="button"
-            class="close-btn"
-            (click)="cancel()"
-            [disabled]="submitting()"
-            aria-label="Cerrar formulario">×</button>
-        </header>
+    @if (rendered()) {
+      <div
+        class="panel-shell"
+        [class.panel-shell--visible]="visible()"
+        role="presentation"
+        aria-hidden="false">
+        <div class="panel-backdrop" (click)="cancel()" aria-hidden="true"></div>
 
-        @if (loading()) {
-          <div class="loading-state" aria-live="polite">
-            <span class="loading-dot" aria-hidden="true"></span>
-            <span>Cargando cuentas e instrumentos…</span>
+        <aside
+          class="jcs-card jcs-card--glow panel-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ct-title">
+
+          <header class="panel-head">
+            <div class="panel-head-text">
+              <h3 id="ct-title">Nueva operación</h3>
+              <p class="jcs-muted">
+                Registrá un trade manualmente. La operación queda abierta hasta que la cierres.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="panel-close"
+              (click)="cancel()"
+              [disabled]="submitting()"
+              aria-label="Cerrar panel">×</button>
+          </header>
+
+          <div class="panel-tabs" role="tablist" aria-label="Tipo de operación">
+            <button
+              type="button"
+              role="tab"
+              class="panel-tab"
+              [class.panel-tab--active]="activeTab() === 1"
+              [attr.aria-selected]="activeTab() === 1"
+              [disabled]="!hasForexAccounts() && hasBinaryAccounts()"
+              (click)="setTab(1)">
+              <span class="panel-tab-dot panel-tab-dot--forex" aria-hidden="true"></span>
+              Forex
+              @if (!hasForexAccounts() && hasBinaryAccounts()) {
+                <span class="panel-tab-hint">Sin cuentas Forex</span>
+              }
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="panel-tab"
+              [class.panel-tab--active]="activeTab() === 2"
+              [attr.aria-selected]="activeTab() === 2"
+              [disabled]="!hasBinaryAccounts() && hasForexAccounts()"
+              (click)="setTab(2)">
+              <span class="panel-tab-dot panel-tab-dot--binary" aria-hidden="true"></span>
+              Binarias
+              @if (!hasBinaryAccounts() && hasForexAccounts()) {
+                <span class="panel-tab-hint">Sin cuentas Binarias</span>
+              }
+            </button>
           </div>
-        } @else if (dataError()) {
-          <div class="form-error" role="alert">
-            <span>{{ dataError() }}</span>
-            <button type="button" class="error-retry" (click)="loadData()">Reintentar</button>
-          </div>
-        } @else if (hasNoData()) {
-          <div class="empty-state">
-            <span class="empty-icon" aria-hidden="true">⚠</span>
-            <h4>No se puede crear la operación</h4>
-            @if (activeAccounts().length === 0) {
-              <p class="jcs-muted">Necesitás al menos una cuenta activa.</p>
-            }
-            @if (activeInstruments().length === 0) {
-              <p class="jcs-muted">Necesitás al menos un instrumento activo.</p>
-            }
-            <a class="jcs-btn jcs-btn--primary" routerLink="/app/settings">Ir a Configuración</a>
-          </div>
-        } @else {
-          <div class="form-grid">
-            <div class="field">
-              <label class="jcs-label" for="ct-account">Cuenta</label>
-              <select
-                id="ct-account"
-                class="jcs-input"
-                formControlName="accountId"
-                [disabled]="submitting()"
-                [class.jcs-input--error]="isInvalid(form.controls.accountId)">
-                <option value="">Seleccioná una cuenta</option>
-                @for (a of activeAccounts(); track a.id) {
-                  <option [value]="a.id">{{ a.name }} · {{ a.broker }} · {{ a.currency }}</option>
+
+          <div class="panel-body">
+            @if (loading()) {
+              <div class="loading-state" aria-live="polite">
+                <span class="loading-dot" aria-hidden="true"></span>
+                <span>Cargando cuentas e instrumentos…</span>
+              </div>
+            } @else if (dataError()) {
+              <div class="form-error" role="alert">
+                <span>{{ dataError() }}</span>
+                <button type="button" class="error-retry" (click)="loadData()">Reintentar</button>
+              </div>
+            } @else if (hasNoData()) {
+              <div class="empty-state">
+                <span class="empty-icon" aria-hidden="true">⚠</span>
+                <h4>No se puede crear la operación</h4>
+                @if (activeAccounts().length === 0) {
+                  <p class="jcs-muted">Necesitás al menos una cuenta activa.</p>
                 }
-              </select>
-              @if (isInvalid(form.controls.accountId)) {
-                <span class="field-error">Seleccioná una cuenta.</span>
-              }
-            </div>
-
-            <div class="field">
-              <label class="jcs-label" for="ct-instrument">Instrumento</label>
-              <select
-                id="ct-instrument"
-                class="jcs-input"
-                formControlName="instrumentId"
-                [disabled]="submitting()"
-                [class.jcs-input--error]="isInvalid(form.controls.instrumentId)">
-                <option value="">Seleccioná un instrumento</option>
-                @for (i of activeInstruments(); track i.id) {
-                  <option [value]="i.id">{{ i.symbol }} · {{ assetClassLabel(i.assetClass) }}</option>
+                @if (filteredInstruments().length === 0) {
+                  <p class="jcs-muted">
+                    No hay instrumentos de tipo
+                    {{ activeTab() === 1 ? 'Forex' : 'Binarias' }} activos.
+                  </p>
                 }
-              </select>
-              @if (isInvalid(form.controls.instrumentId)) {
-                <span class="field-error">Seleccioná un instrumento.</span>
-              }
-            </div>
-
-            <div class="field">
-              <label class="jcs-label">Dirección</label>
-              <div class="dir-toggle" role="group" aria-label="Dirección">
-                <button
-                  type="button"
-                  class="dir-pill"
-                  [class.dir-pill--active]="form.controls.direction.value === 1"
-                  [disabled]="submitting()"
-                  (click)="setDirection(1)"
-                  aria-label="Long">
-                  <span class="dot dot--long" aria-hidden="true"></span>
-                  Long
-                </button>
-                <button
-                  type="button"
-                  class="dir-pill"
-                  [class.dir-pill--active]="form.controls.direction.value === 2"
-                  [disabled]="submitting()"
-                  (click)="setDirection(2)"
-                  aria-label="Short">
-                  <span class="dot dot--short" aria-hidden="true"></span>
-                  Short
-                </button>
+                <a class="jcs-btn jcs-btn--primary" routerLink="/app/settings">Ir a Configuración</a>
               </div>
-            </div>
+            } @else {
+              <form [formGroup]="form" (ngSubmit)="submit()" class="panel-form" novalidate>
+                <!-- ============== Common fields ============== -->
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="jcs-label" for="ct-account">Cuenta</label>
+                    <select
+                      id="ct-account"
+                      class="jcs-input"
+                      formControlName="accountId"
+                      [disabled]="submitting()"
+                      [class.jcs-input--error]="isInvalid(form.controls.accountId)">
+                      <option value="">Seleccioná una cuenta</option>
+                      @for (a of accountsForTab(); track a.id) {
+                        <option [value]="a.id">
+                          {{ a.name }} · {{ a.broker }} · {{ marketTypeLabel(a.marketType) }}
+                        </option>
+                      }
+                    </select>
+                    @if (isInvalid(form.controls.accountId)) {
+                      <span class="field-error">Seleccioná una cuenta.</span>
+                    }
+                  </div>
 
-            <div class="field">
-              <label class="jcs-label" for="ct-volume">Volumen</label>
-              <div class="input-suffix">
-                <input
-                  id="ct-volume"
-                  class="jcs-input jcs-num"
-                  type="number"
-                  min="0.00000001"
-                  [step]="volumeStep()"
-                  formControlName="volume"
-                  [disabled]="submitting()"
-                  placeholder="0.00"
-                  [class.jcs-input--error]="isInvalid(form.controls.volume)">
-                <span class="suffix" [class.suffix--empty]="!volumeCurrency()">
-                  {{ volumeCurrency() || '—' }}
-                </span>
-              </div>
-              @if (isInvalid(form.controls.volume)) {
-                <span class="field-error">Ingresá un volumen mayor a 0.</span>
-              } @else {
-                <span class="field-hint">Moneda de la cuenta seleccionada.</span>
-              }
-            </div>
+                  <div class="field">
+                    <label class="jcs-label" for="ct-instrument">Instrumento</label>
+                    <select
+                      id="ct-instrument"
+                      class="jcs-input"
+                      formControlName="instrumentId"
+                      [disabled]="submitting()"
+                      [class.jcs-input--error]="isInvalid(form.controls.instrumentId)">
+                      <option value="">Seleccioná un instrumento</option>
+                      @for (i of filteredInstruments(); track i.id) {
+                        <option [value]="i.id">{{ i.symbol }} · {{ assetClassLabel(i.assetClass) }}</option>
+                      }
+                    </select>
+                    @if (isInvalid(form.controls.instrumentId)) {
+                      <span class="field-error">Seleccioná un instrumento.</span>
+                    } @else {
+                      <span class="field-hint">
+                        @if (filteredInstruments().length === 0) {
+                          No hay instrumentos compatibles con este tipo de operación.
+                        } @else {
+                          {{ filteredInstruments().length }} disponibles.
+                        }
+                      </span>
+                    }
+                  </div>
+                </div>
 
-            <div class="field">
-              <label class="jcs-label" for="ct-entry">Precio de entrada</label>
-              <div class="input-suffix">
-                <input
-                  id="ct-entry"
-                  class="jcs-input jcs-num"
-                  type="number"
-                  min="0.00000001"
-                  [step]="priceStep()"
-                  formControlName="entryPrice"
-                  [disabled]="submitting()"
-                  placeholder="0.00"
-                  [class.jcs-input--error]="isInvalid(form.controls.entryPrice)">
-                <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
-                  {{ entryPriceCurrency() || '—' }}
-                </span>
-              </div>
-              @if (isInvalid(form.controls.entryPrice)) {
-                <span class="field-error">Ingresá un precio mayor a 0.</span>
-              } @else {
-                <span class="field-hint">
-                  Decimales sugeridos: {{ selectedInstrument()?.decimalPlaces ?? '—' }}
-                </span>
-              }
-            </div>
+                <!-- ============== Forex tab ============== -->
+                @if (activeTab() === 1) {
+                  <fieldset class="tab-section">
+                    <legend class="tab-section-legend">Detalles Forex</legend>
 
-            <div class="field">
-              <label class="jcs-label" for="ct-strategy">Estrategia (opcional)</label>
-              <input
-                id="ct-strategy"
-                class="jcs-input"
-                type="text"
-                formControlName="strategy"
-                [disabled]="submitting()"
-                maxlength="80"
-                placeholder="Ej.: Breakout Londres, Order block H4…">
-              <span class="field-hint">{{ form.controls.strategy.value.length }} / 80</span>
-            </div>
+                    <div class="field">
+                      <label class="jcs-label">Dirección</label>
+                      <div class="dir-toggle" role="group" aria-label="Dirección">
+                        <button
+                          type="button"
+                          class="dir-pill"
+                          [class.dir-pill--active]="form.controls.direction.value === 1"
+                          [disabled]="submitting()"
+                          (click)="setDirection(1)"
+                          aria-label="Compra / Long">
+                          <span class="dot dot--long" aria-hidden="true"></span>
+                          COMPRA
+                        </button>
+                        <button
+                          type="button"
+                          class="dir-pill"
+                          [class.dir-pill--active]="form.controls.direction.value === 2"
+                          [disabled]="submitting()"
+                          (click)="setDirection(2)"
+                          aria-label="Venta / Short">
+                          <span class="dot dot--short" aria-hidden="true"></span>
+                          VENTA
+                        </button>
+                      </div>
+                    </div>
 
-            <div class="field field--full">
-              <label class="jcs-label" for="ct-notes">Notas (opcional)</label>
-              <textarea
-                id="ct-notes"
-                class="jcs-input notes-input"
-                formControlName="notes"
-                [disabled]="submitting()"
-                maxlength="2000"
-                rows="3"
-                placeholder="Contexto, setup, por qué tomaste el trade…"></textarea>
-              <span class="field-hint">{{ form.controls.notes.value.length }} / 2000</span>
-            </div>
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-entry">Entrada</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-entry"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="priceStep()"
+                            formControlName="entryPrice"
+                            [disabled]="submitting()"
+                            placeholder="0.00"
+                            [class.jcs-input--error]="isInvalid(form.controls.entryPrice)">
+                          <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
+                            {{ entryPriceCurrency() || '—' }}
+                          </span>
+                        </div>
+                        @if (isInvalid(form.controls.entryPrice)) {
+                          <span class="field-error">Ingresá un precio mayor a 0.</span>
+                        } @else {
+                          <span class="field-hint">
+                            Decimales sugeridos: {{ selectedInstrument()?.decimalPlaces ?? '—' }}
+                          </span>
+                        }
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-exit">Salida (opcional)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-exit"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="priceStep()"
+                            formControlName="exitPrice"
+                            [disabled]="submitting()"
+                            placeholder="0.00">
+                          <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
+                            {{ entryPriceCurrency() || '—' }}
+                          </span>
+                        </div>
+                        <span class="field-hint">Para trades ya cerrados.</span>
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-sl">Stop Loss (opcional)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-sl"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="priceStep()"
+                            formControlName="stopLoss"
+                            [disabled]="submitting()"
+                            placeholder="0.00">
+                          <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
+                            {{ entryPriceCurrency() || '—' }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-tp">Take Profit (opcional)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-tp"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="priceStep()"
+                            formControlName="takeProfit"
+                            [disabled]="submitting()"
+                            placeholder="0.00">
+                          <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
+                            {{ entryPriceCurrency() || '—' }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-risk">Riesgo (R %)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-risk"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            formControlName="riskPercent"
+                            [disabled]="submitting()"
+                            placeholder="1.0">
+                          <span class="suffix suffix--empty">%</span>
+                        </div>
+                        <span class="field-hint">Porcentaje del balance que se arriesga.</span>
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-rmult">R Múltiple</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-rmult"
+                            class="jcs-input jcs-num readonly"
+                            type="text"
+                            [value]="rMultipleLabel()"
+                            readonly
+                            tabindex="-1">
+                          <span class="suffix suffix--empty">R</span>
+                        </div>
+                        <span class="field-hint">{{ rMultipleHint() }}</span>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-volume">Tamaño de posición</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-volume"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="volumeStep()"
+                            formControlName="volume"
+                            [disabled]="submitting()"
+                            placeholder="0.00"
+                            [class.jcs-input--error]="isInvalid(form.controls.volume)">
+                          <span class="suffix" [class.suffix--empty]="!volumeCurrency()">
+                            {{ volumeCurrency() || 'lotes' }}
+                          </span>
+                        </div>
+                        @if (isInvalid(form.controls.volume)) {
+                          <span class="field-error">Ingresá un volumen mayor a 0.</span>
+                        } @else {
+                          <span class="field-hint">{{ positionSizeHint() }}</span>
+                        }
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-pnl">P&amp;L esperado</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-pnl"
+                            class="jcs-input jcs-num readonly"
+                            type="text"
+                            [value]="expectedPnLLabel()"
+                            readonly
+                            tabindex="-1">
+                          <span
+                            class="suffix"
+                            [class.suffix--empty]="!volumeCurrency()">
+                            {{ volumeCurrency() || '—' }}
+                          </span>
+                        </div>
+                        <span class="field-hint">{{ expectedPnLHint() }}</span>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-opened">Fecha apertura</label>
+                        <input
+                          id="ct-opened"
+                          class="jcs-input"
+                          type="datetime-local"
+                          formControlName="openedAt"
+                          [disabled]="submitting()">
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-closed">Fecha cierre (opcional)</label>
+                        <input
+                          id="ct-closed"
+                          class="jcs-input"
+                          type="datetime-local"
+                          formControlName="closedAt"
+                          [disabled]="submitting()">
+                      </div>
+                    </div>
+                  </fieldset>
+                }
+
+                <!-- ============== Binary tab ============== -->
+                @if (activeTab() === 2) {
+                  <fieldset class="tab-section">
+                    <legend class="tab-section-legend">Detalles Binarias</legend>
+
+                    <div class="field">
+                      <label class="jcs-label">Dirección</label>
+                      <div class="dir-toggle" role="group" aria-label="Dirección">
+                        <button
+                          type="button"
+                          class="dir-pill"
+                          [class.dir-pill--active]="form.controls.direction.value === 1"
+                          [disabled]="submitting()"
+                          (click)="setDirection(1)"
+                          aria-label="Call">
+                          <span class="dot dot--long" aria-hidden="true"></span>
+                          CALL
+                        </button>
+                        <button
+                          type="button"
+                          class="dir-pill"
+                          [class.dir-pill--active]="form.controls.direction.value === 2"
+                          [disabled]="submitting()"
+                          (click)="setDirection(2)"
+                          aria-label="Put">
+                          <span class="dot dot--short" aria-hidden="true"></span>
+                          PUT
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-entry-b">Entrada (strike)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-entry-b"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.00000001"
+                            [step]="priceStep()"
+                            formControlName="entryPrice"
+                            [disabled]="submitting()"
+                            placeholder="0.00"
+                            [class.jcs-input--error]="isInvalid(form.controls.entryPrice)">
+                          <span class="suffix" [class.suffix--empty]="!entryPriceCurrency()">
+                            {{ entryPriceCurrency() || '—' }}
+                          </span>
+                        </div>
+                        @if (isInvalid(form.controls.entryPrice)) {
+                          <span class="field-error">Ingresá un strike mayor a 0.</span>
+                        } @else {
+                          <span class="field-hint">
+                            Decimales: {{ selectedInstrument()?.decimalPlaces ?? '—' }}
+                          </span>
+                        }
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-payout">Payout (%)</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-payout"
+                            class="jcs-input jcs-num readonly"
+                            type="text"
+                            [value]="payoutLabel()"
+                            readonly
+                            tabindex="-1">
+                          <span class="suffix suffix--empty">%</span>
+                        </div>
+                        <span class="field-hint">{{ payoutHint() }}</span>
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-amount">Importe</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-amount"
+                            class="jcs-input jcs-num"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            formControlName="amount"
+                            [disabled]="submitting()"
+                            placeholder="0.00"
+                            [class.jcs-input--error]="isInvalid(form.controls.amount)">
+                          <span class="suffix" [class.suffix--empty]="!volumeCurrency()">
+                            {{ volumeCurrency() || '—' }}
+                          </span>
+                        </div>
+                        @if (isInvalid(form.controls.amount)) {
+                          <span class="field-error">Ingresá un importe mayor a 0.</span>
+                        } @else {
+                          <span class="field-hint">Cuánto apostás a esta operación.</span>
+                        }
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-pnl-b">P&amp;L potencial</label>
+                        <div class="input-suffix">
+                          <input
+                            id="ct-pnl-b"
+                            class="jcs-input jcs-num readonly"
+                            type="text"
+                            [value]="potentialPnLLabel()"
+                            readonly
+                            tabindex="-1">
+                          <span
+                            class="suffix"
+                            [class.suffix--empty]="!volumeCurrency()">
+                            {{ volumeCurrency() || '—' }}
+                          </span>
+                        </div>
+                        <span class="field-hint">{{ potentialPnLHint() }}</span>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <div class="field">
+                        <label class="jcs-label" for="ct-opened-b">Fecha apertura</label>
+                        <input
+                          id="ct-opened-b"
+                          class="jcs-input"
+                          type="datetime-local"
+                          formControlName="openedAt"
+                          [disabled]="submitting()">
+                      </div>
+
+                      <div class="field">
+                        <label class="jcs-label" for="ct-expires">Fecha expiración (opcional)</label>
+                        <input
+                          id="ct-expires"
+                          class="jcs-input"
+                          type="datetime-local"
+                          formControlName="expiresAt"
+                          [disabled]="submitting()">
+                      </div>
+                    </div>
+                  </fieldset>
+                }
+
+                <!-- ============== Shared optional fields ============== -->
+                <fieldset class="tab-section">
+                  <legend class="tab-section-legend">Contexto</legend>
+
+                  <div class="form-grid">
+                    <div class="field">
+                      <label class="jcs-label" for="ct-strategy">Estrategia (opcional)</label>
+                      <input
+                        id="ct-strategy"
+                        class="jcs-input"
+                        type="text"
+                        formControlName="strategy"
+                        [disabled]="submitting()"
+                        maxlength="80"
+                        placeholder="Ej.: Breakout Londres, Order block H4…">
+                      <span class="field-hint">{{ form.controls.strategy.value.length }} / 80</span>
+                    </div>
+
+                    <div class="field">
+                      <label class="jcs-label" for="ct-session">Sesión (opcional)</label>
+                      <select
+                        id="ct-session"
+                        class="jcs-input"
+                        formControlName="session"
+                        [disabled]="submitting()">
+                        <option value="">Sin definir</option>
+                        @for (s of sessionOptions; track s.value) {
+                          <option [value]="s.value">{{ s.label }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="field field--full">
+                    <label class="jcs-label" for="ct-notes">Notas (opcional)</label>
+                    <textarea
+                      id="ct-notes"
+                      class="jcs-input notes-input"
+                      formControlName="notes"
+                      [disabled]="submitting()"
+                      maxlength="2000"
+                      rows="3"
+                      placeholder="Contexto, setup, por qué tomaste el trade…"></textarea>
+                    <span class="field-hint">{{ form.controls.notes.value.length }} / 2000</span>
+                  </div>
+
+                  <div class="field field--full">
+                    <label class="jcs-label">Captura de pantalla (opcional)</label>
+                    <div
+                      class="screenshot-drop"
+                      [class.screenshot-drop--hover]="screenshotDrag()"
+                      (dragover)="onScreenshotDragOver($event)"
+                      (dragleave)="onScreenshotDragLeave($event)"
+                      (drop)="onScreenshotDrop($event)"
+                      (click)="screenshotInput.click()"
+                      role="button"
+                      tabindex="0">
+                      @if (screenshotPreviewUrl()) {
+                        <img
+                          class="screenshot-preview"
+                          [src]="screenshotPreviewUrl()"
+                          alt="Vista previa de la captura">
+                        <div class="screenshot-meta">
+                          <span class="screenshot-name jcs-num">{{ screenshotName() }}</span>
+                          <button
+                            type="button"
+                            class="screenshot-clear"
+                            (click)="clearScreenshot($event)"
+                            [disabled]="submitting()"
+                            aria-label="Quitar captura">Quitar</button>
+                        </div>
+                      } @else {
+                        <span class="screenshot-icon" aria-hidden="true">📷</span>
+                        <span class="screenshot-cta">
+                          Arrastrá una imagen o <strong>hacé click</strong> para seleccionar
+                        </span>
+                        <span class="screenshot-hint">Solo visual — no se guarda con el trade.</span>
+                      }
+                      <input
+                        #screenshotInput
+                        class="screenshot-input"
+                        type="file"
+                        accept="image/*"
+                        [disabled]="submitting()"
+                        (change)="onScreenshotPicked($event)">
+                    </div>
+                  </div>
+                </fieldset>
+
+                @if (submitError()) {
+                  <div class="form-error" role="alert">{{ submitError() }}</div>
+                }
+              </form>
+            }
           </div>
 
-          @if (submitError()) {
-            <div class="form-error" role="alert">{{ submitError() }}</div>
-          }
-
-          <footer class="form-actions">
+          <footer class="panel-foot">
             <button
               type="button"
               class="jcs-btn jcs-btn--ghost"
               (click)="cancel()"
               [disabled]="submitting()">Cancelar</button>
             <button
-              type="submit"
+              type="button"
               class="jcs-btn jcs-btn--primary"
-              [disabled]="submitting() || form.invalid">
-              {{ submitting() ? 'Creando…' : 'Crear operación' }}
+              (click)="submit()"
+              [disabled]="submitting() || !canSubmit()">
+              @if (submitting()) {
+                <span class="btn-spinner" aria-hidden="true"></span>
+                Guardando…
+              } @else {
+                Crear operación
+              }
             </button>
           </footer>
-        }
-      </form>
+        </aside>
+      </div>
     }
   `,
   styles: [`
-    :host { display: block; }
+    :host { display: contents; }
 
-    .inline-form {
+    /* ============== Slide-out shell ============== */
+    .panel-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      pointer-events: none;
+    }
+    .panel-shell--visible {
+      pointer-events: auto;
+    }
+
+    .panel-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .panel-shell--visible .panel-backdrop { opacity: 1; }
+
+    .panel-card {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(460px, 100vw);
       display: flex;
       flex-direction: column;
-      gap: var(--sp-5);
-      padding: var(--sp-6);
-      animation: form-expand 220ms ease-out;
+      gap: 0;
+      padding: 0;
+      border-radius: 0;
+      border-left: 1px solid var(--border-active);
+      box-shadow: -16px 0 48px rgba(0, 0, 0, 0.5);
+      transform: translateX(100%);
+      transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
     }
-    .form-head {
+    .panel-shell--visible .panel-card { transform: translateX(0); }
+
+    /* ============== Header ============== */
+    .panel-head {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: var(--sp-4);
+      gap: var(--sp-3);
+      padding: var(--sp-5) var(--sp-6) var(--sp-3);
+      flex-shrink: 0;
     }
-    .form-head h3 {
-      margin: 0 0 var(--sp-1);
-      font-size: var(--fs-xl);
-    }
-    .form-head p {
-      margin: 0;
-      font-size: var(--fs-sm);
-      max-width: 560px;
-    }
-    .close-btn {
+    .panel-head-text { min-width: 0; }
+    .panel-head h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-xl); }
+    .panel-head p { margin: 0; font-size: var(--fs-sm); max-width: 360px; }
+    .panel-close {
       width: 34px;
       height: 34px;
       flex-shrink: 0;
@@ -274,11 +732,101 @@ import {
       cursor: pointer;
       transition: border-color 150ms, color 150ms;
     }
-    .close-btn:hover:not(:disabled) {
+    .panel-close:hover:not(:disabled) {
       border-color: var(--border-active);
       color: var(--text-main);
     }
-    .close-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .panel-close:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ============== Tabs ============== */
+    .panel-tabs {
+      display: flex;
+      gap: var(--sp-2);
+      padding: 0 var(--sp-6) var(--sp-3);
+      border-bottom: 1px solid var(--border-soft);
+      flex-shrink: 0;
+    }
+    .panel-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      padding: var(--sp-2) var(--sp-4);
+      background: transparent;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-pill, 9999px);
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 150ms;
+    }
+    .panel-tab:hover:not(:disabled) { color: var(--text-main); }
+    .panel-tab:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .panel-tab--active {
+      background: var(--green-soft);
+      border-color: var(--border-active);
+      color: var(--green);
+    }
+    .panel-tab-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .panel-tab-dot--forex { background: var(--green); }
+    .panel-tab-dot--binary { background: var(--yellow); }
+    .panel-tab-hint {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    /* ============== Body ============== */
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: var(--sp-5) var(--sp-6);
+    }
+    .panel-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-5);
+    }
+
+    /* ============== Footer ============== */
+    .panel-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--sp-3);
+      padding: var(--sp-4) var(--sp-6);
+      border-top: 1px solid var(--border-soft);
+      background: var(--bg-card);
+      flex-shrink: 0;
+    }
+
+    /* ============== Sections & fields ============== */
+    .tab-section {
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      padding: var(--sp-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+      margin: 0;
+    }
+    .tab-section-legend {
+      padding: 0 var(--sp-2);
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
 
     .form-grid {
       display: grid;
@@ -307,7 +855,7 @@ import {
     .input-suffix .jcs-input {
       flex: 1;
       min-width: 0;
-      padding-right: 64px;
+      padding-right: 60px;
     }
     .input-suffix .suffix {
       position: absolute;
@@ -329,14 +877,20 @@ import {
       background: transparent;
       border-color: transparent;
     }
+    .input-suffix input.readonly {
+      background: var(--bg-card-soft);
+      color: var(--text-secondary);
+      cursor: not-allowed;
+    }
 
     .notes-input {
       font-family: inherit;
       resize: vertical;
-      min-height: 88px;
+      min-height: 80px;
       line-height: 1.5;
     }
 
+    /* ============== Direction toggle ============== */
     .dir-toggle {
       display: inline-flex;
       gap: var(--sp-1);
@@ -376,38 +930,86 @@ import {
     .dir-toggle .dot--long { background: var(--green); }
     .dir-toggle .dot--short { background: var(--red); }
 
-    .form-error {
+    /* ============== Screenshot drop zone ============== */
+    .screenshot-drop {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--sp-2);
+      min-height: 120px;
+      padding: var(--sp-5);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius-md);
+      background: var(--bg-card-soft);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color 150ms, background 150ms;
+    }
+    .screenshot-drop:hover,
+    .screenshot-drop:focus-visible,
+    .screenshot-drop--hover {
+      border-color: var(--border-active);
+      background: var(--green-soft);
+      outline: none;
+    }
+    .screenshot-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .screenshot-icon {
+      font-size: var(--fs-xl);
+    }
+    .screenshot-cta {
+      font-size: var(--fs-sm);
+      color: var(--text-secondary);
+    }
+    .screenshot-cta strong { color: var(--green); }
+    .screenshot-hint {
+      font-size: var(--fs-xs);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .screenshot-preview {
+      max-width: 100%;
+      max-height: 180px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-soft);
+    }
+    .screenshot-meta {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: var(--sp-3);
-      padding: var(--sp-3) var(--sp-4);
-      background: rgba(255, 64, 87, 0.08);
-      border: 1px solid rgba(255, 64, 87, 0.35);
-      border-radius: var(--radius-sm);
-      color: var(--red);
-      font-size: var(--fs-sm);
     }
-    .error-retry {
-      padding: var(--sp-1) var(--sp-3);
-      border: 1px solid var(--red);
-      border-radius: var(--radius-sm);
+    .screenshot-name {
+      font-size: var(--fs-xs);
+      color: var(--text-secondary);
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .screenshot-clear {
+      padding: 2px var(--sp-2);
       background: transparent;
-      color: var(--red);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      color: var(--text-muted);
       font: inherit;
       font-size: var(--fs-xs);
       font-weight: 600;
       cursor: pointer;
     }
-    .error-retry:hover { background: rgba(255, 64, 87, 0.15); }
-
-    .form-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: var(--sp-3);
-      flex-wrap: wrap;
+    .screenshot-clear:hover:not(:disabled) {
+      border-color: var(--red);
+      color: var(--red);
     }
 
+    /* ============== States ============== */
     .loading-state {
       display: flex;
       align-items: center;
@@ -437,15 +1039,8 @@ import {
       padding: var(--sp-8) var(--sp-4);
       text-align: center;
     }
-    .empty-state h4 {
-      margin: 0;
-      font-size: var(--fs-lg);
-    }
-    .empty-state p {
-      margin: 0;
-      font-size: var(--fs-sm);
-      max-width: 460px;
-    }
+    .empty-state h4 { margin: 0; font-size: var(--fs-lg); }
+    .empty-state p { margin: 0; font-size: var(--fs-sm); max-width: 360px; }
     .empty-icon {
       display: inline-flex;
       align-items: center;
@@ -460,16 +1055,51 @@ import {
       font-weight: 700;
     }
 
-    @media (max-width: 720px) {
-      .form-grid { grid-template-columns: 1fr; }
-      .inline-form { padding: var(--sp-5); }
-      .form-actions { flex-direction: column-reverse; }
-      .form-actions .jcs-btn { width: 100%; }
+    .form-error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: rgba(255, 64, 87, 0.08);
+      border: 1px solid rgba(255, 64, 87, 0.35);
+      border-radius: var(--radius-sm);
+      color: var(--red);
+      font-size: var(--fs-sm);
+    }
+    .error-retry {
+      padding: var(--sp-1) var(--sp-3);
+      border: 1px solid var(--red);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--red);
+      font: inherit;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .error-retry:hover { background: rgba(255, 64, 87, 0.15); }
+
+    .btn-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(5, 11, 16, 0.3);
+      border-top-color: #050B10;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0); }
+      to   { transform: rotate(360deg); }
     }
 
-    @keyframes form-expand {
-      from { opacity: 0; transform: translateY(-8px); }
-      to   { opacity: 1; transform: translateY(0); }
+    @media (max-width: 540px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .panel-tabs { flex-direction: column; }
+      .panel-tab { width: 100%; justify-content: flex-start; }
+      .panel-foot { flex-direction: column-reverse; }
+      .panel-foot .jcs-btn { width: 100%; }
     }
   `],
 })
@@ -490,19 +1120,46 @@ export class CreateTradeForm implements OnDestroy {
   readonly submitting = signal(false);
   readonly submitError = signal<string | null>(null);
 
+  /** Active tab (1 = Forex, 2 = Binary). */
+  readonly activeTab = signal<TradeTab>(1);
+  /** Rendered during open + close animation. */
+  readonly rendered = signal(false);
+  /** Screenshot drag hover. */
+  readonly screenshotDrag = signal(false);
+  /** Screenshot file name for display. */
+  readonly screenshotName = signal<string | null>(null);
+  /** Object URL for screenshot preview. */
+  readonly screenshotPreviewUrl = signal<string | null>(null);
+
+  private screenshotFile: File | null = null;
   private destroyed = false;
+  private hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+  readonly sessionOptions = SESSION_OPTIONS;
 
   readonly form = this.fb.nonNullable.group({
     accountId: ['', Validators.required],
     instrumentId: ['', Validators.required],
     direction: [1 as TradeDirection, Validators.required],
-    volume: [0, [Validators.required, Validators.min(0.00000001)]],
+    // Forex "lots". Sin validador de min — se valida en canSubmit según tab.
+    volume: [0],
+    // Binary "importe" (se mapea a volume en submit cuando tab=binary).
+    amount: [0],
     entryPrice: [0, [Validators.required, Validators.min(0.00000001)]],
+    // Optional visual-only fields (not persisted to backend).
+    exitPrice: [null as number | null],
+    stopLoss: [null as number | null],
+    takeProfit: [null as number | null],
+    riskPercent: [null as number | null],
     strategy: ['', Validators.maxLength(80)],
     notes: ['', Validators.maxLength(2000)],
+    session: [''],
+    openedAt: [this.nowLocalIso()],
+    closedAt: [null as string | null],
+    expiresAt: [null as string | null],
   });
 
-  // Signals derivados del form para reactividad real con computed().
+  // ====== Signals reactivos a form changes ======
   private readonly accountIdValue = toSignal(
     this.form.controls.accountId.valueChanges,
     { initialValue: this.form.controls.accountId.value },
@@ -511,9 +1168,57 @@ export class CreateTradeForm implements OnDestroy {
     this.form.controls.instrumentId.valueChanges,
     { initialValue: this.form.controls.instrumentId.value },
   );
+  private readonly directionValue = toSignal(
+    this.form.controls.direction.valueChanges,
+    { initialValue: this.form.controls.direction.value },
+  );
+  private readonly entryPriceValue = toSignal(
+    this.form.controls.entryPrice.valueChanges,
+    { initialValue: this.form.controls.entryPrice.value },
+  );
+  private readonly stopLossValue = toSignal(
+    this.form.controls.stopLoss.valueChanges,
+    { initialValue: this.form.controls.stopLoss.value },
+  );
+  private readonly takeProfitValue = toSignal(
+    this.form.controls.takeProfit.valueChanges,
+    { initialValue: this.form.controls.takeProfit.value },
+  );
+  private readonly riskPercentValue = toSignal(
+    this.form.controls.riskPercent.valueChanges,
+    { initialValue: this.form.controls.riskPercent.value },
+  );
+  private readonly volumeValue = toSignal(
+    this.form.controls.volume.valueChanges,
+    { initialValue: this.form.controls.volume.value },
+  );
+  private readonly amountValue = toSignal(
+    this.form.controls.amount.valueChanges,
+    { initialValue: this.form.controls.amount.value },
+  );
 
+  // ====== Derived data ======
   readonly activeAccounts = computed(() => this.accounts().filter(a => a.isActive));
   readonly activeInstruments = computed(() => this.instruments().filter(i => i.isActive));
+
+  readonly forexAccounts = computed(() => this.activeAccounts().filter(a => a.marketType === 1));
+  readonly binaryAccounts = computed(() => this.activeAccounts().filter(a => a.marketType === 2));
+
+  readonly hasForexAccounts = computed(() => this.forexAccounts().length > 0);
+  readonly hasBinaryAccounts = computed(() => this.binaryAccounts().length > 0);
+
+  readonly accountsForTab = computed(() => {
+    const tab = this.activeTab();
+    return tab === 1 ? this.forexAccounts() : this.binaryAccounts();
+  });
+
+  readonly forexInstruments = computed(() => this.activeInstruments().filter(i => i.assetClass === 1));
+  readonly binaryInstruments = computed(() => this.activeInstruments().filter(i => i.assetClass === 3));
+
+  readonly filteredInstruments = computed(() => {
+    const tab = this.activeTab();
+    return tab === 1 ? this.forexInstruments() : this.binaryInstruments();
+  });
 
   readonly selectedAccount = computed(() => {
     const id = this.accountIdValue();
@@ -531,9 +1236,9 @@ export class CreateTradeForm implements OnDestroy {
 
   readonly entryPriceCurrency = computed(() => {
     const sym = this.selectedInstrument()?.symbol;
-    if (!sym) return '';
-    // TODO: usar Instrument.quoteCurrency cuando el backend lo exponga.
-    return sym.split('/')[1] ?? 'USD';
+    if (sym && sym.includes('/')) return sym.split('/')[1] ?? 'USD';
+    // Binary or generic fallback: use account currency, then USD.
+    return this.selectedAccount()?.currency ?? 'USD';
   });
 
   private readonly decimalsForStep = computed(
@@ -545,21 +1250,197 @@ export class CreateTradeForm implements OnDestroy {
 
   readonly hasNoData = computed(() => {
     if (this.loading() || this.dataError()) return false;
-    return this.activeAccounts().length === 0 || this.activeInstruments().length === 0;
+    if (this.activeAccounts().length === 0) return true;
+    if (this.filteredInstruments().length === 0) return true;
+    return false;
+  });
+
+  readonly canSubmit = computed(() => {
+    if (this.loading() || this.dataError() || this.hasNoData()) return false;
+    if (this.form.invalid) return false;
+    const tab = this.activeTab();
+    if (tab === 1) {
+      return this.volumeValue() >= 0.00000001;
+    }
+    return this.amountValue() >= 0.01;
+  });
+
+  // ====== Auto-calculations (Forex) ======
+  readonly rMultipleLabel = computed(() => {
+    const entry = this.entryPriceValue();
+    const sl = this.stopLossValue();
+    const tp = this.takeProfitValue();
+    const dir = this.directionValue();
+    if (!entry || !sl || !tp) return '—';
+    const slDist = Math.abs(entry - sl);
+    const tpDist = Math.abs(tp - entry);
+    if (slDist <= 0 || tpDist <= 0) return '—';
+    const isLong = dir === 1;
+    const rMult = isLong
+      ? (entry - sl) / (tp - entry)
+      : (sl - entry) / (entry - tp);
+    if (!Number.isFinite(rMult)) return '—';
+    return (rMult >= 0 ? '+' : '') + rMult.toFixed(2) + 'R';
+  });
+
+  readonly rMultipleHint = computed(() => {
+    const entry = this.entryPriceValue();
+    const sl = this.stopLossValue();
+    const tp = this.takeProfitValue();
+    if (!entry || !sl || !tp) return 'Completá entrada, SL y TP para calcular.';
+    return 'Ratio riesgo/beneficio (SL = 1R).';
+  });
+
+  readonly positionSizeHint = computed(() => {
+    const tab = this.activeTab();
+    if (tab === 1) {
+      const sl = this.stopLossValue();
+      const risk = this.riskPercentValue();
+      const entry = this.entryPriceValue();
+      const account = this.selectedAccount();
+      if (!sl || !risk || !entry || !account) {
+        return 'Editable — definí riesgo y SL para sugerir lotes.';
+      }
+      const slDist = Math.abs(entry - sl);
+      if (slDist <= 0) return 'SL debe ser distinto al entry.';
+      const accountBalance = (account.initialBalance) || 0;
+      const leverage = (account.leverage && account.leverage > 0) ? account.leverage : 1;
+      const pipValue = this.selectedInstrument()?.pipValue ?? 0;
+      const contractSize = this.selectedInstrument()?.contractSize ?? 1;
+      const decimals = this.selectedInstrument()?.decimalPlaces ?? 5;
+      // Tamaño de posición = (riesgo $) / (slDist * contractSize) — visual only.
+      const riskAmount = (risk / 100) * accountBalance * leverage;
+      const lots = riskAmount / (slDist * contractSize * (pipValue || 1));
+      if (!Number.isFinite(lots) || lots <= 0) return 'Editable — definí riesgo y SL para sugerir lotes.';
+      return `Sugerido: ${lots.toFixed(decimals)} lotes (visual).`;
+    }
+    return 'Editable.';
+  });
+
+  readonly expectedPnLLabel = computed(() => {
+    const tab = this.activeTab();
+    if (tab === 1) {
+      const entry = this.entryPriceValue();
+      const tp = this.takeProfitValue();
+      const volume = this.volumeValue();
+      const instr = this.selectedInstrument();
+      if (!entry || !tp || !volume || !instr) return '—';
+      const contractSize = instr.contractSize ?? 1;
+      const pipValue = instr.pipValue ?? 0;
+      const dir = this.directionValue();
+      const dist = Math.abs(tp - entry);
+      const sign = dir === 1 ? 1 : -1;
+      const pnl = sign * dist * volume * contractSize * (pipValue || 1);
+      if (!Number.isFinite(pnl)) return '—';
+      return (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
+    }
+    return '—';
+  });
+
+  readonly expectedPnLHint = computed(() => {
+    const tab = this.activeTab();
+    if (tab === 1) {
+      const entry = this.entryPriceValue();
+      const tp = this.takeProfitValue();
+      if (!entry || !tp) return 'Asumiendo que el TP se alcanza.';
+      return 'Asume TP alcanzado. Visual, no se persiste.';
+    }
+    return '';
+  });
+
+  // ====== Auto-calculations (Binary) ======
+  readonly payoutLabel = computed(() => {
+    const instr = this.selectedInstrument();
+    if (!instr) return '—';
+    return (instr.payoutPercent * 100).toFixed(1);
+  });
+
+  readonly payoutHint = computed(() => {
+    const instr = this.selectedInstrument();
+    if (!instr) return 'Elegí un instrumento para autocompletar.';
+    return 'Auto desde el instrumento.';
+  });
+
+  readonly potentialPnLLabel = computed(() => {
+    const instr = this.selectedInstrument();
+    const amount = this.amountValue();
+    if (!instr || !amount) return '—';
+    const win = amount * instr.payoutPercent;
+    if (!Number.isFinite(win)) return '—';
+    return (win >= 0 ? '+' : '') + win.toFixed(2);
+  });
+
+  readonly potentialPnLHint = computed(() => {
+    const instr = this.selectedInstrument();
+    const amount = this.amountValue();
+    if (!instr || !amount) return 'Si gana: importe × payout.';
+    const loss = -amount;
+    return `Si gana: +${(amount * instr.payoutPercent).toFixed(2)} · Si pierde: ${loss.toFixed(2)}.`;
   });
 
   constructor() {
-    // Cargar datos cada vez que el formulario se vuelve visible.
+    // Manejo de visibilidad: rendered siempre true mientras visible=true o mientras
+    // termina la animación de salida (280ms).
     effect(() => {
-      if (this.visible()) {
+      const v = this.visible();
+      if (v) {
+        if (this.hideTimer) {
+          clearTimeout(this.hideTimer);
+          this.hideTimer = null;
+        }
+        this.rendered.set(true);
         this.resetForm();
         void this.loadData();
+      } else if (this.rendered()) {
+        if (this.hideTimer) clearTimeout(this.hideTimer);
+        this.hideTimer = setTimeout(() => {
+          this.rendered.set(false);
+          this.hideTimer = null;
+        }, SLIDE_ANIMATION_MS);
+      }
+    });
+
+    // Auto-tab al seleccionar cuenta.
+    effect(() => {
+      const acc = this.selectedAccount();
+      if (!acc) return;
+      const tab = acc.marketType;
+      if (this.activeTab() !== tab) {
+        this.activeTab.set(tab);
+        // Reset direction default por tab.
+        const defaultDir: TradeDirection = 1;
+        this.form.controls.direction.setValue(defaultDir);
+      }
+    });
+
+    // Si el instrumento seleccionado no es compatible con el tab activo, limpiarlo.
+    effect(() => {
+      const instr = this.selectedInstrument();
+      const tab = this.activeTab();
+      if (!instr) return;
+      const isForex = instr.assetClass === 1;
+      const isBinary = instr.assetClass === 3;
+      if (tab === 1 && !isForex) {
+        this.form.controls.instrumentId.setValue('');
+      } else if (tab === 2 && !isBinary) {
+        this.form.controls.instrumentId.setValue('');
       }
     });
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    if (this.hideTimer) clearTimeout(this.hideTimer);
+    if (this.screenshotPreviewUrl()) {
+      URL.revokeObjectURL(this.screenshotPreviewUrl()!);
+    }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.visible() && !this.submitting()) {
+      this.cancel();
+    }
   }
 
   async loadData(): Promise<void> {
@@ -581,6 +1462,14 @@ export class CreateTradeForm implements OnDestroy {
     }
   }
 
+  setTab(tab: TradeTab): void {
+    if (this.submitting()) return;
+    if (this.activeTab() === tab) return;
+    this.activeTab.set(tab);
+    // Reset direction default por tab (1 = long/call, 2 = short/put).
+    this.form.controls.direction.setValue(1);
+  }
+
   setDirection(dir: TradeDirection): void {
     if (this.submitting()) return;
     this.form.controls.direction.setValue(dir);
@@ -588,7 +1477,7 @@ export class CreateTradeForm implements OnDestroy {
   }
 
   async submit(): Promise<void> {
-    if (this.form.invalid) {
+    if (!this.canSubmit()) {
       this.form.markAllAsTouched();
       return;
     }
@@ -602,16 +1491,22 @@ export class CreateTradeForm implements OnDestroy {
     this.submitting.set(true);
     this.submitError.set(null);
     try {
+      // En binarias, "volume" se alimenta desde el campo "amount" (importe).
+      const tab = this.activeTab();
+      const rawVolume = this.form.controls.volume.value;
+      const amount = this.form.controls.amount.value;
+      const effectiveVolume = tab === 2 ? amount : rawVolume;
+
       const request: OpenTradeRequest = {
         accountId: acc.id,
         instrumentId: instr.id,
         symbol: instr.symbol,
         assetClass: instr.assetClass,
         direction: this.form.controls.direction.value,
-        volume: this.form.controls.volume.value,
+        volume: effectiveVolume,
         volumeCurrency: acc.currency,
         entryPrice: this.form.controls.entryPrice.value,
-        entryPriceCurrency: instr.symbol.split('/')[1] ?? 'USD',
+        entryPriceCurrency: this.entryPriceCurrency(),
         strategy: this.form.controls.strategy.value.trim() || null,
         notes: this.form.controls.notes.value.trim() || null,
       };
@@ -637,23 +1532,100 @@ export class CreateTradeForm implements OnDestroy {
     return ASSET_CLASS_LABELS[ac];
   }
 
+  marketTypeLabel(mt: MarketType): string {
+    return MARKET_TYPE_LABELS[mt];
+  }
+
+  onScreenshotDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.screenshotDrag()) this.screenshotDrag.set(true);
+  }
+
+  onScreenshotDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.screenshotDrag.set(false);
+  }
+
+  onScreenshotDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.screenshotDrag.set(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.acceptScreenshot(file);
+  }
+
+  onScreenshotPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) this.acceptScreenshot(file);
+  }
+
+  clearScreenshot(event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    this.screenshotFile = null;
+    const url = this.screenshotPreviewUrl();
+    if (url) URL.revokeObjectURL(url);
+    this.screenshotPreviewUrl.set(null);
+    this.screenshotName.set(null);
+  }
+
+  private acceptScreenshot(file: File): void {
+    if (!file.type.startsWith('image/')) return;
+    this.screenshotFile = file;
+    this.screenshotName.set(file.name);
+    const prev = this.screenshotPreviewUrl();
+    if (prev) URL.revokeObjectURL(prev);
+    this.screenshotPreviewUrl.set(URL.createObjectURL(file));
+  }
+
   private resetForm(): void {
     this.form.reset({
       accountId: '',
       instrumentId: '',
       direction: 1,
       volume: 0,
+      amount: 0,
       entryPrice: 0,
+      exitPrice: null,
+      stopLoss: null,
+      takeProfit: null,
+      riskPercent: null,
       strategy: '',
       notes: '',
+      session: '',
+      openedAt: this.nowLocalIso(),
+      closedAt: null,
+      expiresAt: null,
     });
     this.submitError.set(null);
     this.dataError.set(null);
+    // Determinar tab inicial según cuentas disponibles.
+    if (this.forexAccounts().length > 0) {
+      this.activeTab.set(1);
+    } else if (this.binaryAccounts().length > 0) {
+      this.activeTab.set(2);
+    }
+    // Limpiar screenshot.
+    this.screenshotFile = null;
+    const url = this.screenshotPreviewUrl();
+    if (url) URL.revokeObjectURL(url);
+    this.screenshotPreviewUrl.set(null);
+    this.screenshotName.set(null);
   }
 
   private stepFor(dp: number): string {
     if (dp <= 0) return '1';
     return '0.' + '0'.repeat(dp - 1) + '1';
+  }
+
+  private nowLocalIso(): string {
+    const now = new Date();
+    const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+    const local = new Date(now.getTime() - tzOffsetMs);
+    return local.toISOString().slice(0, 16);
   }
 
   private toMessage(error: unknown): string {

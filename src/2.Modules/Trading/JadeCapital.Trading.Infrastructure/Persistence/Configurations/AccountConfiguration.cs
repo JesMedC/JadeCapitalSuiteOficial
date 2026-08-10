@@ -22,10 +22,11 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         b.Property(a => a.UserId).HasColumnName("user_id").IsRequired();
         b.Property(a => a.Name).HasColumnName("name").HasMaxLength(80).IsRequired();
         b.Property(a => a.Broker).HasColumnName("broker").HasMaxLength(80).IsRequired();
+        b.Property(a => a.MarketType).HasColumnName("market_type").HasConversion<short>().IsRequired();
         b.Property(a => a.Currency).HasColumnName("currency").HasMaxLength(3).IsRequired();
         b.Property(a => a.InitialBalance).HasColumnName("initial_balance").HasColumnType("numeric(24,8)").IsRequired();
-        b.Property(a => a.Leverage).HasColumnName("leverage").HasColumnType("numeric(10,2)").IsRequired();
-        b.Property(a => a.PayoutPercent).HasColumnName("payout_percent").HasColumnType("numeric(5,4)").IsRequired();
+        // Nullable: Forex usa > 0, Binary acepta null (default 1.0 via handler).
+        b.Property(a => a.Leverage).HasColumnName("leverage").HasColumnType("numeric(10,2)");
         b.Property(a => a.IsActive).HasColumnName("is_active").IsRequired();
         b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(a => a.UpdatedAt).HasColumnName("updated_at");
