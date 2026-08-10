@@ -96,6 +96,9 @@ services:
       Cors__Origins__0: ${CORS_ORIGIN}
       Cors__Origins__1: http://localhost:4200
       Cors__Origins__2: http://localhost:8080
+      # Rate limit permisivo en dev (en prod real, bajar).
+      RateLimit__AuthPermit: ${RATE_LIMIT_AUTH_PERMIT:-10000}
+      RateLimit__ApiPermit: ${RATE_LIMIT_API_PERMIT:-10000}
     # EXPONER 8080 — API + Swagger + Health + Hangfire.
     ports: ["8080:8080"]
     healthcheck:
