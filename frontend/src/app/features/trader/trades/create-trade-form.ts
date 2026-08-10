@@ -15,16 +15,11 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
-  AccountApiService,
-  AccountDto,
   MARKET_TYPE_LABELS,
   MarketType,
 } from '@core/api/account-api.service';
 import {
   AssetClass,
-  InstrumentApiService,
-  InstrumentDto,
-  MARKET_TYPE_TO_ASSET_CLASS,
   activeAssetClasses as activeAssetClassesFor,
   assetClassLabel as labelForAssetClass,
   hasAssetClass,
@@ -35,6 +30,8 @@ import {
   TradeDirection,
   TradeDto,
 } from '@core/api/trade-api.service';
+import { AccountState } from '@core/state/account.state';
+import { InstrumentState } from '@core/state/instrument.state';
 
 type TradeTab = MarketType;
 
@@ -122,7 +119,7 @@ const SLIDE_ANIMATION_MS = 280;
             } @else if (dataError()) {
               <div class="form-error" role="alert">
                 <span>{{ dataError() }}</span>
-                <button type="button" class="error-retry" (click)="loadData()">Reintentar</button>
+                <button type="button" class="error-retry" (click)="retryData()">Reintentar</button>
               </div>
             } @else if (hasNoData()) {
               <div class="empty-state">
@@ -1120,17 +1117,13 @@ const SLIDE_ANIMATION_MS = 280;
 export class CreateTradeForm implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly tradeApi = inject(TradeApiService);
-  private readonly accountApi = inject(AccountApiService);
-  private readonly instrumentApi = inject(InstrumentApiService);
+  readonly accountState = inject(AccountState);
+  readonly instrumentState = inject(InstrumentState);
 
   readonly visible = input.required<boolean>();
   readonly saved = output<TradeDto>();
   readonly cancelled = output<void>();
 
-  readonly accounts = signal<AccountDto[]>([]);
-  readonly instruments = signal<InstrumentDto[]>([]);
-  readonly loading = signal(true);
-  readonly dataError = signal<string | null>(null);
   readonly submitting = signal(false);
   readonly submitError = signal<string | null>(null);
 
@@ -1212,8 +1205,15 @@ export class CreateTradeForm implements OnDestroy {
   );
 
   // ====== Derived data ======
-  readonly activeAccounts = computed(() => this.accounts().filter(a => a.isActive));
-  readonly activeInstruments = computed(() => this.instruments().filter(i => i.isActive));
+  readonly loading = computed(() =>
+    this.accountState.loading() || this.instrumentState.loading(),
+  );
+  readonly dataError = computed(() =>
+    this.accountState.error() ?? this.instrumentState.error(),
+  );
+
+  readonly activeAccounts = this.accountState.activeAccounts;
+  readonly activeInstruments = this.instrumentState.activeInstruments;
 
   readonly forexAccounts = computed(() => this.activeAccounts().filter(a => a.marketType === 1));
   readonly binaryAccounts = computed(() => this.activeAccounts().filter(a => a.marketType === 2));
@@ -1240,26 +1240,24 @@ export class CreateTradeForm implements OnDestroy {
 
   /**
    * Filter by the selected account's market type when present (most common path),
-   * otherwise fall back to the active tab.
+   * otherwise fall back to the active tab. Delegates to the InstrumentState so the
+   * bitmask logic (Forex=1, Binary=4) lives in a single place.
    */
   readonly filteredInstruments = computed(() => {
     const account = this.selectedAccount();
-    const bit = account
-      ? MARKET_TYPE_TO_ASSET_CLASS[account.marketType]
-      : this.activeTabBit();
-    return this.activeInstruments().filter(i => hasAssetClass(i.assetClasses, bit));
+    return this.instrumentState.forMarketType(account?.marketType ?? this.activeTab());
   });
 
   readonly selectedAccount = computed(() => {
     const id = this.accountIdValue();
     if (!id) return null;
-    return this.accounts().find(a => a.id === id) ?? null;
+    return this.accountState.accounts().find(a => a.id === id) ?? null;
   });
 
   readonly selectedInstrument = computed(() => {
     const id = this.instrumentIdValue();
     if (!id) return null;
-    return this.instruments().find(i => i.id === id) ?? null;
+    return this.instrumentState.instruments().find(i => i.id === id) ?? null;
   });
 
   readonly volumeCurrency = computed(() => this.selectedAccount()?.currency ?? '');
@@ -1474,22 +1472,20 @@ export class CreateTradeForm implements OnDestroy {
   }
 
   async loadData(): Promise<void> {
-    this.loading.set(true);
-    this.dataError.set(null);
-    try {
-      const [accounts, instruments] = await Promise.all([
-        this.accountApi.list(),
-        this.instrumentApi.list(),
-      ]);
-      if (this.destroyed) return;
-      this.accounts.set(accounts.filter(a => a.isActive));
-      this.instruments.set(instruments.filter(i => i.isActive));
-    } catch (e) {
-      if (this.destroyed) return;
-      this.dataError.set(this.toMessage(e));
-    } finally {
-      if (!this.destroyed) this.loading.set(false);
-    }
+    // Cache-friendly: NO force. Si el cache está fresco (< 60s), no hace HTTP.
+    // Solo el botón "Reintentar" usa force=true para skipear el cache.
+    await Promise.all([
+      this.accountState.load(),
+      this.instrumentState.load(),
+    ]);
+  }
+
+  async retryData(): Promise<void> {
+    // Force = true para skipear cache. Usado por el botón "Reintentar".
+    await Promise.all([
+      this.accountState.load(true),
+      this.instrumentState.load(true),
+    ]);
   }
 
   setTab(tab: TradeTab): void {
@@ -1652,7 +1648,6 @@ export class CreateTradeForm implements OnDestroy {
       expiresAt: null,
     });
     this.submitError.set(null);
-    this.dataError.set(null);
     // Determinar tab inicial según cuentas disponibles.
     if (this.forexAccounts().length > 0) {
       this.activeTab.set(1);

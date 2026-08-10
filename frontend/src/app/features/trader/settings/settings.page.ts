@@ -3,7 +3,6 @@ import { DecimalPipe, NgClass } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
-  AccountApiService,
   AccountDto,
   MARKET_TYPE_LABELS,
   MarketType,
@@ -11,14 +10,15 @@ import {
 import {
   ASSET_CLASS_FLAGS,
   AssetClass,
-  InstrumentApiService,
   InstrumentDto,
   activeAssetClasses,
   assetClassLabel as labelForAssetClass,
   hasAssetClass,
   toggleAssetClass,
 } from '@core/api/instrument-api.service';
+import { AccountState } from '@core/state/account.state';
 import { AuthState } from '@core/state/auth.state';
+import { InstrumentState } from '@core/state/instrument.state';
 
 type SettingsTab = 'accounts' | 'instruments';
 type DeleteKind = 'account' | 'instrument';
@@ -53,7 +53,7 @@ interface DeleteTarget {
           role="tab"
           (click)="setTab('accounts')">
           Cuentas
-          <span class="tab-count jcs-num">{{ accounts().length }}</span>
+          <span class="tab-count jcs-num">{{ accountState.accounts().length }}</span>
         </button>
         <button
           type="button"
@@ -63,7 +63,7 @@ interface DeleteTarget {
           role="tab"
           (click)="setTab('instruments')">
           Instrumentos
-          <span class="tab-count jcs-num">{{ instruments().length }}</span>
+          <span class="tab-count jcs-num">{{ instrumentState.instruments().length }}</span>
         </button>
       </div>
 
@@ -72,21 +72,21 @@ interface DeleteTarget {
           <header class="section-head">
             <div>
               <h2>Cuentas</h2>
-              <p class="jcs-muted">{{ activeAccountsCount() }} activas de {{ accounts().length }} cuentas.</p>
+              <p class="jcs-muted">{{ accountState.activeAccounts().length }} activas de {{ accountState.accounts().length }} cuentas.</p>
             </div>
             <button type="button" class="jcs-btn jcs-btn--primary" (click)="openNewAccount()">
               + Nueva cuenta
             </button>
           </header>
 
-          @if (accountError()) {
+          @if (accountState.error()) {
             <div class="error-banner" role="alert">
-              <span>No se pudieron cargar las cuentas: {{ accountError() }}</span>
-              <button type="button" class="error-retry" (click)="loadAccounts()">Reintentar</button>
+              <span>No se pudieron cargar las cuentas: {{ accountState.error() }}</span>
+              <button type="button" class="error-retry" (click)="accountState.load(true)">Reintentar</button>
             </div>
           }
 
-          @if (accountLoading()) {
+          @if (accountState.loading()) {
             <div class="loading-grid" aria-label="Cargando cuentas">
               @for (item of [1, 2, 3]; track item) {
                 <div class="jcs-card skeleton-card">
@@ -96,7 +96,7 @@ interface DeleteTarget {
                 </div>
               }
             </div>
-          } @else if (accounts().length === 0 && !accountError()) {
+          } @else if (accountState.accounts().length === 0 && !accountState.error()) {
             <div class="jcs-card empty-state">
               <span class="empty-icon" aria-hidden="true">$</span>
               <h3>No tenés cuentas creadas todavía</h3>
@@ -105,7 +105,7 @@ interface DeleteTarget {
             </div>
           } @else {
             <div class="entity-grid">
-              @for (account of accounts(); track account.id) {
+              @for (account of accountState.accounts(); track account.id) {
                 <article class="jcs-card entity-card" [class.entity-card--inactive]="!account.isActive">
                   <header class="entity-head">
                     <span class="entity-icon" aria-hidden="true">{{ currencyIcon(account.currency) }}</span>
@@ -228,21 +228,21 @@ interface DeleteTarget {
           <header class="section-head">
             <div>
               <h2>Instrumentos</h2>
-              <p class="jcs-muted">{{ activeInstrumentsCount() }} activos de {{ instruments().length }} instrumentos.</p>
+              <p class="jcs-muted">{{ instrumentState.activeInstruments().length }} activos de {{ instrumentState.instruments().length }} instrumentos.</p>
             </div>
             <button type="button" class="jcs-btn jcs-btn--primary" (click)="openNewInstrument()">
               + Nuevo instrumento
             </button>
           </header>
 
-          @if (instrumentError()) {
+          @if (instrumentState.error()) {
             <div class="error-banner" role="alert">
-              <span>No se pudieron cargar los instrumentos: {{ instrumentError() }}</span>
-              <button type="button" class="error-retry" (click)="loadInstruments()">Reintentar</button>
+              <span>No se pudieron cargar los instrumentos: {{ instrumentState.error() }}</span>
+              <button type="button" class="error-retry" (click)="instrumentState.load(true)">Reintentar</button>
             </div>
           }
 
-          @if (instrumentLoading()) {
+          @if (instrumentState.loading()) {
             <div class="loading-grid" aria-label="Cargando instrumentos">
               @for (item of [1, 2, 3]; track item) {
                 <div class="jcs-card skeleton-card">
@@ -252,7 +252,7 @@ interface DeleteTarget {
                 </div>
               }
             </div>
-          } @else if (instruments().length === 0 && !instrumentError()) {
+          } @else if (instrumentState.instruments().length === 0 && !instrumentState.error()) {
             <div class="jcs-card empty-state">
               <span class="empty-icon empty-icon--instrument" aria-hidden="true">↗</span>
               <h3>No hay instrumentos configurados</h3>
@@ -261,7 +261,7 @@ interface DeleteTarget {
             </div>
           } @else {
             <div class="entity-grid">
-              @for (instrument of instruments(); track instrument.id) {
+              @for (instrument of instrumentState.instruments(); track instrument.id) {
                 <article class="jcs-card entity-card" [class.entity-card--inactive]="!instrument.isActive">
                   <header class="entity-head">
                     <span class="entity-icon" [ngClass]="primaryAssetClassDot(instrument.assetClasses)" aria-hidden="true">
@@ -878,17 +878,11 @@ interface DeleteTarget {
 })
 export class SettingsPage {
   readonly auth = inject(AuthState);
-  private readonly accountApi = inject(AccountApiService);
-  private readonly instrumentApi = inject(InstrumentApiService);
+  readonly accountState = inject(AccountState);
+  readonly instrumentState = inject(InstrumentState);
   private readonly fb = inject(FormBuilder);
 
   readonly activeTab = signal<SettingsTab>('accounts');
-  readonly accounts = signal<AccountDto[]>([]);
-  readonly instruments = signal<InstrumentDto[]>([]);
-  readonly accountLoading = signal(true);
-  readonly instrumentLoading = signal(true);
-  readonly accountError = signal<string | null>(null);
-  readonly instrumentError = signal<string | null>(null);
   readonly accountFormOpen = signal(false);
   readonly instrumentFormOpen = signal(false);
   readonly editingAccount = signal<AccountDto | null>(null);
@@ -901,8 +895,8 @@ export class SettingsPage {
   readonly deleteError = signal<string | null>(null);
   readonly deleting = signal(false);
 
-  readonly activeAccountsCount = computed(() => this.accounts().filter(account => account.isActive).length);
-  readonly activeInstrumentsCount = computed(() => this.instruments().filter(instrument => instrument.isActive).length);
+  readonly activeAccountsCount = computed(() => this.accountState.activeAccounts().length);
+  readonly activeInstrumentsCount = computed(() => this.instrumentState.activeInstruments().length);
   readonly accountFormTitle = computed(() => this.editingAccount() ? 'Editar cuenta' : 'Nueva cuenta');
   readonly instrumentFormTitle = computed(() => this.editingInstrument() ? 'Editar instrumento' : 'Nuevo instrumento');
 
@@ -948,38 +942,12 @@ export class SettingsPage {
   }
 
   constructor() {
-    void this.loadAccounts();
-    void this.loadInstruments();
+    void this.accountState.load();
+    void this.instrumentState.load();
   }
 
   setTab(tab: SettingsTab): void {
     this.activeTab.set(tab);
-  }
-
-  async loadAccounts(): Promise<void> {
-    this.accountLoading.set(true);
-    this.accountError.set(null);
-    try {
-      this.accounts.set(await this.accountApi.list());
-    } catch (error) {
-      this.accountError.set(this.toMessage(error));
-      this.accounts.set([]);
-    } finally {
-      this.accountLoading.set(false);
-    }
-  }
-
-  async loadInstruments(): Promise<void> {
-    this.instrumentLoading.set(true);
-    this.instrumentError.set(null);
-    try {
-      this.instruments.set(await this.instrumentApi.list(false));
-    } catch (error) {
-      this.instrumentError.set(this.toMessage(error));
-      this.instruments.set([]);
-    } finally {
-      this.instrumentLoading.set(false);
-    }
   }
 
   openNewAccount(): void {
@@ -1043,13 +1011,12 @@ export class SettingsPage {
     try {
       const current = this.editingAccount();
       if (current) {
-        await this.accountApi.update(current.id, common);
+        await this.accountState.update(current.id, common);
       } else {
-        await this.accountApi.create({ ...common, initialBalance: value.initialBalance });
+        await this.accountState.create({ ...common, initialBalance: value.initialBalance });
       }
       this.accountFormOpen.set(false);
       this.editingAccount.set(null);
-      await this.loadAccounts();
     } catch (error) {
       this.accountFormError.set(this.toMessage(error));
     } finally {
@@ -1060,14 +1027,14 @@ export class SettingsPage {
   async toggleAccount(account: AccountDto): Promise<void> {
     if (this.actionId()) return;
     this.actionId.set(account.id);
-    this.accountError.set(null);
     try {
-      const updated = account.isActive
-        ? await this.accountApi.deactivate(account.id)
-        : await this.accountApi.reactivate(account.id);
-      this.accounts.update(items => items.map(item => item.id === updated.id ? updated : item));
+      if (account.isActive) {
+        await this.accountState.deactivate(account.id);
+      } else {
+        await this.accountState.reactivate(account.id);
+      }
     } catch (error) {
-      this.accountError.set(this.toMessage(error));
+      this.accountFormError.set(this.toMessage(error));
     } finally {
       this.actionId.set(null);
     }
@@ -1129,7 +1096,7 @@ export class SettingsPage {
       const current = this.editingInstrument();
       if (current) {
         // PATCH: todos los numéricos requeridos (si están vacíos, mandamos los defaults explícitos).
-        await this.instrumentApi.update(current.id, {
+        await this.instrumentState.update(current.id, {
           symbol,
           assetClasses: bitmask,
           contractSize: value.contractSize ?? 1,
@@ -1147,12 +1114,11 @@ export class SettingsPage {
         if (value.decimalPlaces !== null) req.decimalPlaces = value.decimalPlaces;
         if (value.pipValue      !== null) req.pipValue      = value.pipValue;
         if (value.payoutPercent !== null) req.payoutPercent = value.payoutPercent / 100;
-        await this.instrumentApi.create(req);
+        await this.instrumentState.create(req);
       }
       this.instrumentFormOpen.set(false);
       this.editingInstrument.set(null);
       this.instrumentAssetClasses.set(0);
-      await this.loadInstruments();
     } catch (error) {
       this.instrumentFormError.set(this.toMessage(error));
     } finally {
@@ -1163,12 +1129,10 @@ export class SettingsPage {
   async deactivateInstrument(instrument: InstrumentDto): Promise<void> {
     if (this.actionId()) return;
     this.actionId.set(instrument.id);
-    this.instrumentError.set(null);
     try {
-      const updated = await this.instrumentApi.deactivate(instrument.id);
-      this.instruments.update(items => items.map(item => item.id === updated.id ? updated : item));
+      await this.instrumentState.deactivate(instrument.id);
     } catch (error) {
-      this.instrumentError.set(this.toMessage(error));
+      this.instrumentFormError.set(this.toMessage(error));
     } finally {
       this.actionId.set(null);
     }
@@ -1193,11 +1157,9 @@ export class SettingsPage {
     this.deleteError.set(null);
     try {
       if (target.kind === 'account') {
-        await this.accountApi.delete(target.id);
-        this.accounts.update(items => items.filter(item => item.id !== target.id));
+        await this.accountState.delete(target.id);
       } else {
-        await this.instrumentApi.delete(target.id);
-        this.instruments.update(items => items.filter(item => item.id !== target.id));
+        await this.instrumentState.delete(target.id);
       }
       this.deleteTarget.set(null);
     } catch (error) {
