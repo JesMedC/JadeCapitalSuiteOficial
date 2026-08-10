@@ -15,23 +15,30 @@ namespace JadeCapital.Trading.Application.Features.Trades.OpenTrade;
 /// Abre un trade:
 /// 1) Valida formato de Symbol/Currency (FluentValidator ya paso).
 /// 2) Construye VOs (Symbol, Money) que revalidan formato y normalizan.
-/// 3) Llama a Trade.Open (factory del dominio) que valida invariantes.
+/// 3) Llama a Trade.Open (factory del dominio) que valida invariantes,
+///    incluyendo AccountId/InstrumentId no vacios.
 /// 4) Persiste via UnitOfWork.
 /// </summary>
 public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<TradeDto>>
 {
     private readonly ITradeRepository _trades;
+    private readonly IAccountRepository _accounts;
+    private readonly IInstrumentRepository _instruments;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
     private readonly ILogger<OpenTradeHandler> _logger;
 
     public OpenTradeHandler(
         ITradeRepository trades,
+        IAccountRepository accounts,
+        IInstrumentRepository instruments,
         IUnitOfWork uow,
         IClock clock,
         ILogger<OpenTradeHandler> logger)
     {
         _trades = trades;
+        _accounts = accounts;
+        _instruments = instruments;
         _uow = uow;
         _clock = clock;
         _logger = logger;
@@ -64,6 +71,8 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
 
         var openResult = Trade.Open(
             tradeId,
+            req.AccountId,
+            req.InstrumentId,
             req.UserId,
             symbolResult.Value,
             req.AssetClass,
@@ -86,6 +95,18 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
 
         _logger.LogInformation("Trade {TradeId} opened for user {UserId}.", trade.Id, trade.UserId);
 
-        return Result.Success(trade.ToDto());
+        // Hidratar accountName + instrument para el DTO (evita N+1 en el FE).
+        var account = await _accounts.FindByIdAsync(trade.AccountId, ct);
+        var instrument = await _instruments.FindByIdAsync(trade.InstrumentId, ct);
+
+        return Result.Success(trade.ToDto(
+            accountName: account?.Name,
+            instrument: instrument is null ? null : new InstrumentSummaryDto(
+                instrument.Symbol.Value,
+                instrument.AssetClass,
+                instrument.ContractSize,
+                instrument.DecimalPlaces,
+                instrument.PipValue,
+                instrument.PayoutPercent)));
     }
 }

@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, DatePipe, NgClass } from '@angular/common';
 import { TradeApiService, TradeDto, TradeStatus } from '@core/api/trade-api.service';
+import { CreateTradeForm } from './create-trade-form';
 
 type DirectionFilter = 'All' | 'Long' | 'Short';
 type StatusFilter = 'All' | TradeStatus;
@@ -8,7 +9,7 @@ type StatusFilter = 'All' | TradeStatus;
 @Component({
   selector: 'jcs-trades-list',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass],
+  imports: [DecimalPipe, DatePipe, NgClass, CreateTradeForm],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="trades-page">
@@ -40,8 +41,23 @@ type StatusFilter = 'All' | TradeStatus;
             <span class="reload-dot" [class.spin]="refreshing()"></span>
             Actualizar
           </button>
+          <button
+            class="jcs-btn jcs-btn--primary"
+            (click)="toggleCreateForm()"
+            [attr.aria-expanded]="showCreateForm()"
+            aria-controls="create-trade-form">
+            {{ showCreateForm() ? 'Cerrar ×' : '+ Nueva operación' }}
+          </button>
         </div>
       </header>
+
+      <!-- ============== Toast ============== -->
+      @if (toast()) {
+        <div class="trades-toast" role="status">
+          <span class="toast-icon" aria-hidden="true">✓</span>
+          <span>{{ toast() }}</span>
+        </div>
+      }
 
       <!-- ============== Error banner ============== -->
       @if (error()) {
@@ -174,6 +190,14 @@ type StatusFilter = 'All' | TradeStatus;
           }
         </div>
       </section>
+
+      <!-- ============== Create trade form (inline) ============== -->
+      <div id="create-trade-form">
+        <jcs-create-trade-form
+          [visible]="showCreateForm()"
+          (saved)="onTradeCreated()"
+          (cancelled)="showCreateForm.set(false)" />
+      </div>
 
       <!-- ============== Trades table ============== -->
       <section class="jcs-card table-card" style="animation: fade-up 0.5s 0.3s ease-out both">
@@ -325,6 +349,32 @@ type StatusFilter = 'All' | TradeStatus;
       transition: background 150ms;
     }
     .trades-error-retry:hover { background: rgba(255, 64, 87, 0.15); }
+
+    .trades-toast {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: rgba(47, 219, 120, 0.10);
+      border: 1px solid rgba(47, 219, 120, 0.40);
+      border-radius: var(--radius-md);
+      color: var(--green);
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      animation: fade-up 220ms ease-out;
+    }
+    .toast-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #050B10;
+      font-size: var(--fs-xs);
+      font-weight: 700;
+    }
 
     /* ============== Ticker tape ============== */
     .ticker {
@@ -658,7 +708,7 @@ type StatusFilter = 'All' | TradeStatus;
     }
   `],
 })
-export class TradesListPage {
+export class TradesListPage implements OnDestroy {
   private readonly api = inject(TradeApiService);
 
   readonly refreshing = signal(false);
@@ -667,6 +717,10 @@ export class TradesListPage {
 
   readonly items = signal<TradeDto[]>([]);
   readonly total = signal(0);
+
+  readonly showCreateForm = signal(false);
+  readonly toast = signal<string | null>(null);
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly search = signal('');
   readonly symbolFilter = signal<string | null>(null);
@@ -753,6 +807,26 @@ export class TradesListPage {
 
   constructor() {
     void this.reload();
+  }
+
+  ngOnDestroy(): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+  }
+
+  toggleCreateForm(): void {
+    this.showCreateForm.update(v => !v);
+  }
+
+  async onTradeCreated(): Promise<void> {
+    this.showCreateForm.set(false);
+    await this.reload();
+    this.flashToast('Operación creada correctamente.');
+  }
+
+  private flashToast(message: string): void {
+    this.toast.set(message);
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => this.toast.set(null), 3500);
   }
 
   setSearch(value: string): void {

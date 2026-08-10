@@ -10,7 +10,8 @@ public class TradeCancellationTests
         var volume = Money.Create(1000m, Currency.Usd).Value;
         var entry = Money.Create(1.10m, Currency.Usd).Value;
         return Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            symbol, AssetClass.Forex, TradeDirection.Long,
             volume, entry, "USD", null, null, OpenedAt).Value;
     }
 

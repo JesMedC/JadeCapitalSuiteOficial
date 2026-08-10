@@ -6,6 +6,8 @@ namespace JadeCapital.Trading.Domain.Trades;
 public sealed record TradeOpenedDomainEvent(
     Guid TradeId,
     Guid UserId,
+    Guid AccountId,
+    Guid InstrumentId,
     string Symbol,
     AssetClass AssetClass,
     TradeDirection Direction,

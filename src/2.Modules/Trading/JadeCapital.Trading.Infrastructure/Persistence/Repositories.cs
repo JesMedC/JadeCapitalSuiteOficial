@@ -1,5 +1,7 @@
 using JadeCapital.Trading.Application.Abstractions;
+using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Enums;
+using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Trades;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +22,8 @@ public sealed class TradeRepository : ITradeRepository
         int pageSize,
         CancellationToken ct,
         TradeStatus? statusFilter = null,
-        string? symbolFilter = null)
+        string? symbolFilter = null,
+        Guid? accountIdFilter = null)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
@@ -37,6 +40,9 @@ public sealed class TradeRepository : ITradeRepository
             query = query.Where(t => t.Symbol.Value == normalized);
         }
 
+        if (accountIdFilter is not null && accountIdFilter.Value != Guid.Empty)
+            query = query.Where(t => t.AccountId == accountIdFilter.Value);
+
         // OwnsOne carga los value objects en la misma query — no requiere Include().
         return await query
             .OrderByDescending(t => t.OpenedAt)
@@ -49,7 +55,8 @@ public sealed class TradeRepository : ITradeRepository
         Guid userId,
         CancellationToken ct,
         TradeStatus? statusFilter = null,
-        string? symbolFilter = null)
+        string? symbolFilter = null,
+        Guid? accountIdFilter = null)
     {
         IQueryable<Trade> query = _db.Trades.Where(t => t.UserId == userId);
 
@@ -61,6 +68,9 @@ public sealed class TradeRepository : ITradeRepository
             var normalized = symbolFilter.Trim().ToUpperInvariant();
             query = query.Where(t => t.Symbol.Value == normalized);
         }
+
+        if (accountIdFilter is not null && accountIdFilter.Value != Guid.Empty)
+            query = query.Where(t => t.AccountId == accountIdFilter.Value);
 
         return query.CountAsync(ct);
     }
@@ -79,6 +89,9 @@ public sealed class TradeRepository : ITradeRepository
             .ToListAsync(ct);
     }
 
+    public Task<int> CountByInstrumentIdAsync(Guid instrumentId, CancellationToken ct)
+        => _db.Trades.CountAsync(t => t.InstrumentId == instrumentId, ct);
+
     public async Task AddAsync(Trade trade, CancellationToken ct)
         => await _db.Trades.AddAsync(trade, ct);
 
@@ -95,6 +108,82 @@ public sealed class TradeRepository : ITradeRepository
     public Task RemoveAsync(Trade trade, CancellationToken ct)
     {
         _db.Trades.Remove(trade);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Repositorio de Accounts. Sin eventos ni navegaciones: cada Account vive
+/// aislada (los trades son FKs via shadow navigation en TradeConfiguration).
+/// </summary>
+public sealed class AccountRepository : IAccountRepository
+{
+    private readonly TradingDbContext _db;
+
+    public AccountRepository(TradingDbContext db) { _db = db; }
+
+    public Task<Account?> FindByIdAsync(Guid id, CancellationToken ct)
+        => _db.Accounts.FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<Account>> ListByUserIdAsync(Guid userId, CancellationToken ct)
+        => await _db.Accounts
+            .Where(a => a.UserId == userId)
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync(ct);
+
+    public async Task AddAsync(Account account, CancellationToken ct)
+        => await _db.Accounts.AddAsync(account, ct);
+
+    public Task RemoveAsync(Account account, CancellationToken ct)
+    {
+        _db.Accounts.Remove(account);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Repositorio de Instruments. Symbol es VO OwnsOne + value converter;
+/// el lookup por symbol normaliza a mayusculas para matchear la columna.
+/// </summary>
+public sealed class InstrumentRepository : IInstrumentRepository
+{
+    private readonly TradingDbContext _db;
+
+    public InstrumentRepository(TradingDbContext db) { _db = db; }
+
+    public Task<Instrument?> FindByIdAsync(Guid id, CancellationToken ct)
+        => _db.Instruments.FirstOrDefaultAsync(i => i.Id == id, ct);
+
+    public async Task<Instrument?> FindBySymbolAsync(string symbol, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(symbol)) return null;
+        var normalized = symbol.Trim().ToUpperInvariant();
+        return await _db.Instruments
+            .FirstOrDefaultAsync(i => i.Symbol.Value == normalized, ct);
+    }
+
+    public async Task<IReadOnlyList<Instrument>> ListActiveAsync(CancellationToken ct)
+    {
+        // OrderBy en client side: Symbol.Value no es traduc por EF (es property
+        // derivada via value converter). AsEnumerable() mueve la query a memoria.
+        var rows = await _db.Instruments
+            .Where(i => i.IsActive)
+            .ToListAsync(ct);
+        return rows.OrderBy(i => i.Symbol.Value).ToList();
+    }
+
+    public async Task<IReadOnlyList<Instrument>> ListAllAsync(CancellationToken ct)
+    {
+        var rows = await _db.Instruments.ToListAsync(ct);
+        return rows.OrderBy(i => i.Symbol.Value).ToList();
+    }
+
+    public async Task AddAsync(Instrument instrument, CancellationToken ct)
+        => await _db.Instruments.AddAsync(instrument, ct);
+
+    public Task RemoveAsync(Instrument instrument, CancellationToken ct)
+    {
+        _db.Instruments.Remove(instrument);
         return Task.CompletedTask;
     }
 }

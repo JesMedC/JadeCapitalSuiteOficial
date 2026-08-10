@@ -12,7 +12,8 @@ public class GetPnlCalendarHandlerTests
         var v = Money.Create(1000m, Currency.Usd).Value;
         var e = Money.Create(entry, Currency.Usd).Value;
         var trade = Trade.Open(
-            Guid.NewGuid(), userId, symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), userId,
+            symbol, AssetClass.Forex, TradeDirection.Long,
             v, e, "USD", null, null,
             closedAt.AddHours(-4)).Value;
         trade.Close(Money.Create(exit, Currency.Usd).Value, closedAt, Substitute.For<IClock>());

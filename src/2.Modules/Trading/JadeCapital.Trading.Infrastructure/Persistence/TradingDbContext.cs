@@ -1,4 +1,7 @@
+using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Trades;
+using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
 using JadeCapital.Trading.Infrastructure.Persistence.Converters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -7,7 +10,7 @@ namespace JadeCapital.Trading.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext del modulo Trading. Esquema dedicado "trading".
-/// Tablas: trading.trades (Sprint 1 Fase 1C).
+/// Tablas: trading.accounts, trading.instruments, trading.trades.
 /// </summary>
 public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
@@ -15,10 +18,14 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         : base(options) { }
 
     public Microsoft.EntityFrameworkCore.DbSet<Trade> Trades => Set<Trade>();
+    public Microsoft.EntityFrameworkCore.DbSet<Account> Accounts => Set<Account>();
+    public Microsoft.EntityFrameworkCore.DbSet<Instrument> Instruments => Set<Instrument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("trading");
+        modelBuilder.ApplyConfiguration(new AccountConfiguration());
+        modelBuilder.ApplyConfiguration(new InstrumentConfiguration());
         modelBuilder.ApplyConfiguration(new TradeConfiguration());
     }
 }
@@ -32,6 +39,8 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
 
         b.Property(t => t.Id).HasColumnName("id");
         b.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+        b.Property(t => t.AccountId).HasColumnName("account_id").IsRequired();
+        b.Property(t => t.InstrumentId).HasColumnName("instrument_id").IsRequired();
 
         // Symbol value object — se persiste como VARCHAR via value converter.
         var symbolConv = new SymbolConverter();
@@ -81,6 +90,14 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
         // DomainEvents no se persiste.
         b.Ignore(t => t.DomainEvents);
 
+        // FKs via shadow navigation: Account y Instrument son referencias de
+        // tabla, no navegaciones del modelo de dominio. El HasOne sin WithMany
+        // deja que EF entienda la relacion sin forzar una propiedad nav.
+        b.HasOne<Account>().WithMany().HasForeignKey(t => t.AccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Instrument>().WithMany().HasForeignKey(t => t.InstrumentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Indices (alineados con la migracion SQL para que EF no genere DROP/CREATE
         // duplicado si en algun momento se usa dotnet-ef migrations add).
         b.HasIndex(t => new { t.UserId, t.OpenedAt })
@@ -88,6 +105,12 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
             .IsDescending(false, true);
         b.HasIndex(t => new { t.UserId, t.Status }).HasDatabaseName("ix_trades_user_status");
         b.HasIndex(t => new { t.UserId, t.Symbol }).HasDatabaseName("ix_trades_user_symbol");
+        b.HasIndex(t => new { t.AccountId, t.OpenedAt })
+            .HasDatabaseName("ix_trades_account_opened_at")
+            .IsDescending(false, true);
+        b.HasIndex(t => new { t.InstrumentId, t.OpenedAt })
+            .HasDatabaseName("ix_trades_instrument_opened_at")
+            .IsDescending(false, true);
         b.HasIndex(t => t.OpenedAt).HasDatabaseName("ix_trades_opened_at").IsDescending(true);
     }
 }

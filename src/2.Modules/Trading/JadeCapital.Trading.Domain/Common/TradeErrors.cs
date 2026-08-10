@@ -12,6 +12,12 @@ public static class TradeErrors
     public static readonly Shared.Kernel.Results.Error UserIdRequired =
         TradingDomainErrors.Trade.UserIdRequired;
 
+    public static readonly Shared.Kernel.Results.Error AccountIdRequired =
+        TradingDomainErrors.Trade.AccountIdRequired;
+
+    public static readonly Shared.Kernel.Results.Error InstrumentIdRequired =
+        TradingDomainErrors.Trade.InstrumentIdRequired;
+
     public static readonly Shared.Kernel.Results.Error VolumeMustBePositive =
         TradingDomainErrors.Trade.VolumeMustBePositive;
 

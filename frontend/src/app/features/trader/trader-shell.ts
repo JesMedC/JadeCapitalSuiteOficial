@@ -5,7 +5,7 @@ import { AuthState } from '@core/state/auth.state';
 interface NavItem {
   label: string;
   path: string;
-  icon: 'dashboard' | 'trades' | 'calendar';
+  icon: 'dashboard' | 'trades' | 'calendar' | 'settings';
 }
 
 @Component({
@@ -67,6 +67,12 @@ interface NavItem {
                       <line x1="16" y1="2" x2="16" y2="6"/>
                       <line x1="8" y1="2" x2="8" y2="6"/>
                       <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  }
+                  @case ('settings') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.38.35.72.64 1 .3.29.69.43 1.1.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15z"/>
                     </svg>
                   }
                 }
@@ -361,6 +367,7 @@ export class TraderShell {
     { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
     { label: 'Operaciones', path: 'trades',    icon: 'trades' },
     { label: 'Calendario',  path: 'calendar',  icon: 'calendar' },
+    { label: 'Settings',    path: 'settings',  icon: 'settings' },
   ];
 
   userInitial(): string {

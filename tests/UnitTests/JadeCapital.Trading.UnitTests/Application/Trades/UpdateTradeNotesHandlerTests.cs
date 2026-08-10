@@ -17,7 +17,8 @@ public class UpdateTradeNotesHandlerTests
         var volume = Money.Create(1000m, Currency.Usd).Value;
         var entry = Money.Create(1.10m, Currency.Usd).Value;
         return Trade.Open(
-            Guid.NewGuid(), userId, symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), userId,
+            symbol, AssetClass.Forex, TradeDirection.Long,
             volume, entry, "USD", null, null,
             new DateTimeOffset(2026, 6, 15, 10, 0, 0, TimeSpan.Zero)).Value;
     }

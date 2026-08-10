@@ -266,6 +266,8 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ===== Modules =====
 app.MapAuthEndpoints();
+app.MapAccountEndpoints();
+app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
 
 app.Run();

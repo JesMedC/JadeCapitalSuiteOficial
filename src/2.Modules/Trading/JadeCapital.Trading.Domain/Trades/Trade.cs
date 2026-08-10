@@ -30,6 +30,8 @@ public sealed class Trade : AggregateRoot<Guid>
     public const int MaxNotesLength = 2000;
 
     public Guid UserId { get; private set; }
+    public Guid AccountId { get; private set; }
+    public Guid InstrumentId { get; private set; }
     public Symbol Symbol { get; private set; } = default!;
     public AssetClass AssetClass { get; private set; }
     public TradeDirection Direction { get; private set; }
@@ -59,6 +61,8 @@ public sealed class Trade : AggregateRoot<Guid>
     private Trade(
         Guid id,
         Guid userId,
+        Guid accountId,
+        Guid instrumentId,
         Symbol symbol,
         AssetClass assetClass,
         TradeDirection direction,
@@ -70,6 +74,8 @@ public sealed class Trade : AggregateRoot<Guid>
         DateTimeOffset openedAt) : base(id)
     {
         UserId = userId;
+        AccountId = accountId;
+        InstrumentId = instrumentId;
         Symbol = symbol;
         AssetClass = assetClass;
         Direction = direction;
@@ -84,14 +90,22 @@ public sealed class Trade : AggregateRoot<Guid>
 
     /// <summary>
     /// Abre un nuevo trade. Validaciones:
-    /// - id y userId != Guid.Empty
+    /// - id, userId, accountId, instrumentId != Guid.Empty
     /// - Volume.Amount &gt; 0, EntryPrice.Amount &gt; 0
     /// - EntryPrice.Currency == Symbol.InferQuoteCurrencyCode() (sanity check)
     /// - accountCurrency es 3 letras mayusculas
     /// - Strategy/Notes null o dentro del max length
+    ///
+    /// accountId / instrumentId son FKs a tablas referenciales; el handler
+    /// de Application es responsable de resolver el InstrumentId (y validar
+    /// que el Symbol del request coincide con el del Instrument). El factory
+    /// de dominio solo valida formato (no Guid.Empty) — la FK en la DB es la
+    /// red de seguridad definitiva.
     /// </summary>
     public static Result<Trade> Open(
         Guid id,
+        Guid accountId,
+        Guid instrumentId,
         Guid userId,
         Symbol symbol,
         AssetClass assetClass,
@@ -105,6 +119,12 @@ public sealed class Trade : AggregateRoot<Guid>
     {
         if (id == Guid.Empty)
             return Result.Failure<Trade>(TradeErrors.IdRequired);
+
+        if (accountId == Guid.Empty)
+            return Result.Failure<Trade>(TradeErrors.AccountIdRequired);
+
+        if (instrumentId == Guid.Empty)
+            return Result.Failure<Trade>(TradeErrors.InstrumentIdRequired);
 
         if (userId == Guid.Empty)
             return Result.Failure<Trade>(TradeErrors.UserIdRequired);
@@ -134,12 +154,13 @@ public sealed class Trade : AggregateRoot<Guid>
             return Result.Failure<Trade>(TradeErrors.NotesTooLong);
 
         var trade = new Trade(
-            id, userId, symbol, assetClass, direction,
+            id, userId, accountId, instrumentId, symbol, assetClass, direction,
             volume, entryPrice, normalizedAccountCurrency,
             strategy, notes, openedAt);
 
         trade.RaiseDomainEvent(new TradeOpenedDomainEvent(
-            trade.Id, trade.UserId, trade.Symbol.Value, trade.AssetClass,
+            trade.Id, trade.UserId, trade.AccountId, trade.InstrumentId,
+            trade.Symbol.Value, trade.AssetClass,
             trade.Direction, trade.Volume.Amount, trade.EntryPrice.Amount,
             trade.AccountCurrency, trade.OpenedAt));
 

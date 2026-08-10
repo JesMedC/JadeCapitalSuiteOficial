@@ -26,6 +26,8 @@ public static class TradingModuleRegistration
 
         // ===== Repos =====
         services.AddScoped<ITradeRepository, TradeRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IInstrumentRepository, InstrumentRepository>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         return services;

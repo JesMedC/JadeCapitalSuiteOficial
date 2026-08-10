@@ -6,6 +6,11 @@ namespace JadeCapital.Trading.Domain.Common;
 /// Errores semanticos del bounded context Trading. Codigos
 /// "{boundedContext}.{entidad}.{detalle}" para que DomainGuard enrute a
 /// la excepcion correcta segun prefijo.
+///
+/// Nota sobre codigos: las factories de <see cref="Error"/> ya prefijan con
+/// "validation." / "conflict." / etc. Por eso pasamos el codigo SIN el prefijo
+/// (ej. "account.id_required") y el codigo final queda
+/// "validation.account.id_required".
 /// </summary>
 public static class TradingDomainErrors
 {
@@ -16,6 +21,12 @@ public static class TradingDomainErrors
 
         public static readonly Error UserIdRequired =
             Error.Validation("trade.user_id_required", "User id is required.");
+
+        public static readonly Error AccountIdRequired =
+            Error.Validation("trade.account_id_required", "Account id is required.");
+
+        public static readonly Error InstrumentIdRequired =
+            Error.Validation("trade.instrument_id_required", "Instrument id is required.");
 
         public static readonly Error VolumeMustBePositive =
             Error.Validation("trade.volume_must_be_positive", "Volume must be greater than zero.");
@@ -64,5 +75,74 @@ public static class TradingDomainErrors
 
         public static readonly Error ValueInvalidFormat =
             Error.Validation("symbol.value_invalid_format", "Symbol must contain only uppercase letters, digits and '/' separator.");
+    }
+
+    public static class Account
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("account.id_required", "Account id is required.");
+
+        public static readonly Error UserIdRequired =
+            Error.Validation("account.user_id_required", "User id is required.");
+
+        public static readonly Error NameRequired =
+            Error.Validation("account.name_required", "Account name is required.");
+
+        public static readonly Error NameTooLong =
+            Error.Validation("account.name_too_long", "Account name must be 80 chars or less.");
+
+        public static readonly Error BrokerRequired =
+            Error.Validation("account.broker_required", "Broker is required.");
+
+        public static readonly Error BrokerTooLong =
+            Error.Validation("account.broker_too_long", "Broker must be 80 chars or less.");
+
+        public static readonly Error CurrencyCodeInvalid =
+            Error.Validation("account.currency_code_invalid", "Account currency must be a valid 3-letter uppercase ISO 4217-like code.");
+
+        public static readonly Error InitialBalanceMustBeNonNegative =
+            Error.Validation("account.initial_balance_must_be_non_negative", "Initial balance must be zero or greater.");
+
+        public static readonly Error LeverageMustBePositive =
+            Error.Validation("account.leverage_must_be_positive", "Leverage must be greater than zero.");
+
+        public static readonly Error PayoutPercentOutOfRange =
+            Error.Validation("account.payout_percent_out_of_range", "Payout percent must be between 0 and 1.");
+
+        public static readonly Error AlreadyInactive =
+            Error.Conflict("account.already_inactive", "Account is already inactive.");
+
+        public static readonly Error AlreadyActive =
+            Error.Conflict("account.already_active", "Account is already active.");
+    }
+
+    public static class Instrument
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("instrument.id_required", "Instrument id is required.");
+
+        public static readonly Error SymbolRequired =
+            Error.Validation("instrument.symbol_required", "Symbol is required.");
+
+        public static readonly Error SymbolTooLong =
+            Error.Validation("instrument.symbol_too_long", "Symbol must be 20 chars or less.");
+
+        public static readonly Error ContractSizeMustBePositive =
+            Error.Validation("instrument.contract_size_must_be_positive", "Contract size must be greater than zero.");
+
+        public static readonly Error DecimalPlacesMustBeNonNegative =
+            Error.Validation("instrument.decimal_places_must_be_non_negative", "Decimal places must be zero or greater.");
+
+        public static readonly Error PipValueMustBeNonNegative =
+            Error.Validation("instrument.pip_value_must_be_non_negative", "Pip value must be zero or greater.");
+
+        public static readonly Error PayoutPercentOutOfRange =
+            Error.Validation("instrument.payout_percent_out_of_range", "Payout percent must be between 0 and 1.");
+
+        public static readonly Error AlreadyInactive =
+            Error.Conflict("instrument.already_inactive", "Instrument is already inactive.");
+
+        public static readonly Error AlreadyActive =
+            Error.Conflict("instrument.already_active", "Instrument is already active.");
     }
 }

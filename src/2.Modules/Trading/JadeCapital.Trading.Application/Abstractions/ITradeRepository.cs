@@ -12,8 +12,8 @@ public interface ITradeRepository
     Task<Trade?> FindByIdAsync(Guid id, CancellationToken ct);
 
     /// <summary>
-    /// Lista paginada del usuario con filtros opcionales por estado y simbolo.
-    /// Ordenada por OpenedAt descendente.
+    /// Lista paginada del usuario con filtros opcionales por estado, simbolo
+    /// y cuenta. Ordenada por OpenedAt descendente.
     /// </summary>
     Task<IReadOnlyList<Trade>> ListByUserIdAsync(
         Guid userId,
@@ -21,13 +21,15 @@ public interface ITradeRepository
         int pageSize,
         CancellationToken ct,
         TradeStatus? statusFilter = null,
-        string? symbolFilter = null);
+        string? symbolFilter = null,
+        Guid? accountIdFilter = null);
 
     Task<int> CountByUserIdAsync(
         Guid userId,
         CancellationToken ct,
         TradeStatus? statusFilter = null,
-        string? symbolFilter = null);
+        string? symbolFilter = null,
+        Guid? accountIdFilter = null);
 
     /// <summary>
     /// Lista TODOS los trades del usuario en el rango [from, to] por OpenedAt,
@@ -38,6 +40,12 @@ public interface ITradeRepository
         DateTimeOffset from,
         DateTimeOffset to,
         CancellationToken ct);
+
+    /// <summary>
+    /// Cuenta cuantos trades (de cualquier usuario) apuntan a un instrumento.
+    /// Usado por DeleteInstrument para el pre-check de FK RESTRICT.
+    /// </summary>
+    Task<int> CountByInstrumentIdAsync(Guid instrumentId, CancellationToken ct);
 
     Task AddAsync(Trade trade, CancellationToken ct);
 

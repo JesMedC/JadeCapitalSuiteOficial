@@ -138,6 +138,8 @@ public static class TradeEndpoints
 
         var cmd = new OpenTradeCommand(
             UserId: userId,
+            AccountId: req.AccountId,
+            InstrumentId: req.InstrumentId,
             Symbol: req.Symbol,
             AssetClass: req.AssetClass,
             Direction: req.Direction,
@@ -161,13 +163,14 @@ public static class TradeEndpoints
         int pageSize = 20,
         TradeStatus? status = null,
         string? symbol = null,
+        Guid? accountId = null,
         CancellationToken ct = default)
     {
         Guid userId;
         try { userId = GetUserId(http); }
         catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
 
-        var query = new GetTradesQuery(userId, page, pageSize, status, symbol);
+        var query = new GetTradesQuery(userId, page, pageSize, status, symbol, accountId);
         var result = await sender.Send(query, ct);
         return result.IsSuccess
             ? Results.Ok(result.Value)
@@ -292,6 +295,8 @@ public static class TradeEndpoints
 // ===== Request records =====
 
 public sealed record OpenTradeRequest(
+    Guid AccountId,
+    Guid InstrumentId,
     string Symbol,
     AssetClass AssetClass,
     TradeDirection Direction,

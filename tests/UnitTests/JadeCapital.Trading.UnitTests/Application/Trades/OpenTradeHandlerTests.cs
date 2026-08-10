@@ -5,6 +5,8 @@ namespace JadeCapital.Trading.UnitTests.Application.Trades;
 public class OpenTradeHandlerTests
 {
     private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
+    private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
+    private readonly IInstrumentRepository _instruments = Substitute.For<IInstrumentRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly ILogger<OpenTradeHandler> _logger = Substitute.For<ILogger<OpenTradeHandler>>();
@@ -12,10 +14,12 @@ public class OpenTradeHandlerTests
     private static readonly DateTimeOffset FixedNow =
         new(2026, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
-    private OpenTradeHandler CreateSut() => new(_trades, _uow, _clock, _logger);
+    private OpenTradeHandler CreateSut() => new(_trades, _accounts, _instruments, _uow, _clock, _logger);
 
     private static OpenTradeCommand ValidCommand() => new(
         UserId: Guid.NewGuid(),
+        AccountId: Guid.NewGuid(),
+        InstrumentId: Guid.NewGuid(),
         Symbol: "EUR/USD",
         AssetClass: AssetClass.Forex,
         Direction: TradeDirection.Long,

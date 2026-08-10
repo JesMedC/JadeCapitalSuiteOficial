@@ -11,7 +11,8 @@ public class TradeClosingTests
         var volume = Money.Create(volumeAmount, Currency.Usd).Value;
         var entry = Money.Create(entryPriceAmount, Currency.Usd).Value;
         return Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            symbol, AssetClass.Forex, TradeDirection.Long,
             volume, entry, "USD", null, null, OpenedAt).Value;
     }
 
@@ -21,7 +22,8 @@ public class TradeClosingTests
         var volume = Money.Create(volumeAmount, Currency.Usd).Value;
         var entry = Money.Create(entryPriceAmount, Currency.Usd).Value;
         return Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), symbol, AssetClass.Forex, TradeDirection.Short,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            symbol, AssetClass.Forex, TradeDirection.Short,
             volume, entry, "USD", null, null, OpenedAt).Value;
     }
 

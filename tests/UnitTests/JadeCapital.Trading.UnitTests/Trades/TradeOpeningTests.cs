@@ -4,6 +4,9 @@ public class TradeOpeningTests
 {
     private static readonly DateTimeOffset OpenedAt = new(2026, 1, 15, 10, 0, 0, TimeSpan.Zero);
 
+    private static readonly Guid ValidAccountId = Guid.NewGuid();
+    private static readonly Guid ValidInstrumentId = Guid.NewGuid();
+
     private static Symbol CreateValidSymbol() => Symbol.Create("EUR/USD").Value;
     private static Money CreateValidVolume() => Money.Create(1000m, Currency.Usd).Value;
     private static Money CreateValidEntryPrice() => Money.Create(1.10m, Currency.Usd).Value;
@@ -15,7 +18,8 @@ public class TradeOpeningTests
         var userId = Guid.NewGuid();
 
         var r = Trade.Open(
-            id, userId, CreateValidSymbol(), AssetClass.Forex, TradeDirection.Long,
+            id, ValidAccountId, ValidInstrumentId, userId,
+            CreateValidSymbol(), AssetClass.Forex, TradeDirection.Long,
             CreateValidVolume(), CreateValidEntryPrice(), "USD", "trend-following",
             "Some notes here", OpenedAt);
 
@@ -23,6 +27,8 @@ public class TradeOpeningTests
         var t = r.Value;
         t.Id.Should().Be(id);
         t.UserId.Should().Be(userId);
+        t.AccountId.Should().Be(ValidAccountId);
+        t.InstrumentId.Should().Be(ValidInstrumentId);
         t.Symbol.Value.Should().Be("EUR/USD");
         t.AssetClass.Should().Be(AssetClass.Forex);
         t.Direction.Should().Be(TradeDirection.Long);
@@ -42,7 +48,8 @@ public class TradeOpeningTests
     public void Open_WithZeroVolume_Fails()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, Money.Create(0m, Currency.Usd).Value,
             CreateValidEntryPrice(), "USD", null, null, OpenedAt);
 
@@ -54,7 +61,8 @@ public class TradeOpeningTests
     public void Open_WithNegativeVolume_Fails()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, Money.Create(-10m, Currency.Usd).Value,
             CreateValidEntryPrice(), "USD", null, null, OpenedAt);
 
@@ -66,7 +74,8 @@ public class TradeOpeningTests
     public void Open_WithZeroEntryPrice_Fails()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(),
             Money.Create(0m, Currency.Usd).Value, "USD", null, null, OpenedAt);
 
@@ -81,7 +90,8 @@ public class TradeOpeningTests
         var eurEntry = Money.Create(1.10m, Currency.Eur).Value;
 
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), eurEntry, "USD", null, null, OpenedAt);
 
         r.IsFailure.Should().BeTrue();
@@ -92,7 +102,8 @@ public class TradeOpeningTests
     public void Open_WithEmptyId_Fails()
     {
         var r = Trade.Open(
-            Guid.Empty, Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.Empty, ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "USD", null, null, OpenedAt);
 
@@ -101,10 +112,37 @@ public class TradeOpeningTests
     }
 
     [Fact]
+    public void Open_WithEmptyAccountId_Fails()
+    {
+        var r = Trade.Open(
+            Guid.NewGuid(), Guid.Empty, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
+            TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
+            "USD", null, null, OpenedAt);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.trade.account_id_required");
+    }
+
+    [Fact]
+    public void Open_WithEmptyInstrumentId_Fails()
+    {
+        var r = Trade.Open(
+            Guid.NewGuid(), ValidAccountId, Guid.Empty, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
+            TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
+            "USD", null, null, OpenedAt);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.trade.instrument_id_required");
+    }
+
+    [Fact]
     public void Open_WithEmptyUserId_Fails()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.Empty, CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.Empty,
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "USD", null, null, OpenedAt);
 
@@ -118,7 +156,8 @@ public class TradeOpeningTests
         var longStrategy = new string('x', Trade.MaxStrategyLength + 1);
 
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "USD", longStrategy, null, OpenedAt);
 
@@ -132,7 +171,8 @@ public class TradeOpeningTests
         var longNotes = new string('n', Trade.MaxNotesLength + 1);
 
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "USD", null, longNotes, OpenedAt);
 
@@ -144,7 +184,8 @@ public class TradeOpeningTests
     public void Open_WithEmptyAccountCurrency_Fails()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "", null, null, OpenedAt);
 
@@ -156,7 +197,8 @@ public class TradeOpeningTests
     public void Open_LowercaseAccountCurrency_NormalizesToUppercase()
     {
         var r = Trade.Open(
-            Guid.NewGuid(), Guid.NewGuid(), CreateValidSymbol(), AssetClass.Forex,
+            Guid.NewGuid(), ValidAccountId, ValidInstrumentId, Guid.NewGuid(),
+            CreateValidSymbol(), AssetClass.Forex,
             TradeDirection.Long, CreateValidVolume(), CreateValidEntryPrice(),
             "usd", null, null, OpenedAt);
 

@@ -8,8 +8,8 @@ public abstract class Entity<TId>
     where TId : notnull
 {
     public TId Id { get; protected set; } = default!;
-    public DateTimeOffset CreatedAt { get; private set; }
-    public DateTimeOffset? UpdatedAt { get; private set; }
+    public DateTimeOffset CreatedAt { get; protected set; }
+    public DateTimeOffset? UpdatedAt { get; protected set; }
 
     protected Entity() { }
 
@@ -19,6 +19,14 @@ public abstract class Entity<TId>
         Id = id;
         CreatedAt = DateTimeOffset.UtcNow;
     }
+
+    /// <summary>
+    /// Hidratacion desde DB / seed: asigna CreatedAt explícitamente en lugar
+    /// del UtcNow del constructor. Usar SOLO en factories FromTrusted /
+    /// migraciones. El setter sigue siendo protected: el dominio no puede
+    /// reasignarlo fuera del constructor.
+    /// </summary>
+    protected void SetCreatedAt(DateTimeOffset value) => CreatedAt = value;
 
     /// <summary>Marca la entidad como modificada. Llamar desde setters que cambian estado.</summary>
     protected void Touch()

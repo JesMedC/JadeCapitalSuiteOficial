@@ -15,7 +15,8 @@ public class GetDashboardSummaryHandlerTests
         var v = Money.Create(volume, Currency.Usd).Value;
         var e = Money.Create(entry, Currency.Usd).Value;
         var trade = Trade.Open(
-            Guid.NewGuid(), userId, symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), userId,
+            symbol, AssetClass.Forex, TradeDirection.Long,
             v, e, "USD", null, null,
             new DateTimeOffset(2026, 6, 15, 10, 0, 0, TimeSpan.Zero)).Value;
         trade.Close(Money.Create(exit, Currency.Usd).Value,
@@ -30,7 +31,8 @@ public class GetDashboardSummaryHandlerTests
         var v = Money.Create(volume, Currency.Usd).Value;
         var e = Money.Create(entry, Currency.Usd).Value;
         var trade = Trade.Open(
-            Guid.NewGuid(), userId, symbol, AssetClass.Forex, TradeDirection.Short,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), userId,
+            symbol, AssetClass.Forex, TradeDirection.Short,
             v, e, "USD", null, null,
             new DateTimeOffset(2026, 6, 15, 10, 0, 0, TimeSpan.Zero)).Value;
         trade.Close(Money.Create(exit, Currency.Usd).Value,
@@ -45,7 +47,8 @@ public class GetDashboardSummaryHandlerTests
         var v = Money.Create(1000m, Currency.Usd).Value;
         var e = Money.Create(1.10m, Currency.Usd).Value;
         return Trade.Open(
-            Guid.NewGuid(), userId, symbol, AssetClass.Forex, TradeDirection.Long,
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), userId,
+            symbol, AssetClass.Forex, TradeDirection.Long,
             v, e, "USD", null, null,
             new DateTimeOffset(2026, 6, 15, 10, 0, 0, TimeSpan.Zero)).Value;
     }

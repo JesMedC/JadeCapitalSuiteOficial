@@ -9,6 +9,8 @@ export type TradeStatus = 1 | 2 | 3; // 1=Open, 2=Closed, 3=Cancelled
 export interface TradeDto {
   id: string;
   userId: string;
+  accountId: string;
+  instrumentId: string;
   symbol: string;
   assetClass: AssetClass;
   direction: TradeDirection;
@@ -28,6 +30,20 @@ export interface TradeDto {
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OpenTradeRequest {
+  accountId: string;
+  instrumentId: string;
+  symbol: string;
+  assetClass: AssetClass;
+  direction: TradeDirection;
+  volume: number;
+  volumeCurrency: string;
+  entryPrice: number;
+  entryPriceCurrency: string;
+  strategy: string | null;
+  notes: string | null;
 }
 
 export interface PagedTradesDto {
@@ -79,7 +95,7 @@ export class TradeApiService {
     return firstValueFrom(this.http.get<TradeDto>(`${this.base}/${id}`));
   }
 
-  async open(req: Omit<TradeDto, 'id' | 'userId' | 'status' | 'exitPrice' | 'exitPriceCurrency' | 'pnl' | 'pnlCurrency' | 'createdAt' | 'updatedAt' | 'closedAt'>): Promise<TradeDto> {
+  async open(req: OpenTradeRequest): Promise<TradeDto> {
     return firstValueFrom(this.http.post<TradeDto>(this.base, req));
   }
 

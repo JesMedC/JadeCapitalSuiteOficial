@@ -15,10 +15,17 @@ public sealed class GetTradesHandler : IRequestHandler<GetTradesQuery, Result<Pa
     private const int MaxPageSize = 100;
 
     private readonly ITradeRepository _trades;
+    private readonly IAccountRepository _accounts;
+    private readonly IInstrumentRepository _instruments;
 
-    public GetTradesHandler(ITradeRepository trades)
+    public GetTradesHandler(
+        ITradeRepository trades,
+        IAccountRepository accounts,
+        IInstrumentRepository instruments)
     {
         _trades = trades;
+        _accounts = accounts;
+        _instruments = instruments;
     }
 
     public async Task<Result<PagedTradesDto>> Handle(GetTradesQuery req, CancellationToken ct)
@@ -27,12 +34,40 @@ public sealed class GetTradesHandler : IRequestHandler<GetTradesQuery, Result<Pa
         var pageSize = Math.Clamp(req.PageSize, 1, MaxPageSize);
 
         var items = await _trades.ListByUserIdAsync(
-            req.UserId, page, pageSize, ct, req.StatusFilter, req.SymbolFilter);
+            req.UserId, page, pageSize, ct, req.StatusFilter, req.SymbolFilter, req.AccountIdFilter);
 
         var total = await _trades.CountByUserIdAsync(
-            req.UserId, ct, req.StatusFilter, req.SymbolFilter);
+            req.UserId, ct, req.StatusFilter, req.SymbolFilter, req.AccountIdFilter);
 
-        var dtos = items.Select(t => t.ToDto()).ToList();
+        // Hidratar AccountName e Instrument (batch lookup para no hacer N+1)
+        var accountIds = items.Select(t => t.AccountId).Distinct().ToList();
+        var instrumentIds = items.Select(t => t.InstrumentId).Distinct().ToList();
+
+        var accountsById = (await Task.WhenAll(
+            accountIds.Select(async id => (id, await _accounts.FindByIdAsync(id, ct)))))
+            .Where(x => x.Item2 is not null)
+            .ToDictionary(x => x.id, x => x.Item2!);
+
+        var instrumentsById = (await Task.WhenAll(
+            instrumentIds.Select(async id => (id, await _instruments.FindByIdAsync(id, ct)))))
+            .Where(x => x.Item2 is not null)
+            .ToDictionary(x => x.id, x => x.Item2!);
+
+        var dtos = items.Select(t =>
+        {
+            var account = accountsById.GetValueOrDefault(t.AccountId);
+            var instrument = instrumentsById.GetValueOrDefault(t.InstrumentId);
+            return t.ToDto(
+                accountName: account?.Name,
+                instrument: instrument is null ? null : new InstrumentSummaryDto(
+                    instrument.Symbol.Value,
+                    instrument.AssetClass,
+                    instrument.ContractSize,
+                    instrument.DecimalPlaces,
+                    instrument.PipValue,
+                    instrument.PayoutPercent));
+        }).ToList();
+
         return Result.Success(new PagedTradesDto(dtos, total, page, pageSize));
     }
 }
