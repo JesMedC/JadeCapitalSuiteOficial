@@ -21,10 +21,13 @@ import {
   MarketType,
 } from '@core/api/account-api.service';
 import {
-  ASSET_CLASS_LABELS,
   AssetClass,
   InstrumentApiService,
   InstrumentDto,
+  MARKET_TYPE_TO_ASSET_CLASS,
+  activeAssetClasses as activeAssetClassesFor,
+  assetClassLabel as labelForAssetClass,
+  hasAssetClass,
 } from '@core/api/instrument-api.service';
 import {
   OpenTradeRequest,
@@ -170,7 +173,7 @@ const SLIDE_ANIMATION_MS = 280;
                       [class.jcs-input--error]="isInvalid(form.controls.instrumentId)">
                       <option value="">Seleccioná un instrumento</option>
                       @for (i of filteredInstruments(); track i.id) {
-                        <option [value]="i.id">{{ i.symbol }} · {{ assetClassLabel(i.assetClass) }}</option>
+                        <option [value]="i.id">{{ i.symbol }} · {{ assetClassLabelForInstrument(i.assetClasses) }}</option>
                       }
                     </select>
                     @if (isInvalid(form.controls.instrumentId)) {
@@ -1060,12 +1063,21 @@ const SLIDE_ANIMATION_MS = 280;
       align-items: center;
       justify-content: space-between;
       gap: var(--sp-3);
+      flex-wrap: wrap;
+      flex-shrink: 0;
       padding: var(--sp-3) var(--sp-4);
       background: rgba(255, 64, 87, 0.08);
       border: 1px solid rgba(255, 64, 87, 0.35);
       border-radius: var(--radius-sm);
       color: var(--red);
       font-size: var(--fs-sm);
+    }
+    .form-error > span,
+    .form-error > .form-error-text {
+      flex: 1 1 200px;
+      min-width: 0;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .error-retry {
       padding: var(--sp-1) var(--sp-3);
@@ -1077,6 +1089,8 @@ const SLIDE_ANIMATION_MS = 280;
       font-size: var(--fs-xs);
       font-weight: 600;
       cursor: pointer;
+      flex-shrink: 0;
+      align-self: flex-end;
     }
     .error-retry:hover { background: rgba(255, 64, 87, 0.15); }
 
@@ -1212,12 +1226,28 @@ export class CreateTradeForm implements OnDestroy {
     return tab === 1 ? this.forexAccounts() : this.binaryAccounts();
   });
 
-  readonly forexInstruments = computed(() => this.activeInstruments().filter(i => i.assetClass === 1));
-  readonly binaryInstruments = computed(() => this.activeInstruments().filter(i => i.assetClass === 3));
+  /** Bitmask del AssetClass esperado por el tab activo. */
+  private readonly activeTabBit = computed<AssetClass>(() =>
+    this.activeTab() === 1 ? 1 : 4,
+  );
 
+  readonly forexInstruments = computed(() =>
+    this.activeInstruments().filter(i => hasAssetClass(i.assetClasses, 1)),
+  );
+  readonly binaryInstruments = computed(() =>
+    this.activeInstruments().filter(i => hasAssetClass(i.assetClasses, 4)),
+  );
+
+  /**
+   * Filter by the selected account's market type when present (most common path),
+   * otherwise fall back to the active tab.
+   */
   readonly filteredInstruments = computed(() => {
-    const tab = this.activeTab();
-    return tab === 1 ? this.forexInstruments() : this.binaryInstruments();
+    const account = this.selectedAccount();
+    const bit = account
+      ? MARKET_TYPE_TO_ASSET_CLASS[account.marketType]
+      : this.activeTabBit();
+    return this.activeInstruments().filter(i => hasAssetClass(i.assetClasses, bit));
   });
 
   readonly selectedAccount = computed(() => {
@@ -1418,8 +1448,8 @@ export class CreateTradeForm implements OnDestroy {
       const instr = this.selectedInstrument();
       const tab = this.activeTab();
       if (!instr) return;
-      const isForex = instr.assetClass === 1;
-      const isBinary = instr.assetClass === 3;
+      const isForex = hasAssetClass(instr.assetClasses, 1);
+      const isBinary = hasAssetClass(instr.assetClasses, 4);
       if (tab === 1 && !isForex) {
         this.form.controls.instrumentId.setValue('');
       } else if (tab === 2 && !isBinary) {
@@ -1501,7 +1531,9 @@ export class CreateTradeForm implements OnDestroy {
         accountId: acc.id,
         instrumentId: instr.id,
         symbol: instr.symbol,
-        assetClass: instr.assetClass,
+        // Backend trade schema (legacy) aún usa el enum single-value:
+        //   1 = Forex, 3 = Binary. Lo derivamos del marketType de la cuenta.
+        assetClass: this.tradeAssetClassFor(acc.marketType),
         direction: this.form.controls.direction.value,
         volume: effectiveVolume,
         volumeCurrency: acc.currency,
@@ -1529,7 +1561,26 @@ export class CreateTradeForm implements OnDestroy {
   }
 
   assetClassLabel(ac: AssetClass): string {
-    return ASSET_CLASS_LABELS[ac];
+    return labelForAssetClass(ac);
+  }
+
+  /**
+   * Etiqueta representativa para un instrumento (bitmask): prioriza el AssetClass
+   * compatible con el tab activo, si existe. Si no, usa el primero activo.
+   */
+  assetClassLabelForInstrument(bitmask: number): string {
+    const tabBit = this.activeTabBit();
+    if (hasAssetClass(bitmask, tabBit)) return labelForAssetClass(tabBit);
+    const first = activeAssetClassesFor(bitmask)[0];
+    return first !== undefined ? labelForAssetClass(first) : '—';
+  }
+
+  /**
+   * Mapea el MarketType de la cuenta al enum legacy single-value que el backend
+   * todavía espera en `OpenTradeRequest.assetClass` (1=Forex, 3=Binary).
+   */
+  private tradeAssetClassFor(marketType: MarketType): 1 | 3 {
+    return marketType === 1 ? 1 : 3;
   }
 
   marketTypeLabel(mt: MarketType): string {

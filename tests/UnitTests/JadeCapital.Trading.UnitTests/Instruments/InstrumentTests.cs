@@ -25,13 +25,62 @@ public class InstrumentTests
         var instrument = r.Value;
         instrument.Id.Should().Be(id);
         instrument.Symbol.Value.Should().Be("EUR/USD");
-        instrument.AssetClass.Should().Be(AssetClass.Forex);
+        instrument.AssetClasses.Should().Be(AssetClass.Forex);
         instrument.ContractSize.Should().Be(100000m);
         instrument.DecimalPlaces.Should().Be(5);
         instrument.PipValue.Should().Be(0.0001m);
         instrument.PayoutPercent.Should().Be(0.85m);
         instrument.IsActive.Should().BeTrue();
         instrument.CreatedAt.Should().Be(now);
+    }
+
+    [Fact]
+    public void Create_WithMultiMarketFlags_Succeeds()
+    {
+        // EUR/USD puede servir para Forex Y para Binary (asset_class=5).
+        var r = Instrument.Create(
+            Guid.NewGuid(), "EUR/USD",
+            AssetClass.Forex | AssetClass.Binary,
+            100000m, 5, 0.0001m, 0.85m, Clock);
+
+        r.IsSuccess.Should().BeTrue();
+        r.Value.AssetClasses.Should().Be(AssetClass.Forex | AssetClass.Binary);
+        ((int)r.Value.AssetClasses).Should().Be(5);
+    }
+
+    [Fact]
+    public void Create_WithNoneAssetClasses_Fails()
+    {
+        var r = Instrument.Create(
+            Guid.NewGuid(), "EUR/USD", AssetClass.None,
+            100000m, 5, 0.0001m, 0.85m, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.instrument.asset_classes_required");
+    }
+
+    [Fact]
+    public void Create_WithInvalidFlagBeyondRange_Fails()
+    {
+        // 32 (bit 5) no esta definido en el enum.
+        var r = Instrument.Create(
+            Guid.NewGuid(), "EUR/USD", (AssetClass)32,
+            100000m, 5, 0.0001m, 0.85m, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.instrument.asset_classes_invalid");
+    }
+
+    [Fact]
+    public void Create_WithMixOfValidAndInvalidFlags_Fails()
+    {
+        // Forex (1) es valido pero combinado con 32 (invalido) -> falla.
+        var r = Instrument.Create(
+            Guid.NewGuid(), "EUR/USD", AssetClass.Forex | (AssetClass)32,
+            100000m, 5, 0.0001m, 0.85m, Clock);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.instrument.asset_classes_invalid");
     }
 
     [Fact]
@@ -131,16 +180,32 @@ public class InstrumentTests
             100000m, 5, 0.0001m, 0.85m, Clock).Value;
 
         var r = instrument.UpdateMetadata(
-            "GBP/USD", AssetClass.Forex,
+            "GBP/USD", AssetClass.Forex | AssetClass.Binary,
             50000m, 4, 0.001m, 0.80m);
 
         r.IsSuccess.Should().BeTrue();
         instrument.Symbol.Value.Should().Be("GBP/USD");
+        instrument.AssetClasses.Should().Be(AssetClass.Forex | AssetClass.Binary);
         instrument.ContractSize.Should().Be(50000m);
         instrument.DecimalPlaces.Should().Be(4);
         instrument.PipValue.Should().Be(0.001m);
         instrument.PayoutPercent.Should().Be(0.80m);
         instrument.UpdatedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void UpdateMetadata_WithNoneAssetClasses_Fails()
+    {
+        var instrument = Instrument.Create(
+            Guid.NewGuid(), "EUR/USD", AssetClass.Forex,
+            100000m, 5, 0.0001m, 0.85m, Clock).Value;
+
+        var r = instrument.UpdateMetadata(
+            "EUR/USD", AssetClass.None,
+            100000m, 5, 0.0001m, 0.85m);
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.instrument.asset_classes_required");
     }
 
     [Fact]
@@ -218,7 +283,7 @@ public class InstrumentTests
         var createdAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         var instrument = Instrument.FromTrusted(
-            Guid.NewGuid(), "EUR/USD", AssetClass.Forex,
+            Guid.NewGuid(), "EUR/USD", AssetClass.Forex | AssetClass.Binary,
             100000m, 5, 0.0001m, 0.85m,
             isActive: true,
             createdAt: createdAt);
@@ -226,5 +291,6 @@ public class InstrumentTests
         instrument.CreatedAt.Should().Be(createdAt);
         instrument.IsActive.Should().BeTrue();
         instrument.Symbol.Value.Should().Be("EUR/USD");
+        instrument.AssetClasses.Should().Be(AssetClass.Forex | AssetClass.Binary);
     }
 }

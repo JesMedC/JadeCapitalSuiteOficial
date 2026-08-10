@@ -15,18 +15,22 @@ namespace JadeCapital.Trading.Domain.Instruments;
 /// - El "contrato" (contract size, pip value, payout) lo define el broker / market,
 ///   no el usuario individual. Por eso vive una sola vez en la tabla.
 /// - La relacion Instrument &lt;-&gt; Trade es FK directa: un Trade conoce su
-///   InstrumentId (y via projection EF, su Symbol / AssetClass).
+///   InstrumentId (y via projection EF, su Symbol / AssetClasses).
 /// - La relacion Instrument &lt;-&gt; Account NO existe: cualquier cuenta puede
 ///   operar cualquier instrumento. Los payoutPercent especificos por cuenta se
 ///   manejan via Account.PayoutPercent (overrides a nivel del cliente).
+/// - AssetClasses es un [Flags] enum: un mismo Instrument puede servir para
+///   varios mercados (ej. EUR/USD = Forex | Binary).
 ///
 /// Seed inicial: EUR/USD, GBP/USD, USD/JPY, AUD/USD (forex), XAU/USD (commodity),
 /// BTC/USD, ETH/USD (crypto). Ver migracion SQL.
 /// </summary>
 public sealed class Instrument : Entity<Guid>
 {
+    private const AssetClass AllValidFlags = AssetClass.Forex | AssetClass.Crypto | AssetClass.Binary | AssetClass.Commodity | AssetClass.Other;
+
     public Symbol Symbol { get; private set; } = default!;
-    public AssetClass AssetClass { get; private set; }
+    public AssetClass AssetClasses { get; private set; }
     public decimal ContractSize { get; private set; }
     public int DecimalPlaces { get; private set; }
     public decimal PipValue { get; private set; }
@@ -39,7 +43,7 @@ public sealed class Instrument : Entity<Guid>
     private Instrument(
         Guid id,
         Symbol symbol,
-        AssetClass assetClass,
+        AssetClass assetClasses,
         decimal contractSize,
         int decimalPlaces,
         decimal pipValue,
@@ -47,7 +51,7 @@ public sealed class Instrument : Entity<Guid>
         DateTimeOffset createdAt) : base(id)
     {
         Symbol = symbol;
-        AssetClass = assetClass;
+        AssetClasses = assetClasses;
         ContractSize = contractSize;
         DecimalPlaces = decimalPlaces;
         PipValue = pipValue;
@@ -59,12 +63,14 @@ public sealed class Instrument : Entity<Guid>
     /// <summary>
     /// Crea un instrumento. Validaciones: id != Guid.Empty, symbol valido (usa
     /// <see cref="Symbol.Create"/>), contractSize &gt; 0, decimalPlaces &gt;= 0,
-    /// pipValue &gt;= 0, payoutPercent en [0, 1]. Estado inicial: IsActive = true.
+    /// pipValue &gt;= 0, payoutPercent en [0, 1], assetClasses != None y todos
+    /// los flags dentro del rango valido (Forex|Crypto|Binary|Commodity|Other).
+    /// Estado inicial: IsActive = true.
     /// </summary>
     public static Result<Instrument> Create(
         Guid id,
         string symbol,
-        AssetClass assetClass,
+        AssetClass assetClasses,
         decimal contractSize,
         int decimalPlaces,
         decimal pipValue,
@@ -81,11 +87,15 @@ public sealed class Instrument : Entity<Guid>
         if (symbolResult.IsFailure)
             return Result.Failure<Instrument>(TradingDomainErrors.Instrument.SymbolRequired);
 
-        // Symbol.Create normaliza a <= 20 chars (MaxLength), por lo que el check
-        // explicito "TooLong" seria redundante. Lo dejamos como cobertura defensiva
-        // por si en el futuro Symbol relaja su MaxLength.
         if (symbolResult.Value.Value.Length > Symbol.MaxLength)
             return Result.Failure<Instrument>(TradingDomainErrors.Instrument.SymbolTooLong);
+
+        if (assetClasses == AssetClass.None)
+            return Result.Failure<Instrument>(TradingDomainErrors.Instrument.AssetClassesRequired);
+
+        // Cualquier bit fuera del mask 0b11111 (Forex|Crypto|Binary|Commodity|Other) es invalido.
+        if ((assetClasses & ~AllValidFlags) != 0)
+            return Result.Failure<Instrument>(TradingDomainErrors.Instrument.AssetClassesInvalid);
 
         if (contractSize <= 0m)
             return Result.Failure<Instrument>(TradingDomainErrors.Instrument.ContractSizeMustBePositive);
@@ -102,7 +112,7 @@ public sealed class Instrument : Entity<Guid>
         var instrument = new Instrument(
             id,
             symbolResult.Value,
-            assetClass,
+            assetClasses,
             contractSize,
             decimalPlaces,
             pipValue,
@@ -120,7 +130,7 @@ public sealed class Instrument : Entity<Guid>
     public static Instrument FromTrusted(
         Guid id,
         string symbol,
-        AssetClass assetClass,
+        AssetClass assetClasses,
         decimal contractSize,
         int decimalPlaces,
         decimal pipValue,
@@ -131,7 +141,7 @@ public sealed class Instrument : Entity<Guid>
         var instrument = new Instrument(
             id,
             Symbol.FromTrusted(symbol),
-            assetClass,
+            assetClasses,
             contractSize,
             decimalPlaces,
             pipValue,
@@ -149,7 +159,7 @@ public sealed class Instrument : Entity<Guid>
     /// </summary>
     public Result UpdateMetadata(
         string symbol,
-        AssetClass assetClass,
+        AssetClass assetClasses,
         decimal contractSize,
         int decimalPlaces,
         decimal pipValue,
@@ -161,6 +171,12 @@ public sealed class Instrument : Entity<Guid>
         var symbolResult = Symbol.Create(symbol);
         if (symbolResult.IsFailure)
             return Result.Failure(TradingDomainErrors.Instrument.SymbolRequired);
+
+        if (assetClasses == AssetClass.None)
+            return Result.Failure(TradingDomainErrors.Instrument.AssetClassesRequired);
+
+        if ((assetClasses & ~AllValidFlags) != 0)
+            return Result.Failure(TradingDomainErrors.Instrument.AssetClassesInvalid);
 
         if (contractSize <= 0m)
             return Result.Failure(TradingDomainErrors.Instrument.ContractSizeMustBePositive);
@@ -175,7 +191,7 @@ public sealed class Instrument : Entity<Guid>
             return Result.Failure(TradingDomainErrors.Instrument.PayoutPercentOutOfRange);
 
         Symbol = symbolResult.Value;
-        AssetClass = assetClass;
+        AssetClasses = assetClasses;
         ContractSize = contractSize;
         DecimalPlaces = decimalPlaces;
         PipValue = pipValue;

@@ -1,3 +1,4 @@
+using FluentValidation.TestHelper;
 using NSubstitute.ReturnsExtensions;
 using JadeCapital.Trading.Domain.Instruments;
 
@@ -23,7 +24,7 @@ public class UpdateInstrumentHandlerTests
     private static UpdateInstrumentCommand ValidCommand(Guid instrumentId) => new(
         InstrumentId: instrumentId,
         Symbol: "GBP/USD",
-        AssetClass: AssetClass.Forex,
+        AssetClasses: AssetClass.Forex | AssetClass.Binary,
         ContractSize: 100000m,
         DecimalPlaces: 5,
         PipValue: 0.0001m,
@@ -40,8 +41,34 @@ public class UpdateInstrumentHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Symbol.Should().Be("GBP/USD");
+        result.Value.AssetClasses.Should().Be(AssetClass.Forex | AssetClass.Binary);
         result.Value.PayoutPercent.Should().Be(0.90m);
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_OnlyRequiredFields_AppliesDefaults()
+    {
+        var instrument = CreateActiveInstrument();
+        _instruments.FindByIdAsync(instrument.Id, Arg.Any<CancellationToken>()).Returns(instrument);
+        _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(1));
+
+        var cmd = new UpdateInstrumentCommand(
+            InstrumentId: instrument.Id,
+            Symbol: "GBP/USD",
+            AssetClasses: AssetClass.Forex,
+            ContractSize: null,
+            DecimalPlaces: null,
+            PipValue: null,
+            PayoutPercent: null);
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.ContractSize.Should().Be(1m);
+        result.Value.DecimalPlaces.Should().Be(6);
+        result.Value.PipValue.Should().Be(0m);
+        result.Value.PayoutPercent.Should().Be(0.85m);
     }
 
     [Fact]
@@ -56,6 +83,20 @@ public class UpdateInstrumentHandlerTests
     }
 
     [Fact]
+    public async Task Handle_NoneAssetClasses_ReturnsDomainFailure()
+    {
+        var instrument = CreateActiveInstrument();
+        _instruments.FindByIdAsync(instrument.Id, Arg.Any<CancellationToken>()).Returns(instrument);
+
+        var cmd = ValidCommand(instrument.Id) with { AssetClasses = AssetClass.None };
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.instrument.asset_classes_required");
+        await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_InvalidContractSize_ReturnsValidationFailure()
     {
         var instrument = CreateActiveInstrument();
@@ -67,5 +108,14 @@ public class UpdateInstrumentHandlerTests
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().StartWith("validation.");
         await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Validator_NoneAssetClasses_Fails()
+    {
+        var sut = new UpdateInstrumentValidator();
+        var cmd = ValidCommand(Guid.NewGuid()) with { AssetClasses = AssetClass.None };
+
+        sut.TestValidate(cmd).IsValid.Should().BeFalse();
     }
 }

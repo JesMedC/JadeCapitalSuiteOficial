@@ -12,7 +12,7 @@ internal static class InstrumentMapping
         => new(
             instrument.Id,
             instrument.Symbol.Value,
-            instrument.AssetClass,
+            instrument.AssetClasses,
             instrument.ContractSize,
             instrument.DecimalPlaces,
             instrument.PipValue,

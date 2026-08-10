@@ -51,7 +51,7 @@ internal static class TradeMapping
             ? new InstrumentSummaryDto(string.Empty, default, 0m, 0, 0m, 0m)
             : new InstrumentSummaryDto(
                 instrument.Symbol.Value,
-                instrument.AssetClass,
+                instrument.AssetClasses,
                 instrument.ContractSize,
                 instrument.DecimalPlaces,
                 instrument.PipValue,

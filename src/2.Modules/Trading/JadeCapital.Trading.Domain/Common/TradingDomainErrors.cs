@@ -146,6 +146,12 @@ public static class TradingDomainErrors
         public static readonly Error PayoutPercentOutOfRange =
             Error.Validation("instrument.payout_percent_out_of_range", "Payout percent must be between 0 and 1.");
 
+        public static readonly Error AssetClassesRequired =
+            Error.Validation("instrument.asset_classes_required", "At least one asset class must be selected.");
+
+        public static readonly Error AssetClassesInvalid =
+            Error.Validation("instrument.asset_classes_invalid", "Asset classes contains an invalid flag.");
+
         public static readonly Error AlreadyInactive =
             Error.Conflict("instrument.already_inactive", "Instrument is already inactive.");
 

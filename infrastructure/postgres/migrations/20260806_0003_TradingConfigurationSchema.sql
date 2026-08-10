@@ -50,6 +50,15 @@ END $$;
 -- ============================================
 -- trading.instruments
 -- ============================================
+-- Drop old CHECK constraint si existe (idempotencia para re-aplicar el seed
+-- con los nuevos bitmasks de asset_class: 0..31 en vez de 1..5).
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_instruments_asset_class') THEN
+        ALTER TABLE trading.instruments DROP CONSTRAINT ck_instruments_asset_class;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS trading.instruments (
     id                UUID            PRIMARY KEY,
     symbol            VARCHAR(20)     NOT NULL,
@@ -66,7 +75,9 @@ CREATE TABLE IF NOT EXISTS trading.instruments (
     CONSTRAINT ck_instruments_decimal_places_non_negative CHECK (decimal_places >= 0),
     CONSTRAINT ck_instruments_pip_value_non_negative      CHECK (pip_value >= 0),
     CONSTRAINT ck_instruments_payout_percent_range        CHECK (payout_percent BETWEEN 0 AND 1),
-    CONSTRAINT ck_instruments_asset_class                 CHECK (asset_class BETWEEN 1 AND 5)
+    -- Sprint 1.7 FASE A: asset_class es bitmask (0..31). 0005 reescribe este CHECK
+    -- en volumenes existentes y migra los rows del seed a los nuevos bitmasks.
+    CONSTRAINT ck_instruments_asset_class                 CHECK (asset_class >= 0 AND asset_class <= 31)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_instruments_symbol
@@ -75,6 +86,7 @@ CREATE INDEX IF NOT EXISTS ix_instruments_asset_class
     ON trading.instruments (asset_class);
 
 COMMENT ON TABLE  trading.instruments IS 'Instrumentos de trading configurables. Compartidos entre todos los usuarios.';
+COMMENT ON COLUMN trading.instruments.asset_class IS 'Bitmask: 1=Forex, 2=Crypto, 4=Binary, 8=Commodity, 16=Other. Un instrumento puede pertenecer a multiples mercados.';
 COMMENT ON COLUMN trading.instruments.contract_size IS 'Tamano del contrato (e.g. 100000 para forex estandar).';
 COMMENT ON COLUMN trading.instruments.pip_value     IS 'Valor del pip en el quote currency.';
 
@@ -84,18 +96,22 @@ COMMENT ON COLUMN trading.instruments.pip_value     IS 'Valor del pip en el quot
 -- Requiere pgcrypto (ya habilitado en 01-extensions.sql). Si falla por
 -- "function gen_random_uuid() does not exist", hay que correr
 -- CREATE EXTENSION IF NOT EXISTS pgcrypto; manualmente.
+--
+-- asset_class es un bitmask (Sprint 1.7 FASE A):
+--   1 = Forex, 2 = Crypto, 4 = Binary, 8 = Commodity, 16 = Other.
+-- 0005 ajusta el CHECK a bitmask y trae los rows existentes al nuevo modelo.
 INSERT INTO trading.instruments
     (id, symbol, asset_class, contract_size, decimal_places, pip_value, payout_percent, is_active, created_at)
 VALUES
-    -- Forex
-    (gen_random_uuid(), 'EUR/USD', 1, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
-    (gen_random_uuid(), 'GBP/USD', 1, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
-    (gen_random_uuid(), 'USD/JPY', 1, 100000, 3, 0.01,  0.85, TRUE, NOW()),
-    (gen_random_uuid(), 'AUD/USD', 1, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
-    (gen_random_uuid(), 'USD/CHF', 1, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
-    -- Commodities
-    (gen_random_uuid(), 'XAU/USD', 4, 100,    2, 0.01,  0.85, TRUE, NOW()),
-    -- Crypto
+    -- Forex + Binary (mismo instrumento sirve para ambos mercados)
+    (gen_random_uuid(), 'EUR/USD', 5, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
+    (gen_random_uuid(), 'GBP/USD', 5, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
+    (gen_random_uuid(), 'USD/JPY', 5, 100000, 3, 0.01,  0.85, TRUE, NOW()),
+    (gen_random_uuid(), 'AUD/USD', 5, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
+    (gen_random_uuid(), 'USD/CHF', 5, 100000, 5, 0.0001, 0.85, TRUE, NOW()),
+    -- Commodity + Binary
+    (gen_random_uuid(), 'XAU/USD', 9, 100,    2, 0.01,  0.85, TRUE, NOW()),
+    -- Crypto (sin Binary por ahora)
     (gen_random_uuid(), 'BTC/USD', 2, 1,      2, 0.01,  0.85, TRUE, NOW()),
     (gen_random_uuid(), 'ETH/USD', 2, 1,      2, 0.01,  0.85, TRUE, NOW())
 ON CONFLICT (symbol) DO NOTHING;

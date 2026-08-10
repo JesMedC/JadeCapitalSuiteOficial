@@ -25,7 +25,9 @@ public sealed class InstrumentConfiguration : IEntityTypeConfiguration<Instrumen
         b.Property(i => i.Symbol).HasColumnName("symbol").HasMaxLength(20).IsRequired()
             .HasConversion(symbolConv, symbolComp);
 
-        b.Property(i => i.AssetClass).HasColumnName("asset_class").HasConversion<short>().IsRequired();
+        // AssetClasses es un [Flags] enum que se mapea a SMALLINT (bitmask). EF Core
+        // serializa el underlying value (short) automaticamente con HasConversion<short>().
+        b.Property(i => i.AssetClasses).HasColumnName("asset_class").HasConversion<short>().IsRequired();
         b.Property(i => i.ContractSize).HasColumnName("contract_size").HasColumnType("numeric(24,8)").IsRequired();
         b.Property(i => i.DecimalPlaces).HasColumnName("decimal_places").IsRequired();
         b.Property(i => i.PipValue).HasColumnName("pip_value").HasColumnType("numeric(24,8)").IsRequired();
@@ -37,6 +39,6 @@ public sealed class InstrumentConfiguration : IEntityTypeConfiguration<Instrumen
         // Instrument NO es AggregateRoot — no tiene DomainEvents que ignorar.
 
         b.HasIndex(i => i.Symbol).IsUnique().HasDatabaseName("ux_instruments_symbol");
-        b.HasIndex(i => i.AssetClass).HasDatabaseName("ix_instruments_asset_class");
+        b.HasIndex(i => i.AssetClasses).HasDatabaseName("ix_instruments_asset_class");
     }
 }

@@ -14,7 +14,7 @@ public class GetInstrumentByIdHandlerTests
         var c = Substitute.For<IClock>();
         c.UtcNow.Returns(new DateTimeOffset(2026, 7, 1, 10, 0, 0, TimeSpan.Zero));
         return Instrument.Create(
-            Guid.NewGuid(), symbol, AssetClass.Forex,
+            Guid.NewGuid(), symbol, AssetClass.Forex | AssetClass.Binary,
             100000m, 5, 0.0001m, 0.85m, c).Value;
     }
 

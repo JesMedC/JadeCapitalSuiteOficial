@@ -103,7 +103,7 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
             accountName: account?.Name,
             instrument: instrument is null ? null : new InstrumentSummaryDto(
                 instrument.Symbol.Value,
-                instrument.AssetClass,
+                instrument.AssetClasses,
                 instrument.ContractSize,
                 instrument.DecimalPlaces,
                 instrument.PipValue,

@@ -39,10 +39,11 @@ public sealed record TradeDto(
 /// Subset del Instrument que viaja embebido en TradeDto. Evita N+1 al
 /// proyectar listas y mantiene la respuesta API simple (sin requerir
 /// round-trip extra al cliente).
+/// AssetClasses es un [Flags] (Forex=1, Crypto=2, Binary=4, Commodity=8, Other=16).
 /// </summary>
 public sealed record InstrumentSummaryDto(
     string Symbol,
-    AssetClass AssetClass,
+    AssetClass AssetClasses,
     decimal ContractSize,
     int DecimalPlaces,
     decimal PipValue,
@@ -51,11 +52,12 @@ public sealed record InstrumentSummaryDto(
 /// <summary>
 /// Projection completa de un Instrument para los endpoints CRUD
 /// (/api/instruments). Incluye identificador, estado y timestamps.
+/// AssetClasses es un [Flags] (Forex=1, Crypto=2, Binary=4, Commodity=8, Other=16).
 /// </summary>
 public sealed record InstrumentDto(
     Guid Id,
     string Symbol,
-    AssetClass AssetClass,
+    AssetClass AssetClasses,
     decimal ContractSize,
     int DecimalPlaces,
     decimal PipValue,

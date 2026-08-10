@@ -14,9 +14,20 @@ namespace JadeCapital.Trading.Application.Features.Instruments.CreateInstrument;
 /// con ese symbol canonico, devolvemos Conflict legible antes de intentar
 /// el INSERT (la constraint UNIQUE en la columna Symbol es la red de
 /// seguridad definitiva).
+///
+/// Defaults para los campos opcionales:
+/// - ContractSize    = 1
+/// - DecimalPlaces   = 6
+/// - PipValue        = 0
+/// - PayoutPercent   = 0.85 (85%, tipico para binarias)
 /// </summary>
 public sealed class CreateInstrumentHandler : IRequestHandler<CreateInstrumentCommand, Result<InstrumentDto>>
 {
+    private const decimal DefaultContractSize = 1m;
+    private const int DefaultDecimalPlaces = 6;
+    private const decimal DefaultPipValue = 0m;
+    private const decimal DefaultPayoutPercent = 0.85m;
+
     private readonly IInstrumentRepository _instruments;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
@@ -46,11 +57,11 @@ public sealed class CreateInstrumentHandler : IRequestHandler<CreateInstrumentCo
         var createResult = Instrument.Create(
             instrumentId,
             req.Symbol,
-            req.AssetClass,
-            req.ContractSize,
-            req.DecimalPlaces,
-            req.PipValue,
-            req.PayoutPercent,
+            req.AssetClasses,
+            req.ContractSize ?? DefaultContractSize,
+            req.DecimalPlaces ?? DefaultDecimalPlaces,
+            req.PipValue ?? DefaultPipValue,
+            req.PayoutPercent ?? DefaultPayoutPercent,
             _clock);
 
         if (createResult.IsFailure)

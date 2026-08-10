@@ -101,7 +101,7 @@ public static class InstrumentEndpoints
     {
         var cmd = new CreateInstrumentCommand(
             req.Symbol,
-            req.AssetClass,
+            req.AssetClasses,
             req.ContractSize,
             req.DecimalPlaces,
             req.PipValue,
@@ -147,7 +147,7 @@ public static class InstrumentEndpoints
         var cmd = new UpdateInstrumentCommand(
             id,
             req.Symbol,
-            req.AssetClass,
+            req.AssetClasses,
             req.ContractSize,
             req.DecimalPlaces,
             req.PipValue,
@@ -188,16 +188,16 @@ public static class InstrumentEndpoints
 
 public sealed record CreateInstrumentRequest(
     string Symbol,
-    AssetClass AssetClass,
-    decimal ContractSize,
-    int DecimalPlaces,
-    decimal PipValue,
-    decimal PayoutPercent);
+    AssetClass AssetClasses,
+    decimal? ContractSize,
+    int? DecimalPlaces,
+    decimal? PipValue,
+    decimal? PayoutPercent);
 
 public sealed record UpdateInstrumentRequest(
     string Symbol,
-    AssetClass AssetClass,
-    decimal ContractSize,
-    int DecimalPlaces,
-    decimal PipValue,
-    decimal PayoutPercent);
+    AssetClass AssetClasses,
+    decimal? ContractSize,
+    int? DecimalPlaces,
+    decimal? PipValue,
+    decimal? PayoutPercent);

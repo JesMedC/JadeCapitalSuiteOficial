@@ -9,10 +9,14 @@ import {
   MarketType,
 } from '@core/api/account-api.service';
 import {
-  ASSET_CLASS_LABELS,
+  ASSET_CLASS_FLAGS,
   AssetClass,
   InstrumentApiService,
   InstrumentDto,
+  activeAssetClasses,
+  assetClassLabel as labelForAssetClass,
+  hasAssetClass,
+  toggleAssetClass,
 } from '@core/api/instrument-api.service';
 import { AuthState } from '@core/state/auth.state';
 
@@ -260,12 +264,18 @@ interface DeleteTarget {
               @for (instrument of instruments(); track instrument.id) {
                 <article class="jcs-card entity-card" [class.entity-card--inactive]="!instrument.isActive">
                   <header class="entity-head">
-                    <span class="entity-icon" [ngClass]="'asset-' + instrument.assetClass" aria-hidden="true">
-                      {{ assetIcon(instrument.assetClass) }}
+                    <span class="entity-icon" [ngClass]="primaryAssetClassDot(instrument.assetClasses)" aria-hidden="true">
+                      {{ primaryAssetClassIcon(instrument.assetClasses) }}
                     </span>
                     <div class="entity-title">
                       <h3 class="jcs-num">{{ instrument.symbol }}</h3>
-                      <span class="jcs-badge asset-badge">{{ assetClassLabel(instrument.assetClass) }}</span>
+                      <div class="asset-badges">
+                        @for (flag of assetFlagsFor(instrument.assetClasses); track flag) {
+                          <span class="jcs-badge asset-badge" [ngClass]="'asset-badge--' + flag">
+                            {{ assetClassLabel(flag) }}
+                          </span>
+                        }
+                      </div>
                     </div>
                     <span class="jcs-badge" [ngClass]="instrument.isActive ? 'status-active' : 'status-inactive'">
                       {{ instrument.isActive ? 'Activo' : 'Inactivo' }}
@@ -326,35 +336,59 @@ interface DeleteTarget {
                     [class.jcs-input--error]="isInvalid(instrumentForm.controls.symbol)">
                   @if (isInvalid(instrumentForm.controls.symbol)) { <span class="field-error">Usá entre 3 y 20 letras, números o “/”.</span> }
                 </div>
-                <div class="field">
-                  <label class="jcs-label" for="instrument-asset">Clase de activo</label>
-                  <select id="instrument-asset" class="jcs-input" formControlName="assetClass">
-                    @for (asset of assetClasses; track asset.value) {
-                      <option [ngValue]="asset.value">{{ asset.label }}</option>
+                <div class="field field--full">
+                  <label class="jcs-label">Clases de activo</label>
+                  <p class="field-hint">Marcá todas las clases en las que el instrumento se puede operar. Al menos una.</p>
+                  <div class="asset-pills" role="group" aria-label="Clases de activo">
+                    @for (flag of assetClassFlags; track flag.value) {
+                      <button
+                        type="button"
+                        class="asset-pill"
+                        [class.asset-pill--active]="hasAssetClass(instrumentAssetClasses(), flag.value)"
+                        [attr.aria-pressed]="hasAssetClass(instrumentAssetClasses(), flag.value)"
+                        (click)="toggleAssetClassFlag(flag.value)">
+                        <span class="asset-pill-dot" [ngClass]="flag.dotClass" aria-hidden="true"></span>
+                        {{ flag.label }}
+                        <span class="asset-pill-short">{{ flag.short }}</span>
+                      </button>
                     }
-                  </select>
+                  </div>
+                  <span class="field-hint" [class.field-error]="instrumentAssetClasses() === 0">
+                    @if (instrumentAssetClasses() === 0) {
+                      Seleccioná al menos una clase de activo.
+                    } @else {
+                      Activo para:
+                      @for (flag of activeAssetFlags(); track flag; let i = $index) {
+                        <strong>{{ i > 0 ? ' · ' : '' }}{{ assetClassLabel(flag) }}</strong>
+                      }
+                    }
+                  </span>
                 </div>
                 <div class="field">
                   <label class="jcs-label" for="instrument-contract">Tamaño de contrato</label>
                   <input id="instrument-contract" class="jcs-input jcs-num" type="number" min="0.000001" step="any" formControlName="contractSize"
+                    placeholder="Default: 1"
                     [class.jcs-input--error]="isInvalid(instrumentForm.controls.contractSize)">
                   @if (isInvalid(instrumentForm.controls.contractSize)) { <span class="field-error">El tamaño debe ser mayor a 0.</span> }
                 </div>
                 <div class="field">
                   <label class="jcs-label" for="instrument-decimals">Decimales</label>
                   <input id="instrument-decimals" class="jcs-input jcs-num" type="number" min="0" step="1" formControlName="decimalPlaces"
+                    placeholder="Default: 6"
                     [class.jcs-input--error]="isInvalid(instrumentForm.controls.decimalPlaces)">
                   @if (isInvalid(instrumentForm.controls.decimalPlaces)) { <span class="field-error">Ingresá un número entero igual o mayor a 0.</span> }
                 </div>
                 <div class="field">
                   <label class="jcs-label" for="instrument-pip">Valor del pip</label>
                   <input id="instrument-pip" class="jcs-input jcs-num" type="number" min="0" step="any" formControlName="pipValue"
+                    placeholder="Default: 0"
                     [class.jcs-input--error]="isInvalid(instrumentForm.controls.pipValue)">
                   @if (isInvalid(instrumentForm.controls.pipValue)) { <span class="field-error">El valor del pip debe ser 0 o mayor.</span> }
                 </div>
                 <div class="field">
                   <label class="jcs-label" for="instrument-payout">Payout (%)</label>
                   <input id="instrument-payout" class="jcs-input jcs-num" type="number" min="0" max="100" step="0.01" formControlName="payoutPercent"
+                    placeholder="Default: 85"
                     [class.jcs-input--error]="isInvalid(instrumentForm.controls.payoutPercent)">
                   @if (isInvalid(instrumentForm.controls.payoutPercent)) { <span class="field-error">El payout debe estar entre 0 y 100.</span> }
                 </div>
@@ -591,17 +625,77 @@ interface DeleteTarget {
       white-space: nowrap;
     }
     .entity-title p { margin: 0; font-size: var(--fs-xs); }
-    .entity-title .asset-badge { font-size: 0.65rem; }
+    .asset-badges { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+    .asset-badge { font-size: 0.65rem; }
+    .asset-badge--1,
+    .asset-badge--asset-dot--forex { background: rgba(47, 219, 120, 0.14); color: var(--green); }
+    .asset-badge--2,
+    .asset-badge--asset-dot--crypto { background: rgba(245, 183, 66, 0.14); color: var(--yellow, #f5b742); }
+    .asset-badge--4,
+    .asset-badge--asset-dot--binary { background: rgba(74, 168, 255, 0.12); color: var(--blue); }
+    .asset-badge--8,
+    .asset-badge--asset-dot--commodity { background: rgba(229, 191, 92, 0.14); color: #e5bf5c; }
+    .asset-badge--16,
+    .asset-badge--asset-dot--other { background: var(--bg-elevated); color: var(--text-secondary); }
     .status-active { background: rgba(47, 219, 120, 0.14); color: var(--green); }
     .status-inactive { background: var(--bg-elevated); color: var(--text-muted); }
-    .asset-badge { background: rgba(74, 168, 255, 0.12); color: var(--blue); }
     .market-badge { font-size: 0.65rem; }
     .market-badge--forex { background: rgba(47, 219, 120, 0.14); color: var(--green); }
     .market-badge--binary { background: rgba(245, 183, 66, 0.14); color: var(--yellow, #f5b742); }
-    .entity-icon.asset-2 { background: rgba(245, 183, 66, 0.1); color: var(--yellow, #f5b742); border-color: rgba(245, 183, 66, 0.3); }
-    .entity-icon.asset-3 { background: rgba(74, 168, 255, 0.1); color: var(--blue); border-color: rgba(74, 168, 255, 0.3); }
-    .entity-icon.asset-4 { background: rgba(229, 191, 92, 0.1); color: #e5bf5c; border-color: rgba(229, 191, 92, 0.3); }
-    .entity-icon.asset-5 { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
+    .entity-icon.asset-dot--forex { background: rgba(47, 219, 120, 0.1); color: var(--green); border-color: rgba(47, 219, 120, 0.3); }
+    .entity-icon.asset-dot--crypto { background: rgba(245, 183, 66, 0.1); color: var(--yellow, #f5b742); border-color: rgba(245, 183, 66, 0.3); }
+    .entity-icon.asset-dot--binary { background: rgba(74, 168, 255, 0.1); color: var(--blue); border-color: rgba(74, 168, 255, 0.3); }
+    .entity-icon.asset-dot--commodity { background: rgba(229, 191, 92, 0.1); color: #e5bf5c; border-color: rgba(229, 191, 92, 0.3); }
+    .entity-icon.asset-dot--other { background: var(--bg-elevated); color: var(--text-secondary); border-color: var(--border); }
+
+    /* ============== Asset pills (multi-select) ============== */
+    .asset-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+    }
+    .asset-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      padding: var(--sp-2) var(--sp-3);
+      background: var(--bg-card-soft);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-pill, 9999px);
+      color: var(--text-secondary);
+      font: inherit;
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 150ms, color 150ms, border-color 150ms;
+    }
+    .asset-pill:hover:not(:disabled) {
+      border-color: var(--border-active);
+      color: var(--text-main);
+    }
+    .asset-pill--active {
+      background: var(--green-soft);
+      border-color: var(--border-active);
+      color: var(--green);
+    }
+    .asset-pill-short {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+    .asset-pill--active .asset-pill-short { color: var(--green); opacity: 0.85; }
+    .asset-pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .asset-pill-dot--forex     { background: var(--green); }
+    .asset-pill-dot--crypto    { background: var(--yellow, #f5b742); }
+    .asset-pill-dot--binary    { background: var(--blue); }
+    .asset-pill-dot--commodity { background: #e5bf5c; }
+    .asset-pill-dot--other     { background: var(--text-muted); }
 
     .entity-stats {
       display: grid;
@@ -812,13 +906,7 @@ export class SettingsPage {
   readonly accountFormTitle = computed(() => this.editingAccount() ? 'Editar cuenta' : 'Nueva cuenta');
   readonly instrumentFormTitle = computed(() => this.editingInstrument() ? 'Editar instrumento' : 'Nuevo instrumento');
 
-  readonly assetClasses: ReadonlyArray<{ value: AssetClass; label: string }> = [
-    { value: 1, label: ASSET_CLASS_LABELS[1] },
-    { value: 2, label: ASSET_CLASS_LABELS[2] },
-    { value: 3, label: ASSET_CLASS_LABELS[3] },
-    { value: 4, label: ASSET_CLASS_LABELS[4] },
-    { value: 5, label: ASSET_CLASS_LABELS[5] },
-  ];
+  readonly assetClassFlags = ASSET_CLASS_FLAGS;
 
   readonly marketTypes: ReadonlyArray<{ value: MarketType; label: string }> = [
     { value: 1, label: MARKET_TYPE_LABELS[1] },
@@ -837,12 +925,27 @@ export class SettingsPage {
 
   readonly instrumentForm = this.fb.nonNullable.group({
     symbol: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(20), Validators.pattern(/^[A-Za-z0-9/]+$/)]],
-    assetClass: [1 as AssetClass, [Validators.required]],
-    contractSize: [1, [Validators.required, Validators.min(0.000001)]],
-    decimalPlaces: [2, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
-    pipValue: [0, [Validators.required, Validators.min(0)]],
-    payoutPercent: [0, [Validators.required, Validators.min(0), Validators.max(100)]],
+    // El resto de campos numéricos son opcionales en CREATE: el backend aplica defaults.
+    // En EDIT (PATCH) los mandamos siempre para no pisar accidentalmente.
+    contractSize: this.fb.control<number | null>(null, [Validators.min(0.000001)]),
+    decimalPlaces: this.fb.control<number | null>(null, [Validators.min(0), Validators.pattern(/^\d+$/)]),
+    pipValue: this.fb.control<number | null>(null, [Validators.min(0)]),
+    payoutPercent: this.fb.control<number | null>(null, [Validators.min(0), Validators.max(100)]),
   });
+
+  /** Bitmask actual del form (signal local, sincronizado con la UI). */
+  readonly instrumentAssetClasses = signal<number>(1);
+
+  readonly activeAssetFlags = computed<AssetClass[]>(() => activeAssetClasses(this.instrumentAssetClasses()));
+
+  hasAssetClass(bitmask: number, flag: AssetClass): boolean {
+    return hasAssetClass(bitmask, flag);
+  }
+
+  toggleAssetClassFlag(flag: AssetClass): void {
+    this.instrumentAssetClasses.update(current => toggleAssetClass(current, flag));
+    this.instrumentForm.markAsDirty();
+  }
 
   constructor() {
     void this.loadAccounts();
@@ -972,13 +1075,13 @@ export class SettingsPage {
 
   openNewInstrument(): void {
     this.editingInstrument.set(null);
+    this.instrumentAssetClasses.set(1); // Forex por defecto al crear.
     this.instrumentForm.reset({
       symbol: '',
-      assetClass: 1,
-      contractSize: 1,
-      decimalPlaces: 2,
-      pipValue: 0,
-      payoutPercent: 0,
+      contractSize: null,
+      decimalPlaces: null,
+      pipValue: null,
+      payoutPercent: null,
     });
     this.instrumentFormError.set(null);
     this.accountFormOpen.set(false);
@@ -987,9 +1090,9 @@ export class SettingsPage {
 
   editInstrument(instrument: InstrumentDto): void {
     this.editingInstrument.set(instrument);
+    this.instrumentAssetClasses.set(instrument.assetClasses || 0);
     this.instrumentForm.reset({
       symbol: instrument.symbol,
-      assetClass: instrument.assetClass,
       contractSize: instrument.contractSize,
       decimalPlaces: instrument.decimalPlaces,
       pipValue: instrument.pipValue,
@@ -1005,35 +1108,50 @@ export class SettingsPage {
     this.instrumentFormOpen.set(false);
     this.editingInstrument.set(null);
     this.instrumentFormError.set(null);
+    this.instrumentAssetClasses.set(0);
   }
 
   async submitInstrument(): Promise<void> {
-    if (this.instrumentForm.invalid) {
-      this.instrumentForm.markAllAsTouched();
+    this.instrumentForm.markAllAsTouched();
+    if (this.instrumentForm.invalid) return;
+    if (this.instrumentAssetClasses() === 0) {
+      this.instrumentFormError.set('Seleccioná al menos una clase de activo.');
       return;
     }
 
     this.saving.set(true);
     this.instrumentFormError.set(null);
     const value = this.instrumentForm.getRawValue();
-    const request = {
-      symbol: value.symbol.trim().toUpperCase(),
-      assetClass: value.assetClass,
-      contractSize: value.contractSize,
-      decimalPlaces: value.decimalPlaces,
-      pipValue: value.pipValue,
-      payoutPercent: value.payoutPercent / 100,
-    };
+    const symbol = value.symbol.trim().toUpperCase();
+    const bitmask = this.instrumentAssetClasses();
 
     try {
       const current = this.editingInstrument();
       if (current) {
-        await this.instrumentApi.update(current.id, request);
+        // PATCH: todos los numéricos requeridos (si están vacíos, mandamos los defaults explícitos).
+        await this.instrumentApi.update(current.id, {
+          symbol,
+          assetClasses: bitmask,
+          contractSize: value.contractSize ?? 1,
+          decimalPlaces: value.decimalPlaces ?? 6,
+          pipValue: value.pipValue ?? 0,
+          payoutPercent: (value.payoutPercent ?? 85) / 100,
+        });
       } else {
-        await this.instrumentApi.create(request);
+        // POST: solo lo que el usuario completó; el backend aplica defaults al resto.
+        const req: { symbol: string; assetClasses: number; contractSize?: number; decimalPlaces?: number; pipValue?: number; payoutPercent?: number } = {
+          symbol,
+          assetClasses: bitmask,
+        };
+        if (value.contractSize   !== null) req.contractSize   = value.contractSize;
+        if (value.decimalPlaces !== null) req.decimalPlaces = value.decimalPlaces;
+        if (value.pipValue      !== null) req.pipValue      = value.pipValue;
+        if (value.payoutPercent !== null) req.payoutPercent = value.payoutPercent / 100;
+        await this.instrumentApi.create(req);
       }
       this.instrumentFormOpen.set(false);
       this.editingInstrument.set(null);
+      this.instrumentAssetClasses.set(0);
       await this.loadInstruments();
     } catch (error) {
       this.instrumentFormError.set(this.toMessage(error));
@@ -1098,13 +1216,36 @@ export class SettingsPage {
     return symbols[currency.toUpperCase()] ?? currency.slice(0, 1).toUpperCase();
   }
 
-  assetClassLabel(assetClass: AssetClass): string {
-    return ASSET_CLASS_LABELS[assetClass];
+  assetClassLabel(flag: AssetClass): string {
+    return labelForAssetClass(flag);
   }
 
-  assetIcon(assetClass: AssetClass): string {
-    const icons: Record<AssetClass, string> = { 1: 'FX', 2: '₿', 3: '01', 4: 'Au', 5: '↗' };
-    return icons[assetClass];
+  /** Etiquetas activas para un bitmask — para los badges múltiples de la card. */
+  assetFlagsFor(bitmask: number): AssetClass[] {
+    return activeAssetClasses(bitmask);
+  }
+
+  /** Dot class del primer asset class activo — para colorear el icono de la card. */
+  primaryAssetClassDot(bitmask: number): string {
+    const flags = activeAssetClasses(bitmask);
+    if (flags.length === 0) return 'asset-dot--other';
+    const flag = flags[0]!;
+    return ASSET_CLASS_FLAGS.find(f => f.value === flag)?.dotClass ?? 'asset-dot--other';
+  }
+
+  /** Icono del primer asset class activo. */
+  primaryAssetClassIcon(bitmask: number): string {
+    const flags = activeAssetClasses(bitmask);
+    if (flags.length === 0) return '↗';
+    const flag = flags[0]!;
+    const icons: Partial<Record<AssetClass, string>> = {
+      1: 'FX',
+      2: '₿',
+      4: '01',
+      8: 'Au',
+      16: '↗',
+    };
+    return icons[flag] ?? '↗';
   }
 
   marketTypeLabel(marketType: MarketType): string {

@@ -1,3 +1,4 @@
+using FluentValidation.TestHelper;
 using NSubstitute.ReturnsExtensions;
 using JadeCapital.Trading.Domain.Instruments;
 
@@ -17,7 +18,7 @@ public class CreateInstrumentHandlerTests
 
     private static CreateInstrumentCommand ValidCommand() => new(
         Symbol: "EUR/USD",
-        AssetClass: AssetClass.Forex,
+        AssetClasses: AssetClass.Forex | AssetClass.Binary,
         ContractSize: 100000m,
         DecimalPlaces: 5,
         PipValue: 0.0001m,
@@ -34,7 +35,7 @@ public class CreateInstrumentHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.Symbol.Should().Be("EUR/USD");
-        result.Value.AssetClass.Should().Be(AssetClass.Forex);
+        result.Value.AssetClasses.Should().Be(AssetClass.Forex | AssetClass.Binary);
         result.Value.ContractSize.Should().Be(100000m);
         result.Value.DecimalPlaces.Should().Be(5);
         result.Value.IsActive.Should().BeTrue();
@@ -42,6 +43,31 @@ public class CreateInstrumentHandlerTests
 
         await _instruments.Received(1).AddAsync(Arg.Any<Instrument>(), Arg.Any<CancellationToken>());
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_OnlyRequiredFields_AppliesDefaults()
+    {
+        _clock.UtcNow.Returns(FixedNow);
+        _instruments.FindBySymbolAsync("EUR/USD", Arg.Any<CancellationToken>()).ReturnsNull();
+        _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(1));
+
+        var cmd = new CreateInstrumentCommand(
+            Symbol: "EUR/USD",
+            AssetClasses: AssetClass.Forex,
+            ContractSize: null,
+            DecimalPlaces: null,
+            PipValue: null,
+            PayoutPercent: null);
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        // Defaults del handler: ContractSize=1, DecimalPlaces=6, PipValue=0, PayoutPercent=0.85.
+        result.Value.ContractSize.Should().Be(1m);
+        result.Value.DecimalPlaces.Should().Be(6);
+        result.Value.PipValue.Should().Be(0m);
+        result.Value.PayoutPercent.Should().Be(0.85m);
     }
 
     [Fact]
@@ -75,6 +101,34 @@ public class CreateInstrumentHandlerTests
     }
 
     [Fact]
+    public async Task Handle_NoneAssetClasses_ReturnsDomainFailure()
+    {
+        _clock.UtcNow.Returns(FixedNow);
+        _instruments.FindBySymbolAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ReturnsNull();
+
+        var cmd = ValidCommand() with { AssetClasses = AssetClass.None };
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.instrument.asset_classes_required");
+    }
+
+    [Fact]
+    public async Task Handle_InvalidAssetClassesFlag_ReturnsDomainFailure()
+    {
+        _clock.UtcNow.Returns(FixedNow);
+        _instruments.FindBySymbolAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ReturnsNull();
+
+        var cmd = ValidCommand() with { AssetClasses = (AssetClass)32 };
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.instrument.asset_classes_invalid");
+    }
+
+    [Fact]
     public async Task Handle_ZeroContractSize_ReturnsDomainFailure()
     {
         _clock.UtcNow.Returns(FixedNow);
@@ -86,5 +140,60 @@ public class CreateInstrumentHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("validation.instrument.contract_size_must_be_positive");
+    }
+
+    [Fact]
+    public async Task Handle_NegativePipValue_ReturnsDomainFailure()
+    {
+        _clock.UtcNow.Returns(FixedNow);
+        _instruments.FindBySymbolAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ReturnsNull();
+
+        var cmd = ValidCommand() with { PipValue = -0.01m };
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.instrument.pip_value_must_be_non_negative");
+    }
+
+    [Fact]
+    public async Task Handle_PayoutPercentOutOfRange_ReturnsDomainFailure()
+    {
+        _clock.UtcNow.Returns(FixedNow);
+        _instruments.FindBySymbolAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).ReturnsNull();
+
+        var cmd = ValidCommand() with { PayoutPercent = 1.5m };
+
+        var result = await CreateSut().Handle(cmd, CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("validation.instrument.payout_percent_out_of_range");
+    }
+
+    [Fact]
+    public void Validator_AssetClassesNone_Fails()
+    {
+        var sut = new CreateInstrumentValidator();
+        var cmd = ValidCommand() with { AssetClasses = AssetClass.None };
+
+        sut.TestValidate(cmd).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Validator_ContractSizeZero_Fails()
+    {
+        var sut = new CreateInstrumentValidator();
+        var cmd = ValidCommand() with { ContractSize = 0m };
+
+        sut.TestValidate(cmd).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Validator_PayoutPercentOutOfRange_Fails()
+    {
+        var sut = new CreateInstrumentValidator();
+        var cmd = ValidCommand() with { PayoutPercent = 1.5m };
+
+        sut.TestValidate(cmd).IsValid.Should().BeFalse();
     }
 }
