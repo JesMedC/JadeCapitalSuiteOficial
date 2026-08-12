@@ -53,6 +53,9 @@ public static class IdentityDomainErrors
 
         public static readonly Error NotActiveCannotLogin =
             Error.Forbidden("user.not_active_cannot_login", "Account is not active.");
+
+        public static readonly Error PasswordReused =
+            Error.Validation("user.password_reused", "New password must differ from current and previous five.");
     }
 
     public static class RefreshToken
@@ -68,5 +71,38 @@ public static class IdentityDomainErrors
 
         public static readonly Error Reuse =
             Error.Unauthorized("refresh_token.reuse_detected", "Refresh token reuse detected. All sessions revoked.");
+    }
+
+    public static class TemporaryCredential
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("temporary_credential.id_required", "Temporary credential identifier is required.");
+
+        public static readonly Error GenerationInvalid =
+            Error.Validation("temporary_credential.generation_invalid", "Generation must be positive.");
+
+        public static readonly Error NotPending =
+            Error.Conflict("temporary_credential.not_pending", "Temporary credential is not in pending state.");
+
+        public static readonly Error NotActivated =
+            Error.Conflict("temporary_credential.not_activated", "Temporary credential is not in activated state.");
+
+        public static readonly Error Superseded =
+            Error.Conflict("temporary_credential.superseded", "A newer temporary credential supersedes this one.");
+
+        public static readonly Error GrantJtiRequired =
+            Error.Validation("temporary_credential.grant_jti_required", "Grant JTI is required to consume a temporary credential.");
+    }
+
+    public static class Credential
+    {
+        public static readonly Error HashRequired =
+            Error.Validation("credential.hash_required", "Credential hash is required.");
+    }
+
+    public static class PasswordHistory
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("password_history.id_required", "Password history entry identifier is required.");
     }
 }

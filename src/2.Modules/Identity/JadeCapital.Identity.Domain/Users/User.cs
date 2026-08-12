@@ -1,3 +1,4 @@
+using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Common;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
@@ -21,6 +22,9 @@ public sealed class User : AggregateRoot<Guid>
     public const int MaxFailedLoginAttempts = 5;
     public const int LockoutMinutes = 15;
 
+    /// <summary>Maximum number of prior passwords retained for the reuse check.</summary>
+    public const int MaxPasswordHistoryEntries = 5;
+
     public string Email { get; private set; } = default!;
     public string DisplayName { get; private set; } = default!;
     public string PasswordHash { get; private set; } = default!;
@@ -31,8 +35,24 @@ public sealed class User : AggregateRoot<Guid>
     public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockedUntil { get; private set; }
 
+    /// <summary>
+    /// Incremented on every successful password change. Refresh tokens track the
+    /// version they were issued under; a rotation revokes every pre-change token
+    /// because their version no longer matches. Defaults to 0 for new users.
+    /// </summary>
+    public int SessionVersion { get; private set; }
+
     /// <summary>UTC offset preferida del usuario (IANA, p.ej. "America/Mexico_City"). Null = UTC.</summary>
     public string? Timezone { get; private set; }
+
+    /// <summary>
+    /// Ordered (changed_at DESC, id DESC) list of the user's previous
+    /// password hashes. Backing storage is the EF-mapped list; the public
+    /// surface returns the newest-first projection.
+    /// </summary>
+    private readonly List<PasswordHistoryEntry> _passwordHistory = new();
+    public IReadOnlyList<PasswordHistoryEntry> PasswordHistory
+        => PasswordHistoryEntry.OrderNewestFirst(_passwordHistory);
 
     // EF Core.
     private User() { }
@@ -93,6 +113,70 @@ public sealed class User : AggregateRoot<Guid>
         Touch();
         RaiseDomainEvent(new UserPasswordChangedDomainEvent(Id, DateTimeOffset.UtcNow));
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Rotates the password atomically:
+    /// 1. Refuses empty/whitespace hashes (structural validation).
+    /// 2. Normalizes the backing history to (changed_at DESC, id DESC)
+    ///    BEFORE prepend/evict — protects against EF hydration order corrupting
+    ///    which entry gets evicted.
+    /// 3. Displaces the current hash into the history (newest first),
+    ///    evicts entries beyond <see cref="MaxPasswordHistoryEntries"/>,
+    ///    assigns the new hash, and bumps <see cref="SessionVersion"/>.
+    ///
+    /// Plaintext-vs-stored-hash reuse detection does NOT live here. Salted
+    /// PBKDF2 means the same plaintext yields a different encoded hash on
+    /// every call; that responsibility belongs to the Application boundary
+    /// (see <c>JadeCapital.Identity.Application.Authentication.PasswordChangeReuseChecker</c>).
+    /// Failure leaves every field untouched.
+    /// </summary>
+    public Result ChangePasswordPreservingHistory(string newPasswordHash)
+    {
+        if (string.IsNullOrWhiteSpace(newPasswordHash))
+            return Result.Failure(IdentityDomainErrors.User.PasswordHashRequired);
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Normalize before mutation — the backing list may have been hydrated
+        // in arbitrary order (EF without the descending index, or tests
+        // injecting via reflection). Sorting first guarantees that eviction
+        // removes the chronologically-oldest entry, not whichever entry
+        // happens to sit at the tail of the unordered backing list.
+        var normalized = PasswordHistoryEntry.OrderNewestFirst(_passwordHistory).ToList();
+
+        var displaced = PasswordHistoryEntry.Create(Guid.NewGuid(), Id, PasswordHash, now);
+        normalized.Insert(0, displaced);
+
+        if (normalized.Count > MaxPasswordHistoryEntries)
+        {
+            normalized.RemoveRange(MaxPasswordHistoryEntries, normalized.Count - MaxPasswordHistoryEntries);
+        }
+
+        _passwordHistory.Clear();
+        _passwordHistory.AddRange(normalized);
+
+        PasswordHash = newPasswordHash;
+        SessionVersion++;
+        Touch();
+        RaiseDomainEvent(new UserPasswordChangedDomainEvent(Id, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Replaces the backing password-history list wholesale. Used by EF
+    /// hydration (the framework populates the private field directly via the
+    /// configured backing field access) and by trusted test fixtures that
+    /// need to simulate hydration in arbitrary order. Production domain
+    /// handlers MUST NOT call this — they go through
+    /// <see cref="ChangePasswordPreservingHistory"/> so history invariants
+    /// (5-newest retention, monotonic SessionVersion) are preserved.
+    /// </summary>
+    public void HydrateHistoryForTrusted(IEnumerable<PasswordHistoryEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        _passwordHistory.Clear();
+        _passwordHistory.AddRange(entries);
     }
 
     public Result ChangeDisplayName(string newDisplayName)
