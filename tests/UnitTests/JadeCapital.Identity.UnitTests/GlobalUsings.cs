@@ -9,6 +9,7 @@ global using JadeCapital.Identity.Domain.Users;
 global using JadeCapital.Identity.Domain.Authentication;
 global using JadeCapital.Identity.Domain.Common;
 global using JadeCapital.Identity.Application.Abstractions;
+global using JadeCapital.Identity.Application.Authentication;
 global using JadeCapital.Identity.Application.Behaviors;
 global using JadeCapital.Identity.Application._Common;
 global using JadeCapital.Identity.Application.Features.Auth.Register;
