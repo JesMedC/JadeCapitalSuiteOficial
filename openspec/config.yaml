@@ -1,0 +1,73 @@
+schema: spec-driven
+
+context: |
+  Tech stack: ASP.NET Core (.NET 10, C# latest, Nullable enabled, TreatWarningsAsErrors) + Angular 19 (standalone, Signals, OnPush, strict TS).
+  Architecture: Modular monolith with Clean Architecture + Vertical Slices per bounded context (src/1.Api Host + src/2.Modules/{Identity,Trading,Billing,Admin,PublicPortal} + src/3.Shared/{Kernel,Infrastructure}).
+  Persistence: PostgreSQL 16 (NUMERIC for money, schemas per module), Redis 7 (cache + rate-limit), MinIO (S3 compatible).
+  Testing: xUnit 2.9.2 + FluentAssertions 7.0.0 + NSubstitute 5.3.0; integration via WebApplicationFactory + Testcontainers (PostgreSql + Redis) + Respawn.
+  Auth: JWT HS256 + rotating refresh tokens + PBKDF2. Logging: Serilog (structured, no PII).
+  Conventions: no float/double for money (decimal + NUMERIC(24,8)); Money/Currency as immutable VOs; no business logic in endpoints (MediatR ISender); secrets from env only; clean/hexagonal dependency direction.
+
+rules:
+  proposal:
+    - Include rollback plan for any module-crossing change
+    - Document impact on Vertical Slice boundaries (Module → Host composition)
+    - Never propose changes that introduce float/double for monetary values
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Preserve Clean Architecture dependency direction (Domain ← Application ← Infrastructure; Api composes modules)
+  design:
+    - Document new Aggregates, Value Objects, Domain Events and their invariants
+    - Include sequence diagrams for cross-module flows
+    - Show DI composition impact on JadeCapital.Host (Add<Module>Infrastructure, Map<Module>)
+  tasks:
+    - Group by module vertical slice (Domain → Application → Infrastructure → Api/Host)
+    - Keep tasks completable in one session
+    - Pair each Domain/Application change with its xUnit tests
+  apply:
+    guidelines:
+      - Follow existing Module/Host composition pattern
+      - Keep numeric types decimal-only for money paths
+      - Use MediatR ISender.Send(command) at endpoints
+      - Mirror existing folder conventions (Features/{Name}/{Command|Query}Handler, Common)
+    tdd: true
+    test_command: dotnet test --nologo --verbosity minimal
+  verify:
+    test_command: dotnet test --nologo --verbosity minimal
+    build_command: dotnet build JadeCapital.slnx --nologo --verbosity minimal
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+    - Confirm main spec merge preserves Given/When/Then scenarios
+
+testing:
+  strict_tdd: true
+  detected: 2026-08-11
+  backend:
+    runner: xunit
+    version: 2.9.2
+    assertion: FluentAssertions 7.0.0
+    mocking: NSubstitute 5.3.0
+    sdk: Microsoft.NET.Test.Sdk 17.12.0
+    integration:
+      web: Microsoft.AspNetCore.Mvc.Testing 10.0.9
+      containers: Testcontainers 4.0.0 (PostgreSql + Redis)
+      reset: Respawn 6.2.1
+      driver: Npgsql 9.0.1
+    command: dotnet test --nologo --verbosity minimal
+    coverage:
+      available: false
+      tool: coverlet
+      note: No coverlet reference found in csproj or props; coverage not yet wired.
+  frontend:
+    runner: jest
+    source: frontend/package.json (script "test": "jest")
+    command: npm --prefix frontend test
+    note: Jest declared but no jest.config.* or test files detected yet; treat as scaffold.
+  solution:
+    path: JadeCapital.slnx
+    target: net10.0
+    nullable: true
+    warnings_as_errors: true
+    enforce_code_style_in_build: true
