@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
+using JadeCapital.Identity.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -7,7 +8,7 @@ namespace JadeCapital.Identity.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext del módulo Identity. Esquema dedicado "identity" dentro del schema "jade".
-/// Tablas: identity_users, identity_refresh_tokens.
+/// Tablas: identity.users, identity.refresh_tokens, identity.temporary_credentials, identity.password_history.
 /// </summary>
 public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
@@ -16,12 +17,16 @@ public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
 
     public Microsoft.EntityFrameworkCore.DbSet<User> Users => Set<User>();
     public Microsoft.EntityFrameworkCore.DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public Microsoft.EntityFrameworkCore.DbSet<TemporaryCredential> TemporaryCredentials => Set<TemporaryCredential>();
+    public Microsoft.EntityFrameworkCore.DbSet<PasswordHistoryEntry> PasswordHistory => Set<PasswordHistoryEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("identity");
         modelBuilder.ApplyConfiguration(new UserConfiguration());
         modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new TemporaryCredentialConfiguration());
+        modelBuilder.ApplyConfiguration(new PasswordHistoryEntryConfiguration());
     }
 }
 
@@ -43,8 +48,20 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.FailedLoginCount).HasColumnName("failed_login_count").IsRequired();
         b.Property(u => u.LockedUntil).HasColumnName("locked_until");
         b.Property(u => u.Timezone).HasColumnName("timezone").HasMaxLength(64);
+        b.Property(u => u.SessionVersion).HasColumnName("session_version").IsRequired();
         b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(u => u.UpdatedAt).HasColumnName("updated_at");
+
+        // PasswordHistory is exposed as an ordered projection on the aggregate;
+        // EF materialises the backing list directly.
+        b.HasMany<PasswordHistoryEntry>("_passwordHistory")
+            .WithOne()
+            .HasForeignKey(p => p.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Navigation("_passwordHistory")
+            .Metadata.SetField("_passwordHistory");
+        b.Navigation("_passwordHistory")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         b.Ignore(u => u.DomainEvents);
 
