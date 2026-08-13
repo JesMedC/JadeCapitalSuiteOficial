@@ -41,6 +41,7 @@
     <Project Path="tests/IntegrationTests/JadeCapital.Api.IntegrationTests/JadeCapital.Api.IntegrationTests.csproj" />
   </Folder>
   <Folder Name="/tests/UnitTests/">
+    <Project Path="tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj" />
     <Project Path="tests/UnitTests/JadeCapital.Identity.UnitTests/JadeCapital.Identity.UnitTests.csproj" />
     <Project Path="tests/UnitTests/JadeCapital.Shared.Kernel.UnitTests/JadeCapital.Shared.Kernel.UnitTests.csproj" />
     <Project Path="tests/UnitTests/JadeCapital.Trading.UnitTests/JadeCapital.Trading.UnitTests.csproj" />
