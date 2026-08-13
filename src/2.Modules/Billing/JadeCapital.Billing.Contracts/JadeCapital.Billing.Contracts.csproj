@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Contracts\JadeCapital.Identity.Contracts.csproj" />
   </ItemGroup>
 </Project>
