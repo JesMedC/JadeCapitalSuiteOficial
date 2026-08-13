@@ -1,15 +1,18 @@
+using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Application.Features.Auth.Register;
 using JadeCapital.Identity.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
+using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -62,10 +65,21 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(opts =>
+{
+    opts.AddRestrictedScopePolicy();
+    opts.AddAdminOnly();
+});
 
 // ===== Identity module =====
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
+builder.Services.AddMailOptions(builder.Configuration);
+// Email transport profile: Mailpit (local dev) by default; override in production
+// with MailKitSmtpEmailSender + Mail__* env vars.
+builder.Services.AddMailpitSmtpEmailSender();
+
+// Uniform-timing gate used by /api/auth/forgot-password.
+builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
@@ -130,6 +144,9 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true
             });
     });
+
+    // Slice 0c — recovery throttle: 5 requests / IP / hour.
+    options.AddRecoveryThrottle();
 });
 
 // ===== Health checks =====
@@ -265,7 +282,7 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 }).AllowAnonymous();
 
 // ===== Modules =====
-app.MapAuthEndpoints();
+app.MapIdentityApi();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
