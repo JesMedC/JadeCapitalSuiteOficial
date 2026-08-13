@@ -29,6 +29,10 @@ public static class IdentityModuleRegistration
         // ===== Repos =====
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<ITemporaryCredentialRepository, TemporaryCredentialRepository>();
+        services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
+        services.AddScoped<IRefreshTokenRevoker, RefreshTokenRevoker>();
+        services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
 
         // ===== Security =====
