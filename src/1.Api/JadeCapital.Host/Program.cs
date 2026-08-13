@@ -145,8 +145,9 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // Slice 0c — recovery throttle: 5 requests / IP / hour.
-    options.AddRecoveryThrottle();
+    // Slice 0c — recovery throttle: 5 requests / IP / hour (override via RateLimit:RecoveryPermit).
+    var recoveryPermit = builder.Configuration.GetValue<int?>("RateLimit:RecoveryPermit") ?? 5;
+    options.AddRecoveryThrottle(recoveryPermit);
 });
 
 // ===== Health checks =====

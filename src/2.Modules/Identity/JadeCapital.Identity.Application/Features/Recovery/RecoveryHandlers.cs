@@ -40,7 +40,19 @@ public sealed class ForgotPasswordHandler : IRequestHandler<ForgotPasswordComman
         var gen = (await _temps.LatestGenerationAsync(user.Id, ct)) + 1;
         var reserved = await _temps.ReserveAsync(Guid.NewGuid(), user.Id, gen, hash, ct);
         if (reserved.IsFailure) { _logger.LogWarning("Failed to reserve temp credential for {UserId}.", user.Id); return Result.Failure(reserved.Error); }
-        await _email.SendRecoveryEmailAsync(new RecoveryEmailMessage(req.Email, user.DisplayName, plaintext, now.AddHours(TemporaryCredential.LifetimeHours)), ct);
+        try
+        {
+            await _email.SendRecoveryEmailAsync(new RecoveryEmailMessage(req.Email, user.DisplayName, plaintext, now.AddHours(TemporaryCredential.LifetimeHours)), ct);
+        }
+        catch (Exception ex)
+        {
+            // SMTP failure must NOT propagate — the spec requires uniform 200 generic.
+            // The reservation stays Pending; no ActivateAsync call is made, so no
+            // Activated row is ever persisted. The pending row will be superseded
+            // by the next legitimate request (or expire).
+            _logger.LogWarning("Recovery email send failed for {UserId}: {Error}", user.Id, ex.GetType().Name);
+            return Result.Success();
+        }
         var activated = await _temps.ActivateAsync(reserved.Value.Id, gen, ct);
         if (activated.IsFailure) { _logger.LogWarning("Temp credential superseded before activation for {UserId}.", user.Id); return Result.Failure(activated.Error); }
         await _uow.SaveChangesAsync(ct);

@@ -27,8 +27,9 @@ public static class IdentityApiRegistration
     public static IEndpointRouteBuilder MapIdentityApi(this IEndpointRouteBuilder app)
         => app.MapAuthEndpoints();
 
-    /// <summary>Registers the rate limit policy used by the recovery endpoints (5 requests / IP / hour).</summary>
-    public static RateLimiterOptions AddRecoveryThrottle(this RateLimiterOptions options)
+    /// <summary>Registers the rate limit policy used by the recovery endpoints (5 requests / IP / hour by default;
+    /// overridable via <c>RateLimit:RecoveryPermit</c> in configuration for fast-running integration tests).</summary>
+    public static RateLimiterOptions AddRecoveryThrottle(this RateLimiterOptions options, int permitLimit = 5)
     {
         options.AddPolicy("recovery", ctx =>
         {
@@ -37,7 +38,7 @@ public static class IdentityApiRegistration
                 partitionKey: $"recovery-{ip}",
                 factory: _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 5,
+                    PermitLimit = permitLimit,
                     Window = TimeSpan.FromHours(1),
                     QueueLimit = 0,
                     AutoReplenishment = true
