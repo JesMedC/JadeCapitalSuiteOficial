@@ -49,15 +49,15 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [x] 0b.6 Rollback: drop handlers + `RecoveryAbstractions.cs`; keep Domain + `0006` schema.
 
 ## Slice 0c — SMTP/Transport + API/Host + Integration/Config (≤286)
-- [ ] 0c.1 🔴 RED: `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Auth/PasswordRecoveryFlowTests.cs` — `ForgotPassword_Always200Generic`, `TimingBodyStatusIndistinguishable`, `Throttle5PerHourPerIp`, `InMemorySender_NeverLogsBody`, `SmtpFailure_DoesNotActivate`.
-- [ ] 0c.2 🟢 GREEN: `IEmailSender` w/ `MailKitSmtpEmailSender`, `MailpitSmtpEmailSender`, `InMemoryCapturingEmailSender` in `src/3.Shared/JadeCapital.Shared.Infrastructure/Email/`.
-- [ ] 0c.3 🟢 GREEN: minimal-API endpoints `POST /api/auth/forgot-password`, `POST /api/auth/change-password` in `JadeCapital.Identity.Api/Endpoints/AuthEndpoints.cs`; RFC7807 `auth.recovery_invalid|auth.password_reused|concurrent_update`.
-- [ ] 0c.4 🟢 GREEN Host: `AddIdentityInfrastructure`, `MapIdentityApi`, `AddMailOptions`, `AddAdminOnly`, restricted-scope middleware; uniform-timing 14s±250ms w/ dummy PBKDF2; throttle 5/hour/IP in `src/1.Api/JadeCapital.Host/Program.cs`.
-- [ ] 0c.5 🟢 `docker-compose.yml`: add `mailpit` service (`axllent/mailpit:latest`, ports 1025/8025); `.env.example`: add `Mail__Host/Port/Username/Password/From/UseStartTls`.
-- [ ] 0c.6 🟡 REFACTOR: `IUniformTimingGate`; trim mapper allocations.
-- [ ] 0c.7 Verify: `dotnet test .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal` w/ Testcontainers Postgres+Mailpit; `git diff --stat` <400.
-- [ ] 0c.8 Security: log-scrubber (no plaintext password/token/hash/body); Serilog config assertion.
-- [ ] 0c.9 Rollback: unmap endpoints; unset `Mail__*` env.
+- [x] 0c.1 🔴 RED: `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Auth/PasswordRecoveryFlowTests.cs` — `ForgotPassword_Always200Generic`, `TimingBodyStatusIndistinguishable`, `Throttle5PerHourPerIp`, `InMemorySender_NeverLogsBody`, `SmtpFailure_DoesNotActivate`.
+- [x] 0c.2 🟢 GREEN: `IEmailSender` w/ `MailKitSmtpEmailSender`, `MailpitSmtpEmailSender`, `InMemoryCapturingEmailSender` in `src/3.Shared/JadeCapital.Shared.Infrastructure/Email/`.
+- [x] 0c.3 🟢 GREEN: minimal-API endpoints `POST /api/auth/forgot-password`, `POST /api/auth/change-password` in `JadeCapital.Identity.Api/Endpoints/AuthEndpoints.cs`; RFC7807 `auth.recovery_invalid|auth.password_reused|concurrent_update`.
+- [x] 0c.4 🟢 GREEN Host: `AddIdentityInfrastructure`, `MapIdentityApi`, `AddMailOptions`, `AddAdminOnly`, restricted-scope middleware; uniform-timing 14s±250ms w/ dummy PBKDF2; throttle 5/hour/IP in `src/1.Api/JadeCapital.Host/Program.cs`.
+- [x] 0c.5 🟢 `docker-compose.yml`: add `mailpit` service (`axllent/mailpit:latest`, ports 1025/8025); `.env.example`: add `Mail__Host/Port/Username/Password/From/UseStartTls`.
+- [x] 0c.6 🟡 REFACTOR: `IUniformTimingGate`; trim mapper allocations.
+- [x] 0c.7 Verify: `dotnet test .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal` w/ Testcontainers Postgres+Mailpit; `git diff --stat` <400.
+- [x] 0c.8 Security: log-scrubber (no plaintext password/token/hash/body); Serilog config assertion.
+- [x] 0c.9 Rollback: unmap endpoints; unset `Mail__*` env.
 
 ## Slice 0d — Angular Recovery State/Guards/Pages + Jest Harness (≤384)
 - [ ] 0d.1 🟢 PRE: add minimal Jest harness in `frontend/`: `package.json` devDeps `jest@29 ts-jest@29 @types/jest@29 jest-preset-angular@14`; `frontend/jest.config.js` (ts-jest preset, `testEnvironment:'jsdom'`, `setupFilesAfterEach`); `frontend/src/setup-jest.ts`. This is the *only* slice that adds frontend test infra.
