@@ -3,3 +3,8 @@ global using FluentAssertions;
 global using NSubstitute;
 global using JadeCapital.Shared.Kernel.Results;
 global using JadeCapital.Shared.Kernel.Primitives;
+global using JadeCapital.Shared.Kernel.Money;
+global using JadeCapital.Billing.Domain.Subscriptions;
+global using JadeCapital.Billing.Domain.Subscriptions.Events;
+global using JadeCapital.Billing.Domain.Common;
+global using JadeCapital.Billing.Application.Subscriptions;
