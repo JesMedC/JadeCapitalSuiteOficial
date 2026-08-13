@@ -19,7 +19,7 @@ services:
       retries: 10
     networks: [jadenet]
 
-  redis:
+redis:
     image: redis:7-alpine
     container_name: jade-redis
     restart: unless-stopped
@@ -28,10 +28,23 @@ services:
       - redis-data:/data
     ports: ["6379:6379"]
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-anything-warning", "ping"]
       interval: 10s
       timeout: 3s
       retries: 10
+    networks: [jadenet]
+
+  # Slice 0c — local SMTP capture. Mailpit exposes 1025 (SMTP) + 8025 (web UI).
+  # Browsing localhost:8025 lets the dev inspect every recovery email sent by
+  # the API. Production should NOT depend on Mailpit; Mail__Host/Port override
+  # via env vars to point at the real SMTP relay.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: jade-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP intake (MAIL_HOST=mailpit, MAIL_PORT=1025)
+      - "8025:8025"  # Web UI for inspecting captured mail
     networks: [jadenet]
 
   minio:
@@ -79,6 +92,7 @@ services:
       migrate: { condition: service_completed_successfully }
       redis:   { condition: service_healthy }
       minio:   { condition: service_healthy }
+      mailpit: { condition: service_started }
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
@@ -96,6 +110,13 @@ services:
       Cors__Origins__0: ${CORS_ORIGIN}
       Cors__Origins__1: http://localhost:4200
       Cors__Origins__2: http://localhost:8080
+      # Slice 0c — recovery email transport
+      Mail__Host: ${MAIL__HOST}
+      Mail__Port: ${MAIL__PORT}
+      Mail__Username: ${MAIL__USERNAME}
+      Mail__Password: ${MAIL__PASSWORD}
+      Mail__From: ${MAIL__FROM}
+      Mail__UseStartTls: ${MAIL__USE_START_TLS}
       # Rate limit permisivo en dev (en prod real, bajar).
       RateLimit__AuthPermit: ${RATE_LIMIT_AUTH_PERMIT:-10000}
       RateLimit__ApiPermit: ${RATE_LIMIT_API_PERMIT:-10000}
