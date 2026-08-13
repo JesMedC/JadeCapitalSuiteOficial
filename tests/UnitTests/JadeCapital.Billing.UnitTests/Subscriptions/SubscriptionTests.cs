@@ -63,7 +63,7 @@ public class SubscriptionTests
         sub.Version.Should().Be(sub.Version); // bumped by mutator
         sub.History.Should().HaveCount(beforeCount + 1);
 
-        var entry = sub.History.First();
+        var entry = sub.History[0];
         entry.Action.Should().Be(SubscriptionAction.TierChanged);
         entry.PriorPlanCode.Should().Be(starter.Code);
         entry.ResultingPlanCode.Should().Be(pro.Code);
@@ -123,7 +123,7 @@ public class SubscriptionTests
         r2.IsFailure.Should().BeTrue();
 
         // Trial subscription with valid future end succeeds and appends history.
-        var r3 = trialSub.ExtendTrial(Now.AddDays(14), trialSub.Version + 1, Actor, Now.AddMinutes(1));
+        var r3 = trialSub.ExtendTrial(Now.AddDays(14), trialSub.Version, Actor, Now.AddMinutes(1));
         r3.IsSuccess.Should().BeTrue();
         trialSub.TrialEndsAt.Should().Be(Now.AddDays(14));
         trialSub.History.Should().ContainSingle(e => e.Action == SubscriptionAction.TrialExtended);
@@ -191,8 +191,8 @@ public class SubscriptionTests
         sub.History[2].ResultingPlanCode.Should().Be(pro.Code);
 
         // Each entry carries a deterministic monotonic Id ascending with order.
-        sub.History[0].Id.Should().BeGreaterThan(sub.History[1].Id);
-        sub.History[1].Id.Should().BeGreaterThan(sub.History[2].Id);
+        sub.History[0].Id.CompareTo(sub.History[1].Id).Should().BePositive();
+        sub.History[1].Id.CompareTo(sub.History[2].Id).Should().BePositive();
     }
 
     // ============================================
