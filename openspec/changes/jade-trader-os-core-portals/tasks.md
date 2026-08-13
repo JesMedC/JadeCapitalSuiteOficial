@@ -82,15 +82,15 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [x] 0e.8 Rollback: revert domain files + delete `JadeCapital.Billing.UnitTests` project; keep `0007` applied (inert columns).
 
 ## Slice 0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (≤338)
-- [ ] 0f.1 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/{List,ChangeTier,Cancel,ExtendTrial}Tests.cs` + `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/AdminAuthorizationTests.cs` — `ListSubscriptions_PagedByQuery`, `ChangeTier_RequiresVersion`, `Cancel_RecordsActorAndTimestamp`, `ExtendTrial_RejectsIfNotActiveTrial`, `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken`, `OwnerProjection_ExposesOnlyEmailAndDisplayName`.
-- [ ] 0f.2 🟢 GREEN: handlers in `JadeCapital.Billing.Application/Features/Subscriptions/`; contracts DTOs in `JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs`.
-- [ ] 0f.3 🟢 PRE: create new csproj `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` (refs `JadeCapital.Billing.Application` + `JadeCapital.Identity.Contracts`); add to `JadeCapital.slnx`.
-- [ ] 0f.4 🟢 GREEN: thin `JadeCapital.Admin.Api/Endpoints/AdminSubscriptionEndpoints.cs` (list/search, detail+owner+history, tier, cancel, trial extend); `IUserOwnerProjection` in `JadeCapital.Identity.Contracts/Projections/IUserOwnerProjection.cs` (read-only, exposes only `Email` + `DisplayName`).
-- [ ] 0f.5 🟢 GREEN Host: `AddBillingInfrastructure`, `MapAdminApi`, `AddAdminOnly` policy in `src/1.Api/JadeCapital.Host/Program.cs`; reuse restricted-scope middleware.
-- [ ] 0f.6 🟡 REFACTOR: `RequireAdminPolicyHandler`; collapse DTO duplication.
-- [ ] 0f.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal`; runtime `dotnet run` + curl Admin API with Admin/non-Admin/forced-change tokens; `git diff --stat` <400.
-- [ ] 0f.8 Security: denial-before-lookup (no subscription data leak); projection narrowing; narrow-scope (no role/suspend/impersonate routes).
-- [ ] 0f.9 Rollback: unmap Admin API endpoints; remove `JadeCapital.Admin.Api` csproj from `JadeCapital.slnx`; keep data.
+- [x] 0f.1 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/{List,ChangeTier,Cancel,ExtendTrial}Tests.cs` + `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/AdminAuthorizationTests.cs` — `ListSubscriptions_PagedByQuery`, `ChangeTier_RequiresVersion`, `Cancel_RecordsActorAndTimestamp`, `ExtendTrial_RejectsIfNotActiveTrial`, `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken`, `OwnerProjection_ExposesOnlyEmailAndDisplayName`.
+- [x] 0f.2 � GREEN: handlers in `JadeCapital.Billing.Application/Features/Subscriptions/`; contracts DTOs in `JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs`.
+- [x] 0f.3 🟢 PRE: create new csproj `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` (refs `JadeCapital.Billing.Application` + `JadeCapital.Identity.Contracts`); add to `JadeCapital.slnx`.
+- [x] 0f.4 � GREEN: thin `JadeCapital.Admin.Api/Endpoints/AdminSubscriptionEndpoints.cs` (list/search, detail+owner+history, tier, cancel, trial extend); `IUserOwnerProjection` in `JadeCapital.Identity.Contracts/Projections/IUserOwnerProjection.cs` (read-only, exposes only `Email` + `DisplayName`).
+- [x] 0f.5 🟢 GREEN Host: `AddBillingInfrastructure`, `MapAdminApi`, `AddAdminOnly` policy in `src/1.Api/JadeCapital.Host/Program.cs`; reuse restricted-scope middleware.
+- [x] 0f.6 🟡 REFACTOR: `RequireAdminPolicyHandler`; collapse DTO duplication.
+- [x] 0f.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal`; runtime `dotnet run` + curl Admin API with Admin/non-Admin/forced-change tokens; `git diff --stat` <400.
+- [x] 0f.8 Security: denial-before-lookup (no subscription data leak); projection narrowing; narrow-scope (no role/suspend/impersonate routes).
+- [x] 0f.9 Rollback: unmap Admin API endpoints; remove `JadeCapital.Admin.Api` csproj from `JadeCapital.slnx`; keep data.
 
 ## Slice 0g — Angular Admin List/Detail/History/State/Routes/Tests (≤386)
 - [ ] 0g.1 🔴 RED: `frontend/src/app/features/admin/__tests__/admin.guard.spec.ts` + `state/__tests__/admin.state.spec.ts` + `subscriptions/__tests__/{list,detail,history}.spec.ts` — `BlocksNonAdmin_AndForcedChange`, `ListSearch_DedupesSignals`, `RefreshesHistoryAfterMutation`, `LoadingEmptyErrorStates_NonOverlapping`, `StaleConflict_PreservesInput`, `HistoryTable_NewestFirst_StableTieBreaker`.

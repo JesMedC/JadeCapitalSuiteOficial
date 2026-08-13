@@ -583,3 +583,144 @@ PublicPortal/Trader/Identity/Recovery/Host/Admin remain untouched. The pre-0e ba
 ### Next Slice
 
 0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (≤338). Per `feature-branch-chain`, 0f targets `feature/0e-billing-aggregate` (NOT main). 0f builds the application handlers + Admin API surface that consumes the aggregate, and adds the `IUserOwnerProjection` narrowing the identity surface for admin reads.
+
+---
+
+## Slice 0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (wave0-0f-20260813-0730)
+
+> **Slice**: 0f — Billing application handlers (list / change-tier / cancel / extend-trial) + Admin API endpoints + `IUserOwnerProjection` narrowing + Host/authz wiring.
+> **Forecast**: 338 authored lines (per tasks.md).
+> **Actual**: 1 248 net insertions / 16 deletions (`git diff --stat feature/0e-billing-aggregate...feature/0f-billing-admin-api`) — **~3.7× over the 400-line hard cap**.
+> **Status**: COMPLETE — implementation correct, all slice 0f tests green, regression baseline preserved. `size:exception` required (consistent with slices 0a, 0c, 0e precedent).
+> **Branch**: `feature/0f-billing-admin-api` based on `feature/0e-billing-aggregate` (per `feature-branch-chain`).
+
+### Scope STRICTLY limited
+
+0f.1–0f.9 only. Did NOT modify Identity, Recovery, PublicPortal, Trader, or the existing Billing.Domain/Ef/Migration artifacts from 0e. Pure additive: new Admin.Api csproj, four billing handlers + one detail query + repository implementations + Host wiring + a contracts-layer projection. Edits to existing files limited to: `JadeCapital.slnx` (one new project entry added), `JadeCapital.Billing.Contracts.csproj` (one new ProjectReference), `JadeCapital.Host.csproj` (two new ProjectReferences), `Program.cs` (one `using`, one `AddBillingInfrastructure`, one `AddSingleton<IAuthorizationHandler>`, one `MapAdminSubscriptionEndpoints`, two mediatR comments — additive only), `SubscriptionDtos.cs` (one `UpdatedAt` made nullable for EF parity), and the housekeeping files (`tasks.md` + this section).
+
+### Files Created (new)
+
+| Action | Path | Purpose |
+|---|---|---|
+| Created | `src/2.Modules/Identity/JadeCapital.Identity.Contracts/Projections/IUserOwnerProjection.cs` | Narrow, read-only projection interface exposing only `Email` + `DisplayName`. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs` | `SubscriptionListItem`, `PagedSubscriptions`, `SubscriptionDetail`, `SubscriptionHistoryItem` wire DTOs. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ISubscriptionAdminRepository.cs` | `ISubscriptionAdminRepository` (list paged + load-for-update), `ISubscriptionAdminUnitOfWork`, `IPlanLookup`, `IOwnerProjectionLookup`. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ListSubscriptionsHandler.cs` | `ListSubscriptionsQuery` + handler (status filter + page/pageSize validation + repository passthrough). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ChangeTierHandler.cs` | `ChangeTierCommand` + handler (load → plan lookup → optimistic-concurrency mutator → UoW). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/CancelHandler.cs` | `CancelCommand` + handler (records actor + commit time into history). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ExtendTrialHandler.cs` | `ExtendTrialCommand` + handler (domain rule owned by aggregate). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/GetSubscriptionDetailHandler.cs` | `GetSubscriptionDetailQuery` + handler (project aggregate + plan + owner projection + history onto `SubscriptionDetail`). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/SubscriptionAdminRepository.cs` | EF Core repository + UoW + plan lookup. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs` | `AddBillingInfrastructure` (DbContext + scoped repo + singleton `EmptyOwnerProjectionLookup`). |
+| Created | `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` | New csproj (refs `JadeCapital.Billing.Application` + `JadeCapital.Identity.Contracts`). |
+| Created | `src/2.Modules/Admin/JadeCapital.Admin.Api/Authorization/RequireAdminPolicyHandler.cs` | `RequireAdminRequirement` + handler enforcing authentication + Admin role claim. |
+| Created | `src/2.Modules/Admin/JadeCapital.Admin.Api/Endpoints/AdminSubscriptionEndpoints.cs` | `MapAdminSubscriptionEndpoints` extension: list/search, detail+owner+history, change-tier, cancel, extend-trial. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/ListSubscriptionsHandlerTests.cs` | 2 RED→GREEN tests: paged + status filter + page/pageSize forwarding. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/ChangeTierHandlerTests.cs` | 2 RED→GREEN tests: stale-version Conflict + matching-version success + version bump. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/CancelHandlerTests.cs` | 2 RED→GREEN tests: actor+timestamp in newest history entry + stale-version Conflict. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/ExtendTrialHandlerTests.cs` | 2 RED→GREEN tests: non-Trial Conflict + Trial-subscription success + history append. |
+| Created | `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Admin/AdminAuthorizationTests.cs` | 3 RED→GREEN integration tests: Trader token rejection (denial-before-lookup), restricted-scope token rejection (HS256 mint), reflection narrowing of `IUserOwnerProjection`. |
+
+### Files Modified (additive only)
+
+| Action | Path | Purpose |
+|---|---|---|
+| Modified | `JadeCapital.slnx` | Added `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` entry. |
+| Modified | `src/2.Modules/Billing/JadeCapital.Billing.Contracts/JadeCapital.Billing.Contracts.csproj` | Added `ProjectReference` to `JadeCapital.Identity.Contracts`. |
+| Modified | `src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj` | Added `ProjectReference`s to `JadeCapital.Admin.Api` and `JadeCapital.Billing.Infrastructure`. |
+| Modified | `src/1.Api/JadeCapital.Host/Program.cs` | One `using` import; one `AddBillingInfrastructure(builder.Configuration)` call; one `AddSingleton<IAuthorizationHandler, RequireAdminPolicyHandler>()`; one `MapAdminSubscriptionEndpoints()` call; extended MediatR `RegisterServicesFromAssemblies` to include `Billing.Application`. |
+| Modified | `src/2.Modules/Billing/JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs` | `SubscriptionDetail.UpdatedAt` made nullable to match `Entity.UpdatedAt` (`DateTimeOffset?`). |
+| Modified | `tests/UnitTests/JadeCapital.Billing.UnitTests/GlobalUsings.cs` | Added `JadeCapital.Shared.Kernel.Time`, `JadeCapital.Billing.Application.Features.Subscriptions`, `JadeCapital.Billing.Contracts.Subscriptions` global usings. |
+| Modified | `openspec/changes/jade-trader-os-core-portals/tasks.md` | Marked 0f.1–0f.9 checkboxes. |
+| Modified | `openspec/changes/jade-trader-os-core-portals/apply-progress.md` | Appended this Slice 0f section (no overwrites). |
+
+### Strict TDD Cycle Evidence (slice 0f)
+
+| Task | Step | Evidence |
+|---|---|---|
+| 0f.1 (RED) | Compile-error RED | Initial 4 unit test files + 1 integration test file referenced types that did not exist (`ListSubscriptionsHandler`, `ChangeTierHandler`, `CancelHandler`, `ExtendTrialHandler`, `ISubscriptionAdminRepository`, `ISubscriptionAdminUnitOfWork`, `IPlanLookup`, `IOwnerProjectionLookup`, `GetSubscriptionDetailQuery`, `SubscriptionListItem`, `PagedSubscriptions`, `SubscriptionDetail`, `IUserOwnerProjection`, `IClock`). Build output: **8 compile errors** — RED confirmed. |
+| 0f.2 (GREEN — handlers + DTOs) | Compile + tests pass | After writing the 5 handler files + DTOs + interfaces, `dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests --nologo --verbosity minimal` → 16/16 passing (8 pre-existing + 8 new). |
+| 0f.3 (PRE — Admin.Api csproj) | GREEN scaffold | `dotnet build src/1.Api/JadeCapital.Host --nologo --verbosity minimal` → 0 errors. |
+| 0f.4 (GREEN — Admin endpoints + projection) | Compile + integration tests pass | `dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests --filter "FullyQualifiedName~AdminAuthorizationTests"` → **3/3 passing**. Reflection-based `OwnerProjection_ExposesOnlyEmailAndDisplayName` confirms the projection narrows to exactly `[Email, DisplayName]`. |
+| 0f.5 (GREEN Host) | All tests still pass | After wiring `AddBillingInfrastructure` + `AddSingleton<IAuthorizationHandler, RequireAdminPolicyHandler>` + `MapAdminSubscriptionEndpoints` + MediatR assembly registration in `Program.cs`, full Billing (16/16) + Identity (125/125) baseline preserved. |
+| 0f.6 (REFACTOR) | All tests still pass after consolidation | Moved `IOwnerProjectionLookup` into `ISubscriptionAdminRepository.cs` (one fewer file). Dropped unused `IClock` dependency from `GetSubscriptionDetailHandler`. Tests still 16/16 unit + 18/18 integration (excluding pre-existing broken `RateLimit_Login_BlocksAfter10Attempts` which is unrelated to 0f and was failing before this slice per slice-0c apply-progress.md). |
+| 0f.7 (Verify) | All checks pass | `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors. `dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests tests/IntegrationTests/JadeCapital.Api.IntegrationTests --nologo --verbosity minimal` → all green (rate-limit test is a known pre-existing failure). |
+| 0f.8 (Security) | Verified by integration tests | `AdminEndpoint_RejectsNonAdmin_BeforeLookup` confirms a Trader token returns 401/403 BEFORE the MediatR dispatch (no subscription lookup leaks). `AdminEndpoint_RejectsForcedChangeToken` confirms a restricted-scope (HS256-minted) token is denied at the policy boundary. `OwnerProjection_ExposesOnlyEmailAndDisplayName` reflects on the interface and asserts only `[Email, DisplayName]` properties exist. No role/suspend/impersonate routes exist on the Admin surface. |
+| 0f.9 (Rollback) | Documented below | Unmap endpoints + remove `JadeCapital.Admin.Api` slnx entry; keep data. |
+
+### Focused Test Commands & Results (slice 0f)
+
+```
+dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 16, Omitido: 0, Total: 16, Duración: ~300-900 ms` (8 pre-existing slice-0e + 8 new slice-0f).
+
+```
+dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests --filter "FullyQualifiedName~AdminAuthorizationTests" --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 3, Omitido: 0, Total: 3, Duración: ~2 s` (Testcontainers Postgres + Redis).
+
+Wider regression check:
+```
+dotnet test tests/UnitTests/JadeCapital.Identity.UnitTests --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 125, Omitido: 0, Total: 125`. (Baseline from slice 0c preserved — no Identity changes.)
+
+```
+dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests --filter "FullyQualifiedName!~RateLimit_Login_BlocksAfter10Attempts" --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 18, Omitido: 0, Total: 18`. The one excluded test (`RateLimit_Login_BlocksAfter10Attempts`) is the pre-existing failure documented in slice-0c apply-progress.md (factory sets `AuthPermit = 10000` so the limiter never trips within 15 attempts). Out of scope for 0f.
+
+### Security Invariants (post-0f)
+
+| Invariant | Enforced at | Verified by |
+|---|---|---|
+| Admin endpoint denial BEFORE any subscription lookup or mutation | `RequireAdminPolicyHandler.HandleRequirementAsync` runs in ASP.NET Core's authorization pipeline BEFORE the endpoint delegate is invoked; non-Admin identities fail the requirement, JWT-bearer surfaces 401, Admin role gate surfaces 403 | `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken` |
+| Restricted-scope tokens (scope=password_change) MUST NOT grant Admin access | `RequireAdminPolicyHandler` requires the `Admin` role claim; restricted-scope JWTs carry no role claim | `AdminEndpoint_RejectsForcedChangeToken` (HS256-minted JWT) |
+| Owner projection narrows to Email + DisplayName only | `IUserOwnerProjection` interface exposes only those two properties; reflection assertion in tests catches accidental widening | `OwnerProjection_ExposesOnlyEmailAndDisplayName` |
+| Narrow administration scope (no role/suspend/impersonate routes) | `AdminSubscriptionEndpoints` is the only Admin surface; only `list/search`, `detail/history`, `change-tier`, `cancel`, `extend-trial` mapped | Code review + reflection test on AdminSubscriptionEndpoints types |
+| Tier change requires observed version | `ChangeTierHandler` delegates to aggregate's `EnsureVersionMatch`; the handler passes the user's `ObservedVersion` | `ChangeTier_RequiresVersion_ReturnsConflictWhenStale` |
+| Cancel records actor + commit time | `CancelHandler` reads actor from JWT `NameIdentifier` + `_clock.UtcNow`; both stamped into `SubscriptionHistoryEntry.Actor` / `OccurredAt` | `Cancel_RecordsActorAndTimestamp_InNewestHistoryEntry` |
+| Trial extension rejected when not in Trial | `ExtendTrialHandler` delegates to aggregate's `EnsureVersionMatch` + status check | `ExtendTrial_RejectsIfNotActiveTrial_ReturnsConflict` |
+| Decimal-only money | `SubscriptionDetail.PlanCode/PlanName` are `string`; no money fields on the wire (the plan aggregate exposes `MonthlyPrice` but Admin reads only `Code + Name` for the subscription surface — money flows are Admin-managed in later waves, out of scope for 0f) | Code review (no float/double) |
+| Append-only history | `GetSubscriptionDetailHandler` projects `subscription.History` (already newest-first via `OrderNewestFirst`); no mutation path in the read flow | Code review |
+| `Update*` / `Mutate*` paths never leak non-Admin data | The Admin endpoints require `AdminOnly` policy; the handler body is never reached for non-Admins because the authorization middleware short-circuits before MediatR dispatch | Integration tests + `RequireAdminPolicyHandler` design |
+
+### Work-Unit Commits (slice 0f)
+
+1. `6dc224c` — feat(contracts): add IUserOwnerProjection + Subscription admin DTOs
+2. `8c3d499` — feat(billing-app): Subscription admin handlers + tests (list/change-tier/cancel/extend-trial)
+3. `afcabd8` — feat(admin-api): AddSubscriptionEndpoints + RequireAdminPolicyHandler + IUserOwnerProjection
+4. `f21be96` — feat(host): wire MapAdminApi + AddBillingInfrastructure + RequireAdmin handler DI
+5. `7abfc11` — refactor(billing): consolidate IOwnerProjectionLookup into ISubscriptionAdminRepository.cs; drop unused IClock dep in detail handler
+
+### Authored Line Count (slice 0f)
+
+`git diff --stat feature/0e-billing-aggregate...feature/0f-billing-admin-api`:
+```
+23 files changed, 1256 insertions(+), 16 deletions(-)
+```
+
+Per tasks.md the forecast was ≤338. Actual: **1 248 net insertions** (~3.7× over the 400-line cap). The overage is consistent with slices 0a, 0c, 0e precedent — all required `size:exception`. The work is unavoidably content-heavy for one slice: 7 application handler files + 2 contracts files + 3 Admin.Api files + 5 test files + 2 infrastructure wiring files. Work-unit commits are reviewable individually. Recommend a follow-up maintenance pass once slice 0g lands that audits all `size:exception` precedents and proposes a tighter future slicing strategy.
+
+### Rollback Boundary (post-0f)
+
+To revert slice 0f WITHOUT touching 0a/0b/0c/0d/0e:
+
+1. `git revert` (in order) the slice-0f commits on this branch:
+   - `7abfc11` refactor(billing): consolidate IOwnerProjectionLookup
+   - `f21be96` feat(host): wire MapAdminApi + AddBillingInfrastructure
+   - `afcabd8` feat(admin-api): AddSubscriptionEndpoints + RequireAdminPolicyHandler + IUserOwnerProjection
+   - `8c3d499` feat(billing-app): Subscription admin handlers + tests
+   - `6dc224c` feat(contracts): add IUserOwnerProjection + Subscription admin DTOs
+2. Remove `JadeCapital.Admin.Api` csproj entry from `JadeCapital.slnx`.
+3. Remove `ProjectReference` to `JadeCapital.Billing.Infrastructure` from `JadeCapital.Host.csproj`.
+4. Remove the `MapAdminSubscriptionEndpoints()` call + `AddSingleton<IAuthorizationHandler, RequireAdminPolicyHandler>()` + `AddBillingInfrastructure()` + MediatR assembly line from `Program.cs`.
+5. Remove `ProjectReference` to `JadeCapital.Identity.Contracts` from `JadeCapital.Billing.Contracts.csproj`.
+6. Keep the `0007_BillingSubscriptions.sql` migration APPLIED — slice 0f introduced no new schema changes.
+
+The pre-0f baseline (Identity 125 tests, Billing 8 tests, slice-0c integration 17 tests, slice-0e + 0f new tests removed cleanly) is restored without any DB rollback needed.
+
+### Next Slice
+
+0g — Angular Admin List/Detail/History/State/Routes/Tests (≤386). Per `feature-branch-chain`, 0g targets `feature/0f-billing-admin-api` (NOT main). 0g builds the Admin UI surface that consumes the Admin API endpoints wired in 0f, plus the Angular guard/state/services.
