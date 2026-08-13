@@ -42,12 +42,11 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [x] 0a.8 Rollback: revert domain + repository + Application files; keep `0006` applied (inert columns). Slice 0b owns the atomic DB transaction that supersedes older `Activated` rows when a new recovery email is sent — documented in design.md and apply-progress.md.
 
 ## Slice 0b — Recovery Handlers + App Tests (≤332)
-- [ ] 0b.1 🔴 RED: `tests/UnitTests/JadeCapital.Identity.UnitTests/Features/Auth/ForgotPasswordHandlerTests.cs` + `ChangePasswordHandlerTests.cs` — `ReservesSendsCASActivates`, `LoginWithTemp_MarksUsedIssuesGrantJti`, `ChangePassword_ConsumesGrantRevokesIssuesUnrestricted`, `GrantJtiReplayRejected`, `ConcurrentChangeLoserFailsAtomically`, `ChangeWithoutGrantReturnsRecoveryInvalid`.
-- [ ] 0b.2 🟢 GREEN: `ForgotPasswordHandler`, `LoginWithTemporaryHandler`, `ChangePasswordWithGrantHandler`, `ChangePasswordVoluntaryHandler` in `JadeCapital.Identity.Application/Features/Recovery/`; wire `IRefreshTokenRevoker`, `IPasswordHistoryRepository`, `IDistributedLock` (users row).
-- [ ] 0b.3 🟡 REFACTOR: shared `RecoveryGrantValidator`; intent-revealing test names.
-- [ ] 0b.4 Verify: `dotnet test .../JadeCapital.Identity.UnitTests --nologo --verbosity minimal`; `git diff --stat` <400.
-- [ ] 0b.5 Security: session-replacement (pre-change `session_version` cannot refresh); revoke-on-change.
-- [ ] 0b.6 Rollback: drop handlers; keep domain + repository.
+- [x] 0b.1 RED tests + 0b.2 GREEN handlers — 6 spec names, code diff = 394.
+- [x] 0b.3 REFACTOR: shared abstractions in `RecoveryAbstractions.cs`.
+- [x] 0b.4 Verify: 120/120 tests pass.
+- [x] 0b.5 Security: SessionVersion bumped (pre-change tokens rejected); revoke under per-user lock.
+- [x] 0b.6 Rollback: drop handlers + `RecoveryAbstractions.cs`; keep Domain + `0006` schema.
 
 ## Slice 0c — SMTP/Transport + API/Host + Integration/Config (≤286)
 - [ ] 0c.1 🔴 RED: `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Auth/PasswordRecoveryFlowTests.cs` — `ForgotPassword_Always200Generic`, `TimingBodyStatusIndistinguishable`, `Throttle5PerHourPerIp`, `InMemorySender_NeverLogsBody`, `SmtpFailure_DoesNotActivate`.
