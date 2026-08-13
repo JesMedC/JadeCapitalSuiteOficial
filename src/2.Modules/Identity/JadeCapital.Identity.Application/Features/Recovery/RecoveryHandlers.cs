@@ -2,6 +2,7 @@ using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Application._Common;
 using JadeCapital.Identity.Application.Behaviors;
 using JadeCapital.Identity.Domain.Authentication;
+using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
 using MediatR;

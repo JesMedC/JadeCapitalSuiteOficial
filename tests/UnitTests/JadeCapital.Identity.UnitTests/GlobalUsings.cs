@@ -17,4 +17,5 @@ global using JadeCapital.Identity.Application.Features.Auth.Login;
 global using JadeCapital.Identity.Application.Features.Auth.Refresh;
 global using JadeCapital.Identity.Application.Features.Auth.Logout;
 global using JadeCapital.Identity.Application.Features.Recovery;
+global using JadeCapital.Shared.Infrastructure.Email;
 global using Microsoft.Extensions.Logging;

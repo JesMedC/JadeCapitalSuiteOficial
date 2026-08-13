@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Infrastructure.Email;
 
 namespace JadeCapital.Identity.Application.Abstractions;
 
@@ -27,5 +28,3 @@ public interface IPasswordHistoryRepository { Task<Result> AppendAsync(Guid user
 public interface IRefreshTokenRevoker { Task RevokeAllAsync(Guid userId, CancellationToken ct = default); }
 public interface IDistributedLock { Task<IDistributedLockHandle> AcquireAsync(string key, CancellationToken ct = default); }
 public interface IDistributedLockHandle : IAsyncDisposable { }
-public interface IEmailSender { Task SendRecoveryEmailAsync(RecoveryEmailMessage message, CancellationToken ct = default); }
-public sealed record RecoveryEmailMessage(string To, string DisplayName, string TemporaryPassword, DateTimeOffset ExpiresAt);
