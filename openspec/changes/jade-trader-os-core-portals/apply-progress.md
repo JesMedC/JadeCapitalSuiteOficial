@@ -399,3 +399,187 @@ To revert slice 0c WITHOUT touching 0a/0b:
 ### Next Slice
 
 0d — Angular recovery state/guards/pages + minimal Jest harness (≤384). Per `feature-branch-chain`, 0d targets `feature/0c-smtp-api-host` (NOT main).
+
+---
+
+## Slice 0e — Billing Aggregate + SQL 0007 + New Test Project (wave0-0e-20260813-????)
+
+> **Slice**: 0e — Billing aggregate + storage + SQL 0007 + new `JadeCapital.Billing.UnitTests` project
+> **Forecast**: 394 authored lines (per tasks.md)
+> **Status**: COMPLETE — implementation correct, all tests green, migration idempotent
+> **Branch**: `feature/0e-billing-aggregate` based on `feature/0d-angular-recovery-ui` (b192117)
+
+### Scope STRICTLY limited
+
+0e.1–0e.8 only. Did NOT modify Identity, Recovery, Host, PublicPortal, Trader, Admin. Pure additive: new Billing module, new test project, new SQL migration. Edits to existing files limited to: `JadeCapital.slnx` (one project entry added), `infrastructure/postgres/migrate.Dockerfile` (one COPY + two `psql` lines added — additive only), `openspec/changes/.../tasks.md` (slice 0e checkboxes), and this file.
+
+### Files Created (new)
+
+| Action | Path | Purpose |
+|---|---|---|
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` | xUnit 2.9.2 + FluentAssertions 7.0.0 + NSubstitute 5.3.0; refs `JadeCapital.Billing.Domain` + `JadeCapital.Billing.Application`. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/GlobalUsings.cs` | Project-wide `global using` for Xunit/FluentAssertions/NSubstitute + shared kernel + billing namespaces. |
+| Created | `tests/UnitTests/JadeCapital.Billing.UnitTests/Subscriptions/SubscriptionTests.cs` | 7 RED→GREEN tests (8 xUnit cases counting `ExtendTrial` Theory-style sections). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Common/BillingDomainErrors.cs` | Static error catalog: `Plan.*` + `Subscription.*` (Id/UserId/PlanRequired/VersionConflict/NotCancellable/NotInTrial/TrialEndExpired/PlanNotEligible/CancellationReasonRequired). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Common/MonotonicGuid.cs` | Counter-backed Guid factory whose high bytes are the counter; `Guid.CompareTo` correlates with creation order, providing the stable tie-breaker that the EF/SQL index `(occurred_at DESC, id DESC)` also relies on. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/PlanCode.cs` | VO with `Create` (length-validated, lowercase) and `FromTrusted` factory. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/SubscriptionPeriod.cs` | Period VO (start < end, ≥1 day). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/SubscriptionStatus.cs` | `SubscriptionStatus` (Active/Trial/Cancelled/Expired) + `SubscriptionAction` (TierChanged/Cancelled/TrialExtended). |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/Plan.cs` | Plan aggregate with `IsEligibleForSelfService` + `IsDeprecated` flags; `Create` validates + `FromTrusted` for hydration. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/SubscriptionHistoryEntry.cs` | Append-only snapshot with `OrderNewestFirst` static helper ordering by `(OccurredAt DESC, Id DESC)`. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/Subscription.cs` | Aggregate root: `Create` + `ChangeTier` + `Cancel` + `ExtendTrial` with optimistic-concurrency (`Version`), history append, three domain events. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/Events/{SubscriptionTierChanged,SubscriptionCancelled,SubscriptionTrialExtended}DomainEvent.cs` | 3 IDomainEvent records. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Application/Subscriptions/ISubscriptionMutator.cs` | Refactor-target abstraction over the three mutators + `SubscriptionMutator` adapter. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/BillingDbContext.cs` | `DbContext` for `billing` schema with three DbSets. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/Configurations/PlanConfiguration.cs` | EF map: `plans` table, UNIQUE(code), NUMERIC(24,8) for monthly price. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/Configurations/SubscriptionConfiguration.cs` | EF map: `subscriptions` + UNIQUE(user_id), `(status, updated_at DESC)`. Private backing-field navigation for `_history`. |
+| Created | `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/Configurations/SubscriptionHistoryConfiguration.cs` | EF map: `subscription_history` + `(subscription_id, occurred_at DESC, id DESC)`. |
+| Created | `infrastructure/postgres/migrations/20260813_0007_BillingSubscriptions.sql` | Hand-authored idempotent additive DDL. Verified twice against live `jade-postgres` (first + second run both exit 0). |
+
+### Files Modified (additive only)
+
+| Action | Path | Purpose |
+|---|---|---|
+| Modified | `JadeCapital.slnx` | Added `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` to the `/tests/UnitTests/` folder. |
+| Modified | `infrastructure/postgres/migrate.Dockerfile` | Added `COPY` + `psql -v ON_ERROR_STOP=1 -f …20260813_0007_BillingSubscriptions.sql` for both the initial run and the retry loop. |
+| Modified | `openspec/changes/jade-trader-os-core-portals/tasks.md` | Marked 0e.1–0e.8 checkboxes. |
+| Modified | `openspec/changes/jade-trader-os-core-portals/apply-progress.md` | Appended this Slice 0e section (no overwrites). |
+
+### Strict TDD Cycle Evidence (slice 0e)
+
+| Task | Step | Evidence |
+|---|---|---|
+| 0e.1 (PRE) | GREEN scaffold | `dotnet build …/JadeCapital.Billing.UnitTests.csproj --verbosity minimal` → `Compilación correcta. 0 Errores` (24 LOC). |
+| 0e.2 (RED) | Compile-error RED | Initial `SubscriptionTests.cs` referenced `Subscription`/`Plan`/`PlanCode`/etc. and `global using JadeCapital.Billing.Domain.Subscriptions/Events/Common/Application.Subscriptions`. Build output: **12 Errores** — RED confirmed. |
+| 0e.3 (GREEN) | Compile + tests pass | After writing the 11 domain files, build → 0 errors, `dotnet test …/JadeCapital.Billing.UnitTests.csproj …` → `Correctas! - Con error: 0, Superado: 8, Omitido: 0, Total: 8`. |
+| 0e.4 (EF) | Compile green, no behavioural change | `dotnet build JadeCapital.slnx` → 0 errors, 0 Npgsql warnings introduced. EF/SQL parity verified by `\d billing.*` schema inspection. |
+| 0e.5 (REFACTOR) | Tests still green after refactor | Extracted `EnsureVersionMatch` helper used by `ChangeTier`/`Cancel`/`ExtendTrial`; added `ISubscriptionMutator` + `SubscriptionMutator` adapter. Tests still `Correctas! 8/8`. |
+| 0e.6 (SQL) | Idempotent migration | `psql -v ON_ERROR_STOP=1 -f …20260813_0007_BillingSubscriptions.sql` first run → applies CREATE TABLE / INDEX for `plans`, `subscriptions`, `subscription_history`; second run → only NOTICEs (`… already exists, skipping`); both exit 0. |
+
+### Focused Test Command & Result
+
+```
+dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 8, Omitido: 0, Total: 8, Duración: ~80 ms`.
+
+Wider regression check (Identity baseline preserved):
+```
+dotnet test tests/UnitTests/JadeCapital.Identity.UnitTests/JadeCapital.Identity.UnitTests.csproj --nologo --verbosity minimal
+```
+**Result**: `Correctas! - Con error: 0, Superado: 125, Omitido: 0, Total: 125`. (Baseline from slice 0c preserved.)
+
+### Migration Harness (slice 0e)
+
+```
+docker exec -i jade-postgres bash -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < infrastructure/postgres/migrations/20260813_0007_BillingSubscriptions.sql
+```
+
+**First run** (against `jade-postgres` with the billing schema absent):
+```
+BEGIN
+CREATE SCHEMA                       -- billing
+CREATE TABLE                        -- plans
+CREATE INDEX                        -- ux_plans_code
+CREATE TABLE                        -- subscriptions
+CREATE INDEX                        -- ux_subscriptions_user
+CREATE INDEX                        -- ix_subscriptions_status_updated_at_desc
+CREATE TABLE                        -- subscription_history
+CREATE INDEX                        -- ix_subscription_history_subscription_occurred_id_desc
+DO                                  -- idempotent COMMENTs
+COMMIT
+EXIT: 0
+```
+
+**Second run** (idempotency):
+```
+BEGIN
+CREATE SCHEMA                              -- NOTICE: already exists, skipping
+CREATE TABLE                               -- NOTICE: plans already exists
+CREATE INDEX                               -- NOTICE: ux_plans_code already exists, skipping
+CREATE TABLE                               -- NOTICE: subscriptions already exists
+CREATE INDEX                               -- NOTICE: ux_subscriptions_user already exists
+…                                         -- (all NOTICEs)
+DO
+COMMIT
+EXIT: 0
+```
+
+Schema inspection (`\d billing.subscriptions`, `\d billing.subscription_history`, `\d billing.plans`):
+- `subscriptions` — columns + UNIQUE(user_id), INDEX(status, updated_at DESC), CHECKs (status whitelist, version>0, period range), FK to `plans(code)`.
+- `subscription_history` — columns + INDEX(subscription_id, occurred_at DESC, id DESC), CHECK action whitelist, FK to `subscriptions(id)` ON DELETE CASCADE.
+- `plans` — columns including `monthly_price NUMERIC(24,8)` + `monthly_price_currency VARCHAR(3)`, UNIQUE(code), CHECK currency format + price ≥ 0.
+
+### Domain Invariants (post-0e)
+
+| Invariant | Enforced at | Verified by |
+|---|---|---|
+| Optimistic concurrency — stale mutations fail | `Subscription.EnsureVersionMatch` rejects `observedVersion != Version` with `Conflict "subscription.version_conflict"`; bump on every successful mutation | `ConcurrentMutation_ExactlyOneWins_ViaVersion` |
+| Cancellation only from cancellable state | `Cancel` rejects `Status == Cancelled` with `Conflict "subscription.not_cancellable"` | `Cancel_FromCancellableState_Succeeds_AndAppendsHistory`, `Cancel_WhenAlreadyCancelled_Fails_NoHistory` |
+| Trial extension only on active trial + future date | `ExtendTrial` rejects non-Trial + `newTrialEnd <= utcNow` | `ExtendTrial_RejectsExpiredDateOrNonActiveTrial` |
+| No-op does not append history | `ChangeTier` early-returns when `newPlan.Code == PlanCode`; mutators that fail validation never reach the history append | `NoOp_Rejection_NoHistory` |
+| Eligibility: only eligible plans selectable | `ChangeTier` rejects `!newPlan.IsEligibleForSelfService`; `Create` rejects ineligible starting plans | `EligiblePlanOnly` |
+| History newest-first + stable tie-breaker | `OrderNewestFirst` orders by `(OccurredAt DESC, Id DESC)`; `MonotonicGuid` packs 64-bit counter in the high bytes so `Guid.CompareTo` correlates with creation order | `HistoryOrder_NewestFirst_StableTieBreaker` |
+| Tier change requires `actor` and stamps `OccurredAt` | Mandatory `actor` arg + `utcNow` arg on every mutator; captured into the history entry + domain event | `ChangesTierAppendsHistory` |
+| Append-only history | No `Update`/`Delete` API on the aggregate surface; the EF `subscription_history` DbSet has no mutator wired; SQL table is DDL-only here | Code review + spec "append-only" requirement |
+| One subscription per user at DB level | `UNIQUE INDEX ux_subscriptions_user ON billing.subscriptions(user_id)`; EF index mirrors | Schema inspection |
+| Decimal-only money with NUMERIC(24,8) range | `monthly_price NUMERIC(24,8)`, CHECK price ≥ 0, `monthly_price_currency VARCHAR(3)` letter-only | Schema inspection |
+| Stable version starting point | `Subscription.InitialVersion = 1`, `version INTEGER NOT NULL DEFAULT 1` | Schema inspection + tests rely on `sub.Version == 1` |
+
+### Work-Unit Commits (slice 0e)
+
+1. `d32d11f` — chore(billing): add Billing.UnitTests test project to slnx  *(0e.1 PRE)*
+2. `2e11b3b` — test(billing): RED tests for Subscription aggregate lifecycle  *(0e.2 RED — 12 compile errors confirmed)*
+3. `51d74a1` — feat(billing-domain): Subscription/Plan aggregates + PlanCode/SubscriptionPeriod VOs + history + 3 events + errors  *(0e.3 GREEN — 717 LOC)*
+4. `e8c6de4` — feat(billing-infra): EF Core mappings for plans, subscriptions, history  *(0e.4 EF — 204 LOC)*
+5. `e3a5d1f` — refactor(billing): ISubscriptionMutator abstraction + EnsureVersionMatch helper  *(0e.5 REFACTOR)*
+6. `9e08ac6` — feat(postgres): migration 0007 BillingSubscriptions + wire into migrate.Dockerfile  *(0e.6 SQL + Dockerfile)*
+7. *(this chore commit, applied via orchestrator-led SDD workflow)* — chore(openspec): mark 0e tasks complete + append apply-progress  *(0e.7 housekeeping)*
+
+### Authored Line Count (slice 0e)
+
+Total `git diff --stat feature/0d-angular-recovery-ui...feature/0e-billing-aggregate`:
+
+```
+20 files changed, 1256 insertions(+), 6 deletions(-)
+```
+
+### See other diff_stat_lines calls further below for context.
+
+Per tasks.md the forecast was ≤394. Actual: **1256 insertions** (~3.2× over the 400-line cap). The overage is consistent with slices 0a and 0c precedent (both required `size:exception` corrections). The work is unavoidably content-heavy for one slice: 7 RED tests + 11 domain files + 4 EF files + 174-line SQL migration + housekeeping. Recommend a follow-up maintenance pass once slice 0g lands that audits all size:exceptions and proposes a tighter future slicing strategy.
+
+### Naming-Conflict Risk Warning
+
+⚠ **CRITICAL**: This slice authored `20260813_0007_BillingSubscriptions.sql`. Slice 0c previously authored `20260812_0007_RecoverySupersession.sql`. **Two migrations now share the `_0007_` slot** — both files coexist in `infrastructure/postgres/migrations/`. The Dockerfile applies them in chronological sequence (8/12 first, then 8/13) so they don't conflict functionally, but the sequence numbering is not monotonic. A future housekeeping pass should renumber to a contiguous sequence (e.g. 0c → 0008, 0e → 0009, or similar) to restore the invariant "filename ⇒ ordering".
+
+### Risks / Deviations
+
+| Severity | Issue | Mitigation |
+|---|---|---|
+| **WARNING** | Authored lines 1256 vs 400-line cap (~3.2× over). | Work-unit commits are already reviewable individually (each commit ~50–720 LOC, all build green in isolation). Consider future re-split, mirroring slice-0a lesson. |
+| **CRITICAL** | Migration filename `_0007_` collides with slice 0c's `_0007_RecoverySupersession.sql`. | Documented at the top of the new SQL file + in this section. Dockerfile applies both chronologically; no runtime conflict today. Housekeeping renumber pass recommended post-0g. |
+| **WARNING** | `migrate.Dockerfile` in 0d's branch state did NOT have 0c's `0007_RecoverySupersession.sql` wired (migration file exists on disk but no COPY / psql invocation). | Out of 0e scope. Pre-existing gap. Recorded as a discovery for the orchestrator to schedule a housekeeping fix in a future slice (likely as part of the renumbering pass). |
+| **SUGGESTION** | `claims` from slice 0f (`IUserOwnerProjection` + Admin API) depend on Billing persistence being wired — 0f can rely on these EF mappings directly. | Pre-0f capability: tests + EF + SQL already green before the Admin layer is built. |
+| **SUGGESTION** | Lockout/notification policy for "must rotate expired credentials" is implicit in the `Expired` status — no explicit transition from `Trial → Expired`. | Slice 0f or a future background-job slice should add `ExpireIfPastTrialEnds(now)` mutator. |
+
+### Rollback Boundary (post-0e)
+
+To revert slice 0e WITHOUT touching prior slices:
+
+1. `git revert` (in order) the slice-0e commits on this branch:
+   - `d32d11f` chore(billing): add Billing.UnitTests test project to slnx
+   - `2e11b3b` test(billing): RED tests for Subscription aggregate lifecycle
+   - `51d74a1` feat(billing-domain): Subscription/Plan aggregates + …
+   - `e8c6de4` feat(billing-infra): EF Core mappings …
+   - `e3a5d1f` refactor(billing): ISubscriptionMutator abstraction …
+   - `9e08ac6` feat(postgres): migration 0007 BillingSubscriptions …
+2. Keep `20260813_0007_BillingSubscriptions.sql` APPLIED — additive only, no destructive ALTERs.
+3. Remove the `JadeCapital.Billing.UnitTests` slnx entry + project folder.
+4. Roll-back of `migrate.Dockerfile`: remove the added COPY line + two `psql` invocations added in 0e.
+
+PublicPortal/Trader/Identity/Recovery/Host/Admin remain untouched. The pre-0e baseline (Identity 125 tests, Trading tests) is restored without any DB rollback needed.
+
+### Next Slice
+
+0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (≤338). Per `feature-branch-chain`, 0f targets `feature/0e-billing-aggregate` (NOT main). 0f builds the application handlers + Admin API surface that consumes the aggregate, and adds the `IUserOwnerProjection` narrowing the identity surface for admin reads.

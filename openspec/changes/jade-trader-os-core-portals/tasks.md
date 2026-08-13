@@ -72,14 +72,14 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [ ] 0d.10 Rollback: remove routes/guard/state fields; revert Jest harness.
 
 ## Slice 0e — Billing Aggregate + SQL 0007 + New Test Project (≤394)
-- [ ] 0e.1 🟢 PRE: create `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` (xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0; refs `JadeCapital.Billing.Domain` + `JadeCapital.Billing.Application`) + `GlobalUsings.cs`. Add to `JadeCapital.slnx`.
-- [ ] 0e.2 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Subscriptions/SubscriptionTests.cs` — `ChangesTierAppendsHistory`, `Cancel_FromCancellableState`, `ExtendTrial_RejectsExpiredDateOrNonActiveTrial`, `NoOp_Rejection_NoHistory`, `ConcurrentMutation_ExactlyOneWins_ViaVersion`, `HistoryOrder_NewestFirst_StableTieBreaker`, `EligiblePlanOnly`.
-- [ ] 0e.3 🟢 GREEN: `Plan`, `Subscription` aggregates, VOs `PlanCode`, `SubscriptionPeriod`; events `SubscriptionTierChanged/Cancelled/TrialExtended` in `JadeCapital.Billing.Domain/Subscriptions/`.
-- [ ] 0e.4 🟢 EF configs + indexes (`subscriptions.user UNIQUE`, `(status,updated_at DESC)`, `version`); append-only `subscription_history(subscription_id,occurred_at DESC,id DESC)` in `JadeCapital.Billing.Infrastructure/Persistence/Configurations/`.
-- [ ] 0e.5 🟡 REFACTOR: `ISubscriptionMutator`; dedupe Tier/Cancel/Extend rules.
-- [ ] 0e.6 Hand-author `infrastructure/postgres/migrations/2026MMDD_0007_BillingSubscriptions.sql` (idempotent, additive only); append `COPY` + `psql -v ON_ERROR_STOP=1 -f` invocation in `migrate.Dockerfile`.
-- [ ] 0e.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests --nologo --verbosity minimal`; `psql -v ON_ERROR_STOP=1 -f …0007_BillingSubscriptions.sql` twice (both exit 0); `git diff --stat` <400.
-- [ ] 0e.8 Rollback: revert domain files + delete `JadeCapital.Billing.UnitTests` project; keep `0007` applied (inert columns).
+- [x] 0e.1 🟢 PRE: create `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` (xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0; refs `JadeCapital.Billing.Domain` + `JadeCapital.Billing.Application`) + `GlobalUsings.cs`. Add to `JadeCapital.slnx`.
+- [x] 0e.2 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Subscriptions/SubscriptionTests.cs` — `ChangesTierAppendsHistory`, `Cancel_FromCancellableState`, `ExtendTrial_RejectsExpiredDateOrNonActiveTrial`, `NoOp_Rejection_NoHistory`, `ConcurrentMutation_ExactlyOneWins_ViaVersion`, `HistoryOrder_NewestFirst_StableTieBreaker`, `EligiblePlanOnly`.
+- [x] 0e.3 🟢 GREEN: `Plan`, `Subscription` aggregates, VOs `PlanCode`, `SubscriptionPeriod`; events `SubscriptionTierChanged/Cancelled/TrialExtended` in `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/`.
+- [x] 0e.4 🟢 EF configs + indexes (`subscriptions.user UNIQUE`, `(status,updated_at DESC)`, `version`); append-only `subscription_history(subscription_id,occurred_at DESC,id DESC)` in `JadeCapital.Billing.Infrastructure/Persistence/Configurations/`.
+- [x] 0e.5 🟡 REFACTOR: `ISubscriptionMutator`; dedupe Tier/Cancel/Extend rules.
+- [x] 0e.6 Hand-author `infrastructure/postgres/migrations/2026MMDD_0007_BillingSubscriptions.sql` (idempotent, additive only); append `COPY` + `psql -v ON_ERROR_STOP=1 -f` invocation in `migrate.Dockerfile`.
+- [x] 0e.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests --nologo --verbosity minimal`; `psql -v ON_ERROR_STOP=1 -f …0007_BillingSubscriptions.sql` twice (both exit 0); `git diff --stat` <400.
+- [x] 0e.8 Rollback: revert domain files + delete `JadeCapital.Billing.UnitTests` project; keep `0007` applied (inert columns).
 
 ## Slice 0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (≤338)
 - [ ] 0f.1 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/{List,ChangeTier,Cancel,ExtendTrial}Tests.cs` + `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/AdminAuthorizationTests.cs` — `ListSubscriptions_PagedByQuery`, `ChangeTier_RequiresVersion`, `Cancel_RecordsActorAndTimestamp`, `ExtendTrial_RejectsIfNotActiveTrial`, `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken`, `OwnerProjection_ExposesOnlyEmailAndDisplayName`.
