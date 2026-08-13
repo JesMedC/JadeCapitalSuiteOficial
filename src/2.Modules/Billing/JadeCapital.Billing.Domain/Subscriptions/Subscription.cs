@@ -120,8 +120,8 @@ public sealed class Subscription : AggregateRoot<Guid>
         if (newPlan is null)
             return Result.Failure(BillingDomainErrors.Subscription.PlanRequired);
 
-        if (observedVersion != Version)
-            return Result.Failure(BillingDomainErrors.Subscription.VersionConflict);
+        var versionCheck = EnsureVersionMatch(observedVersion);
+        if (versionCheck.IsFailure) return versionCheck;
 
         if (!newPlan.IsEligibleForSelfService)
             return Result.Failure(BillingDomainErrors.Subscription.PlanNotEligible);
@@ -161,8 +161,8 @@ public sealed class Subscription : AggregateRoot<Guid>
         if (string.IsNullOrWhiteSpace(reason))
             return Result.Failure(BillingDomainErrors.Subscription.CancellationReasonRequired);
 
-        if (observedVersion != Version)
-            return Result.Failure(BillingDomainErrors.Subscription.VersionConflict);
+        var versionCheck = EnsureVersionMatch(observedVersion);
+        if (versionCheck.IsFailure) return versionCheck;
 
         if (Status == SubscriptionStatus.Cancelled)
             return Result.Failure(BillingDomainErrors.Subscription.NotCancellable);
@@ -195,8 +195,8 @@ public sealed class Subscription : AggregateRoot<Guid>
         string actor,
         DateTimeOffset utcNow)
     {
-        if (observedVersion != Version)
-            return Result.Failure(BillingDomainErrors.Subscription.VersionConflict);
+        var versionCheck = EnsureVersionMatch(observedVersion);
+        if (versionCheck.IsFailure) return versionCheck;
 
         if (Status != SubscriptionStatus.Trial)
             return Result.Failure(BillingDomainErrors.Subscription.NotInTrial);
@@ -257,4 +257,16 @@ public sealed class Subscription : AggregateRoot<Guid>
 
         _history.Add(entry);
     }
+
+    /// <summary>
+    /// Shared rule: rejects any mutation whose observed version does not
+    /// match the aggregate's current version. Returns success when no
+    /// conflict; the caller is responsible for bumping <see cref="Version"/>
+    /// and <see cref="Touch"/>ing the entity once its state change is
+    /// decided.
+    /// </summary>
+    private Result EnsureVersionMatch(int observedVersion)
+        => observedVersion == Version
+            ? Result.Success()
+            : Result.Failure(BillingDomainErrors.Subscription.VersionConflict);
 }
