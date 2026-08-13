@@ -30,6 +30,7 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
        .ReadFrom.Services(services)
        .Enrich.FromLogContext()
        .Enrich.WithProperty("Application", "JadeCapital.Host")
+       .Filter.With(new JadeCapital.Host.PiiLogScrubber())
        .WriteTo.Console();
 });
 
