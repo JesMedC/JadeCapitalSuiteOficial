@@ -31,6 +31,11 @@ public sealed class ForgotPasswordHandler : IRequestHandler<ForgotPasswordComman
         var now = _clock.UtcNow;
         var plaintext = CrockfordCredential.Generate();
         var hash = _hasher.Hash(plaintext);
+        // Atomic supersession: a concurrent reset for the same user must leave
+        // exactly one Activated row. The unique partial index
+        // ux_temporary_credentials_user_active is the persistence-level guarantee;
+        // this is the application-level guarantee the handler relies on.
+        await _temps.SupersedeActiveAsync(user.Id, ct);
         var gen = (await _temps.LatestGenerationAsync(user.Id, ct)) + 1;
         var reserved = await _temps.ReserveAsync(Guid.NewGuid(), user.Id, gen, hash, ct);
         if (reserved.IsFailure) { _logger.LogWarning("Failed to reserve temp credential for {UserId}.", user.Id); return Result.Failure(reserved.Error); }
