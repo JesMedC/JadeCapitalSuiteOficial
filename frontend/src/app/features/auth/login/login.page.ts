@@ -166,7 +166,7 @@ import { AuthState } from '@core/state/auth.state';
               <div class="field">
                 <div class="field-row">
                   <label class="jcs-label" for="password">Contraseña</label>
-                  <a class="forgot" href="#" tabindex="-1">¿Olvidaste tu contraseña?</a>
+                  <a class="forgot" routerLink="/auth/forgot-password">¿Olvidaste tu contraseña?</a>
                 </div>
                 <input
                   id="password"
