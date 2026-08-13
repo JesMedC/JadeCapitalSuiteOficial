@@ -29,7 +29,7 @@ public sealed record SubscriptionDetail(
     string Status,
     DateTimeOffset? TrialEndsAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt,
+    DateTimeOffset? UpdatedAt,
     int Version,
     JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection Owner,
     IReadOnlyList<SubscriptionHistoryItem> History);
