@@ -5,6 +5,7 @@
   </Folder>
   <Folder Name="/src/2.Modules/" />
   <Folder Name="/src/2.Modules/Admin/">
+    <Project Path="src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj" />
     <Project Path="src/2.Modules/Admin/JadeCapital.Admin.Application/JadeCapital.Admin.Application.csproj" />
     <Project Path="src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/JadeCapital.Admin.Infrastructure.csproj" />
   </Folder>

@@ -1,3 +1,6 @@
+using JadeCapital.Admin.Api.Authorization;
+using JadeCapital.Admin.Api.Endpoints;
+using JadeCapital.Billing.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -11,6 +14,7 @@ using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -71,6 +75,12 @@ builder.Services.AddAuthorization(opts =>
     opts.AddRestrictedScopePolicy();
     opts.AddAdminOnly();
 });
+// Slice 0f — wire the explicit AdminOnly policy handler. The Identity.Api
+// skeleton required an authenticated user + Admin role claim; the dedicated
+// handler in Admin.Api.Authorization.RequireAdminPolicyHandler makes the
+// authorization seam explicit and denies non-Admin / restricted-scope tokens
+// BEFORE any handler runs (no subscription lookup or mutation side effect).
+builder.Services.AddSingleton<IAuthorizationHandler, RequireAdminPolicyHandler>();
 
 // ===== Identity module =====
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
@@ -85,6 +95,12 @@ builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
 
+// ===== Billing module =====
+// Slice 0f — Admin write-path repositories + UoW + plan/owner lookups. Slice 0e
+// created the EF Core DbContext + configurations + migration; slice 0f wires
+// the application abstractions so the Admin API can resolve the handlers.
+builder.Services.AddBillingInfrastructure(builder.Configuration);
+
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
 
@@ -93,7 +109,9 @@ builder.Services.AddSharedInfrastructure();
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblies(
         typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
-        typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly));
+        typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
+        // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
+        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly));
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -288,6 +306,10 @@ app.MapIdentityApi();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
+// Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
+// the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
+// owner, plan, or history information leaks to non-Admins.
+app.MapAdminSubscriptionEndpoints();
 
 app.Run();
 
