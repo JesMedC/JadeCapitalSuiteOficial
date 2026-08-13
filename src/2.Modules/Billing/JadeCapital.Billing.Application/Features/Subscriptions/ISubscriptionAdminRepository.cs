@@ -32,3 +32,12 @@ public interface IPlanLookup
 {
     Task<Plan?> FindByCodeAsync(string planCode, CancellationToken ct = default);
 }
+
+/// <summary>Identity.Contracts projection lookup. Implementation lives in
+/// Identity.Infrastructure and exposes only <c>Email</c> + <c>DisplayName</c>
+/// via <see cref="JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection"/>.</summary>
+public interface IOwnerProjectionLookup
+{
+    Task<JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection?> FindByUserIdAsync(
+        Guid userId, CancellationToken ct = default);
+}

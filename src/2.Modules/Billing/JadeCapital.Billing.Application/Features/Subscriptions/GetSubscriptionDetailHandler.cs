@@ -1,7 +1,5 @@
 using JadeCapital.Billing.Contracts.Subscriptions;
-using JadeCapital.Billing.Domain.Subscriptions;
 using JadeCapital.Shared.Kernel.Results;
-using JadeCapital.Shared.Kernel.Time;
 using MediatR;
 
 namespace JadeCapital.Billing.Application.Features.Subscriptions;
@@ -21,18 +19,15 @@ public sealed class GetSubscriptionDetailHandler : IRequestHandler<GetSubscripti
     private readonly ISubscriptionAdminRepository _repo;
     private readonly IPlanLookup _plans;
     private readonly IOwnerProjectionLookup _owners;
-    private readonly IClock _clock;
 
     public GetSubscriptionDetailHandler(
         ISubscriptionAdminRepository repo,
         IPlanLookup plans,
-        IOwnerProjectionLookup owners,
-        IClock clock)
+        IOwnerProjectionLookup owners)
     {
         _repo = repo;
         _plans = plans;
         _owners = owners;
-        _clock = clock;
     }
 
     public async Task<Result<SubscriptionDetail>> Handle(GetSubscriptionDetailQuery req, CancellationToken ct)
@@ -55,7 +50,7 @@ public sealed class GetSubscriptionDetailHandler : IRequestHandler<GetSubscripti
             CreatedAt: subscription.CreatedAt,
             UpdatedAt: subscription.UpdatedAt,
             Version: subscription.Version,
-            Owner: owner ?? new MinimalOwnerProjection(string.Empty, string.Empty),
+            Owner: owner ?? MinimalOwnerProjection.Empty,
             History: subscription.History
                 .Select(h => new SubscriptionHistoryItem(
                     h.Id, h.Action.ToString(),
@@ -71,13 +66,8 @@ public sealed class GetSubscriptionDetailHandler : IRequestHandler<GetSubscripti
     /// <summary>Empty projection when an owner lookup misses; preserves the
     /// read-only contract without forcing the Admin API to leak user existence.</summary>
     private sealed record MinimalOwnerProjection(string Email, string DisplayName)
-        : JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection;
-}
-
-/// <summary>Identity.Contracts projection lookup. Implementation lives in
-/// Identity.Infrastructure and exposes only <c>Email</c> + <c>DisplayName</c>.</summary>
-public interface IOwnerProjectionLookup
-{
-    Task<JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection?> FindByUserIdAsync(
-        Guid userId, CancellationToken ct = default);
+        : JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection
+    {
+        public static readonly MinimalOwnerProjection Empty = new(string.Empty, string.Empty);
+    }
 }
