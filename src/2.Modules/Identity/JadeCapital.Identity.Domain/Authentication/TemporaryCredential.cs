@@ -41,6 +41,7 @@ public sealed class TemporaryCredential : Entity<Guid>
     public DateTimeOffset? ActivatedAt { get; private set; }
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? ConsumedAt { get; private set; }
+    public DateTimeOffset? SupersededAt { get; private set; }
     public string? GrantJti { get; private set; }
 
     // EF Core.
@@ -61,6 +62,7 @@ public sealed class TemporaryCredential : Entity<Guid>
         ActivatedAt = null;
         ExpiresAt = initialExpiresAt;
         ConsumedAt = null;
+        SupersededAt = null;
         GrantJti = null;
     }
 
@@ -162,6 +164,7 @@ public sealed class TemporaryCredential : Entity<Guid>
         {
             case TemporaryCredentialStatus.Activated:
                 Status = TemporaryCredentialStatus.Superseded;
+                SupersededAt = utcNow;
                 Touch();
                 return Result.Success();
             case TemporaryCredentialStatus.Superseded:
