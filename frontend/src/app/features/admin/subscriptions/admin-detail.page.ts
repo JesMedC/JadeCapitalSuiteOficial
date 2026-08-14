@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AdminApiService, HistoryEntry, SubscriptionDetail } from '@core/api/admin-api.service';
+import { AdminApiService, SubscriptionDetail, SubscriptionHistoryItem } from '@core/api/admin-api.service';
 
 @Component({
   selector: 'jcs-admin-subscription-detail',
@@ -20,20 +20,23 @@ import { AdminApiService, HistoryEntry, SubscriptionDetail } from '@core/api/adm
       <section class="jcs-card jcs-card--glow detail">
         <header class="detail-head">
           <div>
-            <h2>{{ sub()!.ownerDisplayName }}</h2>
-            <small class="jcs-muted">{{ sub()!.ownerEmail }}</small>
+            <h2>{{ sub()!.owner.displayName }}</h2>
+            <small class="jcs-muted">{{ sub()!.owner.email }}</small>
           </div>
           <span class="jcs-pill jcs-pill--status" [attr.data-status]="sub()!.status">{{ sub()!.status }}</span>
         </header>
 
         <dl class="meta">
-          <div><dt>Plan</dt><dd>{{ sub()!.plan.code }} — {{ sub()!.plan.name }} ({{ sub()!.plan.currency }} {{ sub()!.plan.priceCents / 100 }}/{{ sub()!.plan.intervalDays }}d)</dd></div>
-          <div><dt>Periodo</dt><dd>{{ sub()!.currentPeriodStart | date:'medium' }} → {{ sub()!.currentPeriodEnd | date:'medium' }}</dd></div>
+          <div><dt>Plan</dt><dd>{{ sub()!.planCode }} — {{ sub()!.planName }}</dd></div>
+          <div><dt>User ID</dt><dd>{{ sub()!.userId }}</dd></div>
           @if (sub()!.trialEndsAt) {
             <div><dt>Trial fin</dt><dd>{{ sub()!.trialEndsAt | date:'medium' }}</dd></div>
           }
           <div><dt>Versión</dt><dd>{{ sub()!.version }}</dd></div>
           <div><dt>Creado</dt><dd>{{ sub()!.createdAt | date:'medium' }}</dd></div>
+          @if (sub()!.updatedAt) {
+            <div><dt>Actualizado</dt><dd>{{ sub()!.updatedAt | date:'medium' }}</dd></div>
+          }
         </dl>
 
         <section class="actions">
@@ -73,11 +76,10 @@ import { AdminApiService, HistoryEntry, SubscriptionDetail } from '@core/api/adm
                 <li>
                   <div class="ts">{{ h.occurredAt | date:'short' }}</div>
                   <div class="body">
-                    <strong>{{ h.kind }}</strong> · <span class="jcs-muted">{{ h.actor }}</span>
-                    @if (h.fromStatus || h.toStatus) { <span>{{ h.fromStatus }} → {{ h.toStatus }}</span> }
-                    @if (h.fromPlanCode || h.toPlanCode) { <span>{{ h.fromPlanCode }} → {{ h.toPlanCode }}</span> }
+                    <strong>{{ h.action }}</strong> · <span class="jcs-muted">{{ h.actor }}</span>
+                    <span>{{ h.priorStatus }} → {{ h.resultingStatus }}</span>
+                    <span>{{ h.priorPlanCode }} → {{ h.resultingPlanCode }}</span>
                     @if (h.reason) { <span class="reason">"{{ h.reason }}"</span> }
-                    @if (h.notes) { <small class="jcs-muted">{{ h.notes }}</small> }
                   </div>
                 </li>
               }
@@ -129,7 +131,7 @@ export class AdminSubscriptionDetailPage {
   cancelReason = '';
   newTrialDate = '';
 
-  readonly history = computed<HistoryEntry[]>(() => this.sub()?.history ?? []);
+  readonly history = computed<SubscriptionHistoryItem[]>(() => this.sub()?.history ?? []);
 
   constructor() {
     queueMicrotask(() => void this.reload());
@@ -155,7 +157,7 @@ export class AdminSubscriptionDetailPage {
     this.busy.set(true);
     this.actionError.set(null);
     try {
-      await this.api.changeTier(s.id, this.newPlan, s.version);
+      await this.api.changeTier(s.subscriptionId, this.newPlan, s.version);
       await this.reload();
     } catch (e) {
       this.actionError.set(`Cambiar tier: ${(e as Error).message}`);
@@ -168,7 +170,7 @@ export class AdminSubscriptionDetailPage {
     this.busy.set(true);
     this.actionError.set(null);
     try {
-      await this.api.cancel(s.id, this.cancelReason, s.version);
+      await this.api.cancel(s.subscriptionId, this.cancelReason, s.version);
       await this.reload();
     } catch (e) {
       this.actionError.set(`Cancelar: ${(e as Error).message}`);
@@ -182,7 +184,7 @@ export class AdminSubscriptionDetailPage {
     this.busy.set(true);
     this.actionError.set(null);
     try {
-      await this.api.extendTrial(s.id, iso, s.version);
+      await this.api.extendTrial(s.subscriptionId, iso, s.version);
       await this.reload();
     } catch (e) {
       this.actionError.set(`Extender trial: ${(e as Error).message}`);

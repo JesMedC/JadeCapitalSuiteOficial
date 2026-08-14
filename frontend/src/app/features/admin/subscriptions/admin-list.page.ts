@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { AdminApiService, PagedSubscriptions, SubscriptionStatus } from '@core/api/admin-api.service';
+import { AdminApiService, PagedSubscriptions } from '@core/api/admin-api.service';
 
-const STATUSES: Array<SubscriptionStatus | ''> = [
+const STATUSES: Array<string | ''> = [
   '', 'Pending', 'Active', 'Trial', 'PastDue', 'Suspended', 'Cancelled',
 ];
 
@@ -36,25 +36,20 @@ const STATUSES: Array<SubscriptionStatus | ''> = [
               <th>Usuario</th>
               <th>Plan</th>
               <th>Estado</th>
-              <th>Periodo fin</th>
               <th>Actualizado</th>
+              <th>Versión</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            @for (s of data()!.items; track s.id) {
+            @for (s of data()!.items; track s.subscriptionId) {
               <tr>
-                <td>
-                  <div class="owner">
-                    <strong>{{ s.ownerDisplayName }}</strong>
-                    <small class="jcs-muted">{{ s.ownerEmail }}</small>
-                  </div>
-                </td>
+                <td>{{ s.userId }}</td>
                 <td><span class="jcs-pill">{{ s.planCode }}</span></td>
                 <td><span class="jcs-pill jcs-pill--status" [attr.data-status]="s.status">{{ s.status }}</span></td>
-                <td>{{ s.currentPeriodEnd | date:'medium' }}</td>
                 <td>{{ s.updatedAt | date:'short' }}</td>
-                <td><a [routerLink]="['/admin/subscriptions', s.id]" class="jcs-link">Ver</a></td>
+                <td>{{ s.version }}</td>
+                <td><a [routerLink]="['/admin/subscriptions', s.subscriptionId]" class="jcs-link">Ver</a></td>
               </tr>
             }
           </tbody>
@@ -77,8 +72,6 @@ const STATUSES: Array<SubscriptionStatus | ''> = [
     .jcs-table { width: 100%; border-collapse: collapse; }
     .jcs-table th { text-align: left; padding: 10px 8px; font-weight: 600; color: var(--text-secondary); border-bottom: 1px solid var(--border); font-size: 0.85rem; }
     .jcs-table td { padding: 12px 8px; border-bottom: 1px solid var(--border-soft); }
-    .owner { display: flex; flex-direction: column; gap: 2px; }
-    .owner small { font-size: 0.78rem; }
     .jcs-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; background: var(--bg-card-soft); color: var(--text-secondary); }
     .jcs-pill--status[data-status="Active"] { background: var(--green-soft); color: var(--green); }
     .jcs-pill--status[data-status="Trial"] { background: rgba(74, 168, 255, 0.12); color: var(--blue); }
@@ -94,7 +87,7 @@ export class AdminSubscriptionsListPage {
   private readonly api = inject(AdminApiService);
 
   readonly statuses = STATUSES;
-  readonly status = signal<SubscriptionStatus | ''>('');
+  readonly status = signal<string | ''>('');
   readonly page = signal(1);
   readonly pageSize = 20;
   readonly data = signal<PagedSubscriptions | null>(null);
@@ -122,7 +115,7 @@ export class AdminSubscriptionsListPage {
   }
 
   onStatusChange(v: string): void {
-    this.status.set(v as SubscriptionStatus | '');
+    this.status.set(v);
     this.page.set(1);
     void this.reload();
   }
