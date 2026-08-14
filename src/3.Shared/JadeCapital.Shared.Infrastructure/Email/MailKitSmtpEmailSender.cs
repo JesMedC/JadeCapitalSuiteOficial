@@ -92,12 +92,32 @@ public class MailKitSmtpEmailSender : IEmailSender
 
 /// <summary>
 /// Local-development variant of <see cref="MailKitSmtpEmailSender"/> targeting
-/// the Mailpit SMTP listener (defaults: <c>localhost:1025</c>, no auth,
-/// no STARTTLS). Wired via DI profile so the rest of the system sees a
+/// the Mailpit SMTP listener (defaults: <c>mailpit:1025</c> in docker compose,
+/// <c>localhost:1025</c> in host dev). Honors <c>Mail__Host</c> /
+/// <c>Mail__Port</c> from configuration when present; otherwise applies
+/// sensible defaults. Wired via DI profile so the rest of the system sees a
 /// normal SMTP transport.
 /// </summary>
 public sealed class MailpitSmtpEmailSender : MailKitSmtpEmailSender
 {
-    public MailpitSmtpEmailSender(ILogger<MailpitSmtpEmailSender> logger)
-        : base(new MailOptions { Host = "localhost", Port = 1025, UseStartTls = false }, logger) { }
+    public MailpitSmtpEmailSender(IOptions<MailOptions> opts, ILogger<MailpitSmtpEmailSender> logger)
+        : base(BuildOptions(opts), logger) { }
+
+    private static MailOptions BuildOptions(IOptions<MailOptions> opts)
+    {
+        // Start from configuration so Mail__Host/Mail__Port env vars win.
+        var configured = opts.Value;
+        // Apply dev defaults only when config did not provide them.
+        return new MailOptions
+        {
+            Host = string.IsNullOrWhiteSpace(configured.Host) ? "mailpit" : configured.Host,
+            Port = configured.Port == 0 ? 1025 : configured.Port,
+            Username = configured.Username,
+            Password = configured.Password,
+            From = configured.From,
+            UseStartTls = configured.UseStartTls,
+            TimeoutMs = configured.TimeoutMs,
+            MaxAttempts = configured.MaxAttempts,
+        };
+    }
 }
