@@ -36,6 +36,7 @@ export class AuthState {
 
   readonly user = this._user.asReadonly();
   readonly isAuthenticated = computed(() => this._accessToken() !== null && this._user() !== null);
+  readonly isAdmin = computed(() => this._user()?.role === 'Admin');
   readonly passwordChangeRequired = this._passwordChangeRequired.asReadonly();
   readonly recoveryGrant = this._recoveryGrant.asReadonly();
   readonly generation = this._generation.asReadonly();
