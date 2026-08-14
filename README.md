@@ -9,17 +9,20 @@ SaaS profesional de **Trading Journal** para registrar, analizar y controlar ope
 3. **Portal Administrador** — Gestión de usuarios, métricas SaaS, control de suscripciones.
 4. **Flujo de Suscripción, Pago y Activación** — Stripe, webhooks, facturas.
 
-> 📌 **Estado actual (2026-08-07):** solo el módulo **Identity** (auth, JWT, refresh tokens) está implementado de punta a punta. Los módulos de negocio (Trading, Billing, Admin, PublicPortal) están como scaffold (csproj vacíos). Ver [`docs/PROJECT-STATUS.md`](./PROJECT-STATUS.md) para el mapa completo y [`docs/adr/`](./adr/) para las decisiones arquitectónicas.
+> 📌 **Estado actual (2026-08-14):** Wave 0 cerrado en `feature/0f-billing-admin-api`. Implementados de punta a punta: **Identity** (auth, JWT, refresh tokens rotativos, recovery flow), **Trading** (Trade + Account + Instrument + Dashboard/Calendar), **Billing** (Subscription/Plan aggregates + 5 MediatR handlers), **Admin** (Admin.Api + RequireAdminPolicyHandler + IUserOwnerProjection). **PublicPortal** sigue como scaffold. Falta solo el slice **0g** (Angular Admin List/Detail/History/State). Ver [`docs/PROJECT-STATUS.md`](./PROJECT-STATUS.md) para el mapa completo y [`docs/adr/`](./adr/) para las decisiones arquitectónicas.
 
 ## Arquitectura
 
 Monolito Modular con Clean Architecture y Vertical Slices por bounded context.
 
-- `src/1.Api/JadeCapital.Host` — API host único que compone módulos vía `AddIdentityInfrastructure()` y `MapAuthEndpoints()`.
-- `src/2.Modules/Identity/{Domain,Application,Infrastructure,Api,Contracts}` — Vertical slice Auth completo.
-- `src/2.Modules/{Trading,Billing,Admin,PublicPortal}` — Scaffold (próximas verticales).
-- `src/3.Shared/JadeCapital.Shared.Kernel` — Tipos base (`Money`, `Entity`, `AggregateRoot`, `ValueObject`, `Result<T>`, `Error`, `DomainGuard`, `IClock`).
-- `src/3.Shared/JadeCapital.Shared.Infrastructure` — `ValidationBehavior<,>`, helpers de EF Core, `BackgroundService` helpers.
+- `src/1.Api/JadeCapital.Host` — API host único que compone módulos vía `Add<Module>Infrastructure()` y `Map<Module>Endpoints()`.
+- `src/2.Modules/Identity/{Domain,Application,Infrastructure,Api,Contracts}` — Vertical slice Auth + Recovery completo (slices 0a-0d).
+- `src/2.Modules/Trading/{Domain,Application,Infrastructure,Api,Contracts}` — Trade/Account/Instrument aggregates + Dashboard/Calendar (Sprint 1).
+- `src/2.Modules/Billing/{Domain,Application,Infrastructure,Contracts}` — Subscription/Plan aggregates + handlers + migración 0007 (slice 0e).
+- `src/2.Modules/Admin/JadeCapital.Admin.Api` — RequireAdminPolicyHandler + AdminSubscriptionEndpoints + IUserOwnerProjection (slice 0f).
+- `src/2.Modules/PublicPortal/{Application,Infrastructure}` — Scaffold (pendiente).
+- `src/3.Shared/JadeCapital.Shared.Kernel` — Tipos base (`Money`, `Currency`, `Symbol`, `Entity`, `AggregateRoot`, `ValueObject`, `Result<T>`, `Error`, `DomainGuard`, `IClock`).
+- `src/3.Shared/JadeCapital.Shared.Infrastructure` — `ValidationBehavior<,>`, helpers de EF Core, `BackgroundService` helpers, Email transport, PiiLogScrubber.
 
 Cada módulo expone su propio `IServiceCollection Add<Module>Infrastructure()` y `IEndpointRouteBuilder Map<Module>()`. El Host los cablea. La extracción a microservicio futuro es mover un módulo a un host propio.
 
@@ -39,8 +42,8 @@ Cada módulo expone su propio `IServiceCollection Add<Module>Infrastructure()` y
 
 ## Reglas innegociables
 
-- Cero `float`/`double` para dinero. **Siempre** `decimal` + `NUMERIC(24,8)` (cuando llegue Trading).
-- `Money` y `Currency` serán Value Objects inmutables (pendiente de implementar en `Shared.Kernel.Money`).
+- Cero `float`/`double` para dinero. **Siempre** `decimal` + `NUMERIC(24,8)` (implementado en Trading y Billing).
+- `Money`, `Currency` y `Symbol` son Value Objects inmutables en `Shared.Kernel` (implementados en Sprint 1).
 - Cero lógica financiera en el Frontend (solo render).
 - Cero lógica de negocio en endpoints — delegan a `ISender.Send(command)` (MediatR).
 - Secrets desde variables de entorno. Nunca en código.
