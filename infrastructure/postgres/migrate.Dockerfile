@@ -10,6 +10,7 @@ COPY migrations/20260806_0003_TradingConfigurationSchema.sql     /migrations/202
 COPY migrations/20260806_0004_AccountMarketType.sql              /migrations/20260806_0004_AccountMarketType.sql
 COPY migrations/20260806_0005_InstrumentMultiAssetClass.sql      /migrations/20260806_0005_InstrumentMultiAssetClass.sql
 COPY migrations/20260811_0006_PasswordRecovery.sql               /migrations/20260811_0006_PasswordRecovery.sql
+COPY migrations/20260812_0007_RecoverySupersession.sql           /migrations/20260812_0007_RecoverySupersession.sql
 COPY migrations/20260813_0007_BillingSubscriptions.sql           /migrations/20260813_0007_BillingSubscriptions.sql
 # Importante: como usamos CMD ["bash", "-c", ...] (no el entrypoint oficial),
 # NO se propaga POSTGRES_PASSWORD -> PGPASSWORD automaticamente. Lo seteamos a mano.
@@ -20,6 +21,7 @@ CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep
      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0004_AccountMarketType.sql && \
      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0005_InstrumentMultiAssetClass.sql && \
      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260811_0006_PasswordRecovery.sql && \
+     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260812_0007_RecoverySupersession.sql && \
      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260813_0007_BillingSubscriptions.sql && \
      echo 'ALL MIGRATIONS OK' || \
      (echo 'PARTIAL MIGRATION — retrying (idempotent SQL)' && sleep 3 && \
@@ -29,5 +31,6 @@ CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0004_AccountMarketType.sql && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0005_InstrumentMultiAssetClass.sql && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260811_0006_PasswordRecovery.sql && \
+      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260812_0007_RecoverySupersession.sql && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260813_0007_BillingSubscriptions.sql && \
       echo 'ALL MIGRATIONS OK (retry)')"]
