@@ -19,7 +19,7 @@ services:
       retries: 10
     networks: [jadenet]
 
-redis:
+  redis:
     image: redis:7-alpine
     container_name: jade-redis
     restart: unless-stopped
@@ -28,17 +28,17 @@ redis:
       - redis-data:/data
     ports: ["6379:6379"]
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-anything-warning", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
       interval: 10s
       timeout: 3s
       retries: 10
     networks: [jadenet]
 
-  # Slice 0c — local SMTP capture. Mailpit exposes 1025 (SMTP) + 8025 (web UI).
-  # Browsing localhost:8025 lets the dev inspect every recovery email sent by
-  # the API. Production should NOT depend on Mailpit; Mail__Host/Port override
-  # via env vars to point at the real SMTP relay.
   mailpit:
+    # Slice 0c — local SMTP capture. Mailpit exposes 1025 (SMTP) + 8025 (web UI).
+    # Browsing localhost:8025 lets the dev inspect every recovery email sent by
+    # the API. Production should NOT depend on Mailpit; Mail__Host/Port override
+    # via env vars to point at the real SMTP relay.
     image: axllent/mailpit:latest
     container_name: jade-mailpit
     restart: unless-stopped
@@ -74,7 +74,8 @@ redis:
       dockerfile: migrate.Dockerfile
     container_name: jade-migrate
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres:
+        condition: service_healthy
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -89,10 +90,14 @@ redis:
     container_name: jade-api
     restart: unless-stopped
     depends_on:
-      migrate: { condition: service_completed_successfully }
-      redis:   { condition: service_healthy }
-      minio:   { condition: service_healthy }
-      mailpit: { condition: service_started }
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
@@ -121,9 +126,15 @@ redis:
       RateLimit__AuthPermit: ${RATE_LIMIT_AUTH_PERMIT:-10000}
       RateLimit__ApiPermit: ${RATE_LIMIT_API_PERMIT:-10000}
     # EXPONER 8080 — API + Swagger + Health + Hangfire.
-    ports: ["8080:8080"]
+    ports: ["18080:8080"]
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 || exit 1"]
+      # La imagen aspnet:10.0 es minimalista (no trae wget/curl/nc/bash).
+      # Usamos /proc/net/{tcp,tcp6} para checkear el puerto 8080 (hex 1F90)
+      # en estado LISTEN (0A). El puerto puede estar bindeado a IPv4, IPv6
+      # (dual-stack), o ambos — revisamos los dos.
+      test:
+        - "CMD-SHELL"
+        - "awk 'BEGIN{p=\"1F90\"} NR>1 {split($2,a,\":\"); if (a[2]==p && $4==\"0A\") found=1} END{exit !found}' /proc/net/tcp /proc/net/tcp6"
       interval: 15s
       timeout: 5s
       retries: 5
@@ -137,7 +148,8 @@ redis:
     container_name: jade-frontend
     restart: unless-stopped
     depends_on:
-      api: { condition: service_healthy }
+      api:
+        condition: service_healthy
     # EXPONER 4200 — Landing / Login / Register / Dashboard (puerto 80 interno).
     ports: ["4200:80"]
     networks: [jadenet]
