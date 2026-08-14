@@ -34,7 +34,7 @@ interface ChangePasswordResponse {
               <small class="jcs-error">Mínimo 12 caracteres con al menos un dígito y un símbolo.</small>
             }
             <button class="jcs-btn jcs-btn--primary" type="submit"
-                    [disabled]="loading() || form.invalid" aria-busy="{{ loading() }}">
+                    [disabled]="loading() || form.invalid" [attr.aria-busy]="loading()">
               {{ loading() ? 'Guardando…' : 'Cambiar contraseña' }}
             </button>
           </form>

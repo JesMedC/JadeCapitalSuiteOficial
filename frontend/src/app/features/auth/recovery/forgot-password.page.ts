@@ -23,7 +23,7 @@ import { Router, RouterLink } from '@angular/router';
             <small class="jcs-error">Introduce un correo válido.</small>
           }
           <button class="jcs-btn jcs-btn--primary" type="submit"
-                  [disabled]="loading() || form.invalid" aria-busy="{{ loading() }}">
+                  [disabled]="loading() || form.invalid" [attr.aria-busy]="loading()">
             {{ loading() ? 'Enviando…' : 'Enviar instrucciones' }}
           </button>
         </form>
