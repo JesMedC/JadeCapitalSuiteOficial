@@ -44,14 +44,16 @@ internal sealed class SubscriptionConfiguration : IEntityTypeConfiguration<Subsc
         b.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
-        // History list exposed via a private navigation: EF materialises
-        // through the `_history` backing field (PropertyAccessMode.Field).
+        // History is a computed projection (newest-first ordering on the
+        // backing field). EF must NOT auto-discover it as a collection nav
+        // (it would clash with the private _history navigation), so we Ignore
+        // the public property and expose the private list via the HasMany
+        // navigation named "_history" with field access mode.
+        b.Ignore(s => s.History);
         b.HasMany<SubscriptionHistoryEntry>("_history")
             .WithOne()
             .HasForeignKey(h => h.SubscriptionId)
             .OnDelete(DeleteBehavior.Cascade);
-        b.Navigation("_history")
-            .Metadata.SetField("_history");
         b.Navigation("_history")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
