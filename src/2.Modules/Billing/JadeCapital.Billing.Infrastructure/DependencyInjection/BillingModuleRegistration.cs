@@ -34,23 +34,8 @@ public static class BillingModuleRegistration
         services.AddScoped<ISubscriptionAdminRepository, Persistence.SubscriptionAdminRepository>();
         services.AddScoped<ISubscriptionAdminUnitOfWork, Persistence.BillingAdminUnitOfWork>();
         services.AddScoped<IPlanLookup, Persistence.PlanLookup>();
-        services.AddSingleton<IOwnerProjectionLookup, EmptyOwnerProjectionLookup>();
+        services.AddSingleton<IOwnerProjectionLookup, IdentityOwnerProjectionLookup>();
 
         return services;
     }
-}
-
-/// <summary>
-/// Default <see cref="IOwnerProjectionLookup"/> that returns an empty
-/// projection. Real Identity lookup ships in slice 0g once the user-admin
-/// route is wired; until then the Admin API MUST NOT block on a user
-/// lookup that does not exist yet — this no-op preserves the
-/// <see cref="Identity.Contracts.Projections.IUserOwnerProjection"/> contract
-/// without leaking user existence through the Admin surface.
-/// </summary>
-public sealed class EmptyOwnerProjectionLookup : IOwnerProjectionLookup
-{
-    public Task<JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection?> FindByUserIdAsync(
-        Guid userId, CancellationToken ct = default)
-        => Task.FromResult<JadeCapital.Identity.Contracts.Projections.IUserOwnerProjection?>(null);
 }

@@ -44,6 +44,17 @@ public sealed class Subscription : AggregateRoot<Guid>
     public IReadOnlyList<SubscriptionHistoryEntry> History
         => SubscriptionHistoryEntry.OrderNewestFirst(_history);
 
+    /// <summary>
+    /// Returns the most recently appended history entry, or <c>null</c> if no
+    /// transitions have been recorded (e.g. fresh aggregate, or a no-op
+    /// ChangeTier that didn't append one). Application handlers use this to
+    /// persist the entry explicitly via <c>DbContext.Add</c> instead of
+    /// relying on EF collection-tracking through the private navigation
+    /// (which slice 0e.1 demonstrated marks new entries as Modified).
+    /// </summary>
+    public SubscriptionHistoryEntry? LastHistoryEntry
+        => _history.Count == 0 ? null : _history[^1];
+
     private Subscription() { }
 
     private Subscription(

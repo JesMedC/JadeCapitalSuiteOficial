@@ -40,7 +40,7 @@ internal sealed class SubscriptionConfiguration : IEntityTypeConfiguration<Subsc
             pb.Property(p => p.End).HasColumnName("current_period_end").IsRequired();
         });
 
-        b.Property(s => s.Version).HasColumnName("version").IsRequired();
+        b.Property(s => s.Version).HasColumnName("version").IsRequired().IsConcurrencyToken();
         b.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
