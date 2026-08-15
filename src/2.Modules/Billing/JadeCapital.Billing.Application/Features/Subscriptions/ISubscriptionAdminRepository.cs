@@ -24,6 +24,15 @@ public interface ISubscriptionAdminRepository
 /// aggregate's mutations (status, version, history) atomically.</summary>
 public interface ISubscriptionAdminUnitOfWork
 {
+    /// <summary>
+    /// Stages a new history entry for insertion. Bypasses the EF Core
+    /// collection-tracking bug where entries appended through the aggregate's
+    /// private backing field are detected as <c>Modified</c> instead of
+    /// <c>Added</c>. The caller (handler) passes the entry returned by
+    /// <c>Subscription.LastHistoryEntry</c> after a successful mutation.
+    /// </summary>
+    void AddHistoryEntry(SubscriptionHistoryEntry entry);
+
     Task<Result> SaveChangesAsync(CancellationToken ct = default);
 }
 

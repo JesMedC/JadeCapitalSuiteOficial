@@ -60,6 +60,27 @@ public class CancelHandlerTests
         sub.Status.Should().Be(SubscriptionStatus.Active, "stale mutations MUST NOT mutate state");
     }
 
+    [Fact]
+    public async Task Cancel_Handler_CallsUoWAddHistoryEntry()
+    {
+        var repo = Substitute.For<ISubscriptionAdminRepository>();
+        var uow = Substitute.For<ISubscriptionAdminUnitOfWork>();
+        var clock = Substitute.For<IClock>();
+        clock.UtcNow.Returns(DateTimeOffset.UnixEpoch);
+        uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success());
+
+        var sub = BuildActiveSubscription();
+        repo.LoadForUpdateAsync(sub.Id, Arg.Any<CancellationToken>()).Returns(sub);
+
+        var sut = new CancelHandler(repo, uow, clock);
+        await sut.Handle(
+            new CancelCommand(sub.Id, "user requested", sub.Version, "admin@local"),
+            CancellationToken.None);
+
+        uow.Received(1).AddHistoryEntry(Arg.Is<SubscriptionHistoryEntry>(e =>
+            e.Action == SubscriptionAction.Cancelled && e.Actor == "admin@local"));
+    }
+
     private static Subscription BuildActiveSubscription()
     {
         var plan = Plan.Create(

@@ -65,6 +65,31 @@ public class ChangeTierHandlerTests
         await uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task ChangeTier_Handler_CallsUoWAddHistoryEntry()
+    {
+        var repo = Substitute.For<ISubscriptionAdminRepository>();
+        var plans = Substitute.For<IPlanLookup>();
+        var uow = Substitute.For<ISubscriptionAdminUnitOfWork>();
+        var clock = Substitute.For<IClock>();
+        var now = DateTimeOffset.UnixEpoch;
+        clock.UtcNow.Returns(now);
+        uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success());
+
+        var sub = BuildActiveSubscription(version: 5);
+        var newPlan = BuildPlan("pro");
+        repo.LoadForUpdateAsync(sub.Id, Arg.Any<CancellationToken>()).Returns(sub);
+        plans.FindByCodeAsync("pro", Arg.Any<CancellationToken>()).Returns(newPlan);
+
+        var sut = new ChangeTierHandler(repo, plans, uow, clock);
+        await sut.Handle(
+            new ChangeTierCommand(sub.Id, "pro", ObservedVersion: 5, Actor: "admin@local"),
+            CancellationToken.None);
+
+        uow.Received(1).AddHistoryEntry(Arg.Is<SubscriptionHistoryEntry>(e =>
+            e.Action == SubscriptionAction.TierChanged && e.Actor == "admin@local"));
+    }
+
     private static Subscription BuildActiveSubscription(int version)
     {
         var plan = Plan.Create(

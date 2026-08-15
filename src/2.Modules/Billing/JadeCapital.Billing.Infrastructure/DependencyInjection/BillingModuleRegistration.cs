@@ -34,7 +34,10 @@ public static class BillingModuleRegistration
         services.AddScoped<ISubscriptionAdminRepository, Persistence.SubscriptionAdminRepository>();
         services.AddScoped<ISubscriptionAdminUnitOfWork, Persistence.BillingAdminUnitOfWork>();
         services.AddScoped<IPlanLookup, Persistence.PlanLookup>();
-        services.AddSingleton<IOwnerProjectionLookup, IdentityOwnerProjectionLookup>();
+        // Scoped (not Singleton) — the implementation consumes BillingDbContext (Scoped).
+        // Singleton lifetime would trigger ASP.NET Core's captive-dependency validation
+        // and reject host construction. The implementation is stateless; Scoped is correct.
+        services.AddScoped<IOwnerProjectionLookup, IdentityOwnerProjectionLookup>();
 
         return services;
     }

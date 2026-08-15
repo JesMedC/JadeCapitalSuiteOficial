@@ -53,6 +53,27 @@ public class ExtendTrialHandlerTests
         sub.History.Should().ContainSingle(e => e.Action == SubscriptionAction.TrialExtended);
     }
 
+    [Fact]
+    public async Task ExtendTrial_Handler_CallsUoWAddHistoryEntry()
+    {
+        var repo = Substitute.For<ISubscriptionAdminRepository>();
+        var uow = Substitute.For<ISubscriptionAdminUnitOfWork>();
+        var clock = Substitute.For<IClock>();
+        clock.UtcNow.Returns(DateTimeOffset.UnixEpoch);
+        uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success());
+
+        var sub = BuildTrialSubscription(DateTimeOffset.UnixEpoch.AddDays(3));
+        repo.LoadForUpdateAsync(sub.Id, Arg.Any<CancellationToken>()).Returns(sub);
+
+        var sut = new ExtendTrialHandler(repo, uow, clock);
+        await sut.Handle(
+            new ExtendTrialCommand(sub.Id, DateTimeOffset.UnixEpoch.AddDays(14), sub.Version, "admin@local"),
+            CancellationToken.None);
+
+        uow.Received(1).AddHistoryEntry(Arg.Is<SubscriptionHistoryEntry>(e =>
+            e.Action == SubscriptionAction.TrialExtended && e.Actor == "admin@local"));
+    }
+
     private static Subscription BuildActiveSubscription()
     {
         var plan = Plan.Create(

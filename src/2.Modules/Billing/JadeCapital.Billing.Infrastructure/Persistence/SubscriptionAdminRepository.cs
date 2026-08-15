@@ -59,6 +59,10 @@ public sealed class BillingAdminUnitOfWork : ISubscriptionAdminUnitOfWork
 {
     private readonly BillingDbContext _db;
     public BillingAdminUnitOfWork(BillingDbContext db) { _db = db; }
+
+    public void AddHistoryEntry(SubscriptionHistoryEntry entry) =>
+        _db.SubscriptionHistory.Add(entry);
+
     public async Task<Result> SaveChangesAsync(CancellationToken ct = default)
     {
         await _db.SaveChangesAsync(ct);

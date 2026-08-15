@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace JadeCapital.Api.IntegrationTests.Auth;
 
 public record RegisterRequest(string Email, string DisplayName, string Password);
