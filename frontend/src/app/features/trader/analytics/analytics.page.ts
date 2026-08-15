@@ -7,15 +7,13 @@ import {
   TradeApiService,
   TradeDto,
 } from '@core/api/trade-api.service';
+import { MetricsApiService, MetricsDto, SymbolStat as ServerSymbolStat } from '@core/api/metrics-api.service';
 
 interface SymbolStat {
   symbol: string;
   trades: number;
-  wins: number;
   winRate: number;
   netPnl: number;
-  bestTrade: number;
-  worstTrade: number;
 }
 
 interface DayPoint {
@@ -44,16 +42,14 @@ function buildEquityCurve(points: DayPoint[]): number[] {
   });
 }
 
-// Balance mock: capital inicial + P&L acumulado + yield diario compuesto.
-// Se mantiene la misma forma que la versión anterior, pero ahora se calcula
-// sobre los trades reales del período seleccionado.
-function buildBalanceCurve(points: DayPoint[], initialBalance: number, dailyYield: number): number[] {
-  let bal = initialBalance;
-  return points.map(p => {
-    bal += p.pnl;
-    bal += bal * dailyYield;
-    return Number((bal - initialBalance).toFixed(2));
-  });
+// Adapta los SymbolStat del server (MetricsDto) al shape SymbolStat del template.
+function toUiSymbolStats(server: ServerSymbolStat[]): SymbolStat[] {
+  return server.map(s => ({
+    symbol: s.symbol,
+    trades: s.trades,
+    winRate: s.winRate,
+    netPnl: s.totalPnl,
+  }));
 }
 
 type Period = '7d' | '30d' | '90d' | 'all';
@@ -172,8 +168,6 @@ function daysForPeriod(p: Period): number | null {
                   <th class="num">Trades</th>
                   <th class="num">Win rate</th>
                   <th class="num">P&amp;L neto</th>
-                  <th class="num">Mejor</th>
-                  <th class="num">Peor</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,14 +191,10 @@ function daysForPeriod(p: Period): number | null {
                     <td class="num jcs-num" [ngClass]="s.netPnl >= 0 ? 'jcs-pos' : 'jcs-neg'">
                       {{ s.netPnl >= 0 ? '+' : '' }}{{ s.netPnl | number:'1.2-2' }}
                     </td>
-                    <td class="num jcs-num jcs-pos">+{{ s.bestTrade | number:'1.2-2' }}</td>
-                    <td class="num jcs-num" [ngClass]="s.worstTrade < 0 ? 'jcs-neg' : 'jcs-pos'">
-                      {{ s.worstTrade | number:'1.2-2' }}
-                    </td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="6" class="sym-empty">
+                    <td colspan="4" class="sym-empty">
                       @if (loading()) {
                         Cargando…
                       } @else {
@@ -775,6 +765,7 @@ function daysForPeriod(p: Period): number | null {
 })
 export class AnalyticsPage {
   private readonly api = inject(TradeApiService);
+  private readonly metricsApi = inject(MetricsApiService);
 
   readonly periods = PERIODS;
   readonly selectedPeriod = signal<Period>('30d');
@@ -796,18 +787,30 @@ export class AnalyticsPage {
     currency: string;
   } | null>(null);
 
-  // ===== Computeds base =====
-  readonly totalCount = computed(() => this.items().length);
-  readonly pnlCurrency = computed(() => this.summary()?.currency ?? this.items()[0]?.pnlCurrency ?? this.items()[0]?.accountCurrency ?? 'USD');
+  // ===== Server-side metrics (slice 1f) =====
+  readonly metrics = signal<MetricsDto | null>(null);
 
-  readonly winsCount = computed(() =>
-    this.items().filter(t => t.status === 2 && (t.pnl ?? 0) > 0).length
+  // ===== Computeds base =====
+  readonly totalCount = computed(() => this.metrics()?.totalTrades ?? this.items().length);
+  readonly pnlCurrency = computed(() =>
+    this.metrics()?.currency ?? this.summary()?.currency
+    ?? this.items()[0]?.pnlCurrency ?? this.items()[0]?.accountCurrency ?? 'USD'
   );
-  readonly lossesCount = computed(() =>
-    this.items().filter(t => t.status === 2 && (t.pnl ?? 0) < 0).length
-  );
+
+  readonly winsCount = computed(() => {
+    const m = this.metrics();
+    if (m) return Math.round((m.winRate / 100) * m.totalClosedTrades);
+    return this.items().filter(t => t.status === 2 && (t.pnl ?? 0) > 0).length;
+  });
+  readonly lossesCount = computed(() => {
+    const m = this.metrics();
+    if (m) return Math.max(0, m.totalClosedTrades - this.winsCount());
+    return this.items().filter(t => t.status === 2 && (t.pnl ?? 0) < 0).length;
+  });
 
   readonly winRate = computed(() => {
+    const m = this.metrics();
+    if (m) return m.winRate;
     const s = this.summary();
     if (s) return s.winRate;
     const n = this.winsCount() + this.lossesCount();
@@ -816,59 +819,15 @@ export class AnalyticsPage {
 
   readonly lossRate = computed(() => 100 - this.winRate());
 
-  readonly grossWins = computed(() =>
-    this.items().filter(t => (t.pnl ?? 0) > 0).reduce((acc, t) => acc + (t.pnl ?? 0), 0)
+  // ===== KPIs server-side =====
+  readonly expectancy = computed(() => this.metrics()?.expectancy ?? 0);
+  readonly profitFactor = computed(() => this.metrics()?.profitFactor ?? 0);
+  readonly maxDrawdown = computed(() => this.metrics()?.maxDrawdownAmount ?? 0);
+
+  // ===== Stats por símbolo (server) =====
+  readonly symbolStats = computed<SymbolStat[]>(() =>
+    this.metrics() ? toUiSymbolStats(this.metrics()!.symbolStats) : []
   );
-  readonly grossLosses = computed(() =>
-    Math.abs(this.items().filter(t => (t.pnl ?? 0) < 0).reduce((acc, t) => acc + (t.pnl ?? 0), 0))
-  );
-
-  readonly expectancy = computed(() => {
-    const n = this.items().filter(t => t.status === 2).length;
-    return n === 0 ? 0 : (this.grossWins() - this.grossLosses()) / n;
-  });
-
-  readonly profitFactor = computed(() => {
-    const loss = this.grossLosses();
-    return loss === 0 ? 0 : this.grossWins() / loss;
-  });
-
-  readonly maxDrawdown = computed(() => {
-    let peak = -Infinity;
-    let maxDD = 0;
-    for (const v of this.equityPoints()) {
-      if (v > peak) peak = v;
-      const dd = v - peak; // dd ≤ 0
-      if (dd < maxDD) maxDD = dd;
-    }
-    return Number(maxDD.toFixed(2));
-  });
-
-  // ===== Stats por símbolo =====
-  readonly symbolStats = computed<SymbolStat[]>(() => {
-    const map = new Map<string, SymbolStat>();
-    for (const t of this.items()) {
-      if (t.status !== 2 || t.pnl === null) continue;
-      const s = map.get(t.symbol) ?? {
-        symbol: t.symbol,
-        trades: 0,
-        wins: 0,
-        winRate: 0,
-        netPnl: 0,
-        bestTrade: 0,
-        worstTrade: 0,
-      };
-      s.trades += 1;
-      if (t.pnl > 0) s.wins += 1;
-      s.netPnl += t.pnl;
-      s.bestTrade = Math.max(s.bestTrade, t.pnl);
-      s.worstTrade = Math.min(s.worstTrade, t.pnl);
-      map.set(t.symbol, s);
-    }
-    return [...map.values()]
-      .map(s => ({ ...s, winRate: (s.wins / s.trades) * 100 }))
-      .sort((a, b) => b.netPnl - a.netPnl);
-  });
 
   // ===== Donut chart =====
   private readonly CIRCUMFERENCE = 2 * Math.PI * 40;
@@ -894,25 +853,38 @@ export class AnalyticsPage {
   // ===== Line chart =====
   private readonly chartW = 600;
   private readonly chartH = 200;
-  // Capital inicial arbitrario para que el "balance" viva en la misma escala
-  // que el equity acumulado. No es una posición real; cuando llegue el módulo
-  // de cuentas se reemplaza por el balance auténtico.
-  private readonly initialBalance = 10000;
-  private readonly dailyYield = 0.0006; // ~0.06% diario
 
   readonly dailyPoints = computed(() => buildDailyPoints(this.items()));
   readonly equityPoints = computed(() => buildEquityCurve(this.dailyPoints()));
-  readonly balancePoints = computed(() =>
-    buildBalanceCurve(this.dailyPoints(), this.initialBalance, this.dailyYield)
+
+  // Slice 1f — la curva de balance usa los puntos que el server manda en
+  // MetricsDto.equityCurve (cada {timestamp, equity, drawdown}). El cliente
+  // ya NO compone el balance con initialBalance/dailyYield (mocks).
+  readonly serverEquityCurve = computed(() =>
+    (this.metrics()?.equityCurve ?? []).map(p => ({
+      timestamp: p.timestamp,
+      equity: p.equity,
+      drawdown: p.drawdown,
+    }))
   );
 
-  readonly pnlLinePath = computed(() => this.buildPath(this.equityPoints()));
+  readonly pnlLinePath = computed(() => this.buildPath(this.equityPoints(), this.serverEquityCurve()));
   readonly pnlAreaPath = computed(() => {
     const line = this.pnlLinePath();
     if (!line) return '';
     return `${line} L${this.chartW},${this.chartH} L0,${this.chartH} Z`;
   });
-  readonly balanceLinePath = computed(() => this.buildPath(this.balancePoints()));
+  // El "balance" del chart ahora es el equity acumulado que viene del server
+  // (no se compone con yield diario). Si el server devuelve una curva vacia
+  // caemos al fallback client-side (dailyPoints -> equityPoints) para que el
+  // grafico siga siendo util mientras el endpoint termina de hidratar.
+  readonly balanceLinePath = computed(() => {
+    const server = this.serverEquityCurve();
+    const values = server.length > 0
+      ? server.map(p => p.equity)
+      : this.equityPoints();
+    return this.buildPath(values, server.length > 0 ? server : this.equityPoints().map(v => ({ equity: v, drawdown: 0 })));
+  });
 
   // ===== Top 5 =====
   readonly topTrades = computed(() =>
@@ -943,9 +915,10 @@ export class AnalyticsPage {
       const from = days === null ? undefined : this.isoDaysAgo(days);
       const to = days === null ? undefined : this.isoNow();
 
-      const [summary, page] = await Promise.all([
+      const [summary, page, metrics] = await Promise.all([
         this.api.dashboard(from, to),
         this.api.list(1, 100),
+        this.metricsApi.get(this.selectedPeriod()),
       ]);
 
       this.summary.set({
@@ -960,10 +933,12 @@ export class AnalyticsPage {
         currency: summary.currency,
       });
       this.items.set(page.items);
+      this.metrics.set(metrics);
     } catch (e) {
       this.error.set(this.toMessage(e));
       this.items.set([]);
       this.summary.set(null);
+      this.metrics.set(null);
     } finally {
       this.refreshing.set(false);
       this.loading.set(false);
@@ -971,12 +946,11 @@ export class AnalyticsPage {
   }
 
   // ===== Internals =====
-  private buildPath(values: number[]): string {
+  private buildPath(values: number[], allPoints: { equity: number }[]): string {
     if (values.length < 2) return '';
-    const all = [...this.equityPoints(), ...this.balancePoints()];
-    if (all.length === 0) return '';
-    const min = Math.min(...all);
-    const max = Math.max(...all);
+    if (allPoints.length === 0) return '';
+    const min = Math.min(...allPoints.map(p => p.equity));
+    const max = Math.max(...allPoints.map(p => p.equity));
     const range = max - min || 1;
     const step = this.chartW / (values.length - 1);
     return values
