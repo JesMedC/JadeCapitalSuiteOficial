@@ -1,8 +1,13 @@
 # Estado actual del proyecto — JadeCapitalSuite
 
 > **Snapshot base:** 2026-08-07 (exploración exhaustiva del código).
-> **Última actualización:** 2026-08-09 (Sprint 1 cerrado — ver §0).
+> **Última actualización:** 2026-08-15 (Wave 0 cerrado + sprint de higiene).
 > Cualquier afirmación acá fue leída de los archivos; nada es supuesto.
+
+## Changelog
+
+- **2026-08-15** Wave 0 cerrada y archivada (`openspec/changes/archive/2026-08-15-jade-trader-os-core-portals/`): 57/57 tasks, 419 tests verdes, build exit 0. Los 3 follow-ups documentados (`Subscription.History` persistence, `IOwnerProjectionLookup` DI scope, `Subscription.Version` concurrency token) están remediados en código por commit `3055dbb`. El bug "ConfirmEmail nunca se invoca" reportado en snapshots previos nunca existió (memoria Engram #14). `AuthFlowTests.RateLimit_Login_BlocksAfter10Attempts` pasa desde commit `3a11f7f`. Stack end-to-end corriendo en LAN (`192.168.1.123`) y Tailscale (`100.86.112.15`).
+- **2026-08-09** Sprint 1 cerrado (Trading vertical backend + frontend conectado).
 
 ---
 
