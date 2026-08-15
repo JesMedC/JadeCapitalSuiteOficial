@@ -129,23 +129,32 @@ reproduction through the model path.
 These are recorded for the next change's intake. They are NOT Wave 0 tasks and
 were never expected to be resolved by this archive.
 
-1. **Slice 0e history persistence bug** (CRITICAL per `apply-progress-wave1-partial.md`):
-   `Subscription._history` collection tracking causes EF to generate `UPDATE` instead
-   of `INSERT` for new entries, yielding `DbUpdateConcurrencyException` and HTTP 500
-   on admin mutate actions. Migration to a separate `ISubscriptionHistoryEntryRepository.Add`
-   is the proposed fix.
-2. **Owner projection returns null** (WARNING): `IOwnerProjectionLookup` returns null
-   on every call; `GetSubscriptionDetailHandler` falls back to `MinimalOwnerProjection.Empty`.
-   Likely a DI registration miss in `BillingModuleRegistration.cs` or an unimplemented
-   Identity join.
-3. **`Subscription.Version` concurrency token** (WARNING): not marked
-   `IsConcurrencyToken`; relies on EF Core 9 default detection.
+**Resolved during Wave 0 close (commit `3055dbb`):** items #1, #2, #3 below were
+open in the `apply-progress-wave1-partial.md` snapshot but were already fixed in
+code by the Wave 0 close remediation. The archive report snapshot itself was
+written before that round of fixes landed. Verified 2026-08-15:
+
+1. ~~Slice 0e history persistence bug~~ **RESOLVED**: `BillingAdminUnitOfWork.AddHistoryEntry`
+   in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/SubscriptionAdminRepository.cs:63-64`
+   calls `_db.SubscriptionHistory.Add(entry)` explicitly, bypassing the navigation
+   collection-tracking bug. The three handlers (`ChangeTier`, `Cancel`, `ExtendTrial`)
+   in `src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/`
+   call this UoW method after a successful mutation. `dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests/` → 19/19 PASS.
+2. ~~Owner projection returns null~~ **RESOLVED**: `IOwnerProjectionLookup` is
+   registered as Scoped in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs:40`;
+   `IdentityOwnerProjectionLookup` reads via `SqlQueryRaw` cross-schema from `identity.users`.
+   A `null` return is the by-design fallback for orphan subscriptions (no row in `identity.users`),
+   not a DI miss.
+3. ~~`Subscription.Version` concurrency token~~ **RESOLVED**: explicitly marked in
+   `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Persistence/Configurations/SubscriptionConfiguration.cs:43`
+   with `.IsConcurrencyToken()`. EF Core 9 default detection is not relied on.
+
+**Still open** (deferred — not blockers for Wave 0 archive closure):
+
 4. **Stripe integration** (DEFERRED): `Stripe.net 47.0.0` declared but unused.
 5. **Public `/api/billing/plans` endpoint** (DEFERRED): to replace hardcoded `PLANS`
-   in `frontend/.../pricing/pricing-page.ts` and `landing-page.ts` once the slice-0e
-   mutation bugs are fixed.
-
-None of these are blockers for Wave 0 archive closure — they are post-Wave-0 work.
+   in `frontend/.../pricing/pricing-page.ts` and `landing-page.ts`. No longer gated
+   on slice-0e fixes (#1 above) since those are now closed.
 
 ---
 
