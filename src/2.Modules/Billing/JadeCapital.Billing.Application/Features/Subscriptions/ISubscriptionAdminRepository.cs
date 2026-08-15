@@ -40,6 +40,13 @@ public interface ISubscriptionAdminUnitOfWork
 public interface IPlanLookup
 {
     Task<Plan?> FindByCodeAsync(string planCode, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lists all plans eligible for self-service sign-up
+    /// (<c>is_eligible_for_self_service = true AND is_deprecated = false</c>).
+    /// Used by the public catalog endpoint (slice Wave-1.3).
+    /// </summary>
+    Task<IReadOnlyList<Plan>> ListEligibleForSelfServiceAsync(CancellationToken ct = default);
 }
 
 /// <summary>Identity.Contracts projection lookup. Implementation lives in

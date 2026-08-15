@@ -14,6 +14,7 @@
     <Project Path="src/2.Modules/Billing/JadeCapital.Billing.Contracts/JadeCapital.Billing.Contracts.csproj" />
     <Project Path="src/2.Modules/Billing/JadeCapital.Billing.Domain/JadeCapital.Billing.Domain.csproj" />
     <Project Path="src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/JadeCapital.Billing.Infrastructure.csproj" />
+    <Project Path="src/2.Modules/Billing/JadeCapital.Billing.PublicApi/JadeCapital.Billing.PublicApi.csproj" />
   </Folder>
   <Folder Name="/src/2.Modules/Identity/">
     <Project Path="src/2.Modules/Identity/JadeCapital.Identity.Api/JadeCapital.Identity.Api.csproj" />

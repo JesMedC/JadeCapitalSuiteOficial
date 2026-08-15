@@ -1,6 +1,7 @@
 using JadeCapital.Admin.Api.Authorization;
 using JadeCapital.Admin.Api.Endpoints;
 using JadeCapital.Billing.Infrastructure.DependencyInjection;
+using JadeCapital.Billing.PublicApi.Endpoints;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -111,7 +112,11 @@ builder.Services.AddMediatR(cfg =>
         typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
         typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
         // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
-        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly));
+        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly,
+        // Wave-1.3 — Billing public catalog query (GetPublicPlansHandler) so
+        // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
+        // BillingPublicEndpoints minimal-api delegate.
+        typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly));
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -310,6 +315,9 @@ app.MapTradeEndpoints();
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
 app.MapAdminSubscriptionEndpoints();
+// Wave-1.3 — Public Billing catalog endpoints (AllowAnonymous; pricing page
+// must load the plan list before the visitor authenticates).
+app.MapBillingPublicEndpoints();
 
 app.Run();
 

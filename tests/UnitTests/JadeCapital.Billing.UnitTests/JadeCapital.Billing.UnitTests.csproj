@@ -14,5 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Domain\JadeCapital.Billing.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.PublicApi\JadeCapital.Billing.PublicApi.csproj" />
   </ItemGroup>
 </Project>

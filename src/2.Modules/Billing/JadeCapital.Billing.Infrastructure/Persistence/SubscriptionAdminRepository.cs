@@ -79,4 +79,11 @@ public sealed class PlanLookup : IPlanLookup
     public Task<Plan?> FindByCodeAsync(string planCode, CancellationToken ct = default)
         => _db.Plans
             .FirstOrDefaultAsync(p => p.Code.Value == planCode.ToLowerInvariant(), ct);
+
+    public async Task<IReadOnlyList<Plan>> ListEligibleForSelfServiceAsync(CancellationToken ct = default)
+        => await _db.Plans
+            .AsNoTracking()
+            .Where(p => p.IsEligibleForSelfService && !p.IsDeprecated)
+            .OrderBy(p => p.MonthlyPrice.Amount)
+            .ToListAsync(ct);
 }
