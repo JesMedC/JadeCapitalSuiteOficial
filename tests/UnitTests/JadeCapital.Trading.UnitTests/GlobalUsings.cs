@@ -11,6 +11,7 @@ global using JadeCapital.Trading.Domain.Enums;
 global using JadeCapital.Trading.Domain.ValueObjects;
 global using JadeCapital.Trading.Domain.Trades;
 global using JadeCapital.Trading.Domain.Common;
+global using JadeCapital.Trading.Domain.Metrics;
 global using JadeCapital.Trading.Application.Abstractions;
 global using JadeCapital.Trading.Application._Common;
 global using JadeCapital.Trading.Application.Features.Trades.OpenTrade;
@@ -34,4 +35,5 @@ global using JadeCapital.Trading.Application.Features.Instruments.GetInstrumentB
 global using JadeCapital.Trading.Application.Features.Instruments.DeleteInstrument;
 global using JadeCapital.Trading.Application.Features.Dashboard.GetDashboardSummary;
 global using JadeCapital.Trading.Application.Features.Dashboard.GetPnlCalendar;
+global using JadeCapital.Trading.Application.Features.Metrics.GetTradingMetrics;
 global using Microsoft.Extensions.Logging;

@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Infrastructure.Persistence;
+using JadeCapital.Trading.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,10 @@ public static class TradingModuleRegistration
         services.AddScoped<IAccountRepository, AccountRepository>();
         services.AddScoped<IInstrumentRepository, InstrumentRepository>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
+
+        // ===== Metrics read store (slice 1f) =====
+        services.AddScoped<IMetricsQueryStore, MetricsQueryStore>();
+        services.AddSingleton<IUserExistenceProbe, TradingUserExistenceProbe>();
 
         return services;
     }

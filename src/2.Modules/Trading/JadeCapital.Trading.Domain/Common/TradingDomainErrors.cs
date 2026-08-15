@@ -158,4 +158,10 @@ public static class TradingDomainErrors
         public static readonly Error AlreadyActive =
             Error.Conflict("instrument.already_active", "Instrument is already active.");
     }
+
+    public static class Metrics
+    {
+        public static readonly Error UserNotFound =
+            Error.NotFound("metrics.user_not_found", "Authenticated user was not found.");
+    }
 }
