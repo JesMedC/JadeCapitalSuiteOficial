@@ -34,36 +34,36 @@
 ### 1f.1 — Metrics backend
 
 **Phase 1: Domain + Application foundation**
-- [ ] 1.1 Add `MetricsPeriod` enum (`7d`, `30d`, `90d`, `all`) under `JadeCapital.Trading.Domain.Metrics`.
-- [ ] 1.2 Add `MetricsDto`, `EquityPointDto`, `DrawdownPointDto`, `SymbolStatDto` records in `JadeCapital.Trading.Contracts` (no PII; `(Period, ClosedTrades, OpenTrades, WinRate, Expectancy, ProfitFactor, Payoff, Sqn, MaxDrawdown, EquityCurve, DrawdownOverlay, SymbolStats)`).
+- [x] 1.1 Add `MetricsPeriod` enum (`7d`, `30d`, `90d`, `all`) under `JadeCapital.Trading.Domain.Metrics`.
+- [x] 1.2 Add `MetricsDto`, `EquityPointDto`, `DrawdownPointDto`, `SymbolStatDto` records in `JadeCapital.Trading.Contracts` (no PII; `(Period, ClosedTrades, OpenTrades, WinRate, Expectancy, ProfitFactor, Payoff, Sqn, MaxDrawdown, EquityCurve, DrawdownOverlay, SymbolStats)`).
 
 **Phase 2: Application — query + handler (RED → GREEN)**
-- [ ] 2.1 Write RED tests `GetTradingMetricsHandlerTests` covering 8 scenarios: empty period, all-open, expectancy formula, profit factor formula, SQN formula, max drawdown calculation, symbol stats grouping, period filter (`7d|30d|90d|all`).
-- [ ] 2.2 GREEN: `GetTradingMetricsQuery(UserId, Period)` + `GetTradingMetricsHandler` in `Trading.Application/Features/Metrics/GetTradingMetrics/` (pure LINQ over `IMetricsQueryStore`; deterministic given same trades).
-- [ ] 2.3 Implement `IMetricsQueryStore` + `MetricsQueryStore` (LINQ-to-EF) in `Trading.Infrastructure/Queries/`.
+- [x] 2.1 Write RED tests `GetTradingMetricsHandlerTests` covering 8 scenarios: empty period, all-open, expectancy formula, profit factor formula, SQN formula, max drawdown calculation, symbol stats grouping, period filter (`7d|30d|90d|all`).
+- [x] 2.2 GREEN: `GetTradingMetricsQuery(UserId, Period)` + `GetTradingMetricsHandler` in `Trading.Application/Features/Metrics/GetTradingMetrics/` (pure LINQ over `IMetricsQueryStore`; deterministic given same trades).
+- [x] 2.3 Implement `IMetricsQueryStore` + `MetricsQueryStore` (LINQ-to-EF) in `Trading.Infrastructure/Queries/`.
 
 **Phase 3: API wiring**
-- [ ] 3.1 Add `MapTraderMetricsEndpoints(this IEndpointRouteBuilder)` in `Trading.Api/Endpoints/TraderMetricsEndpoints.cs` exposing `GET /api/trades/metrics?period=` returning `MetricsDto`. RequireAuthorization + `api-general` rate limit.
-- [ ] 3.2 Add `app.MapTraderMetricsEndpoints()` in `Program.cs`.
-- [ ] 3.3 Add `IMetricsQueryStore` registration in `AddTradingInfrastructure`.
-- [ ] 3.4 Register `GetTradingMetricsQuery` assembly in the existing MediatR scan list.
+- [x] 3.1 Add `MapTraderMetricsEndpoints(this IEndpointRouteBuilder)` in `Trading.Api/Endpoints/TraderMetricsEndpoints.cs` exposing `GET /api/trades/metrics?period=` returning `MetricsDto`. RequireAuthorization + `api-general` rate limit.
+- [x] 3.2 Add `app.MapTraderMetricsEndpoints()` in `Program.cs`.
+- [x] 3.3 Add `IMetricsQueryStore` registration in `AddTradingInfrastructure`.
+- [x] 3.4 Register `GetTradingMetricsQuery` assembly in the existing MediatR scan list.
 
 **Phase 4: Migration (only if Period filter needs a new column)**
-- [ ] 4.1 (Optional, skip if `opened_at` index suffices) No migration required — `ix_trades_user_opened_at` covers the period filter.
+- [x] 4.1 (Optional, skip if `opened_at` index suffices) No migration required — `ix_trades_user_opened_at` covers the period filter.
 
 **Phase 5: Validate**
-- [ ] 5.1 `dotnet test tests/UnitTests/JadeCapital.Trading.UnitTests --filter "FullyQualifiedName~GetTradingMetrics"` → green.
+- [x] 5.1 `dotnet test tests/UnitTests/JadeCapital.Trading.UnitTests --filter "FullyQualifiedName~GetTradingMetrics"` → green.
 - [ ] 5.2 `dotnet test --filter "FullyQualifiedName~TradingMetrics"` after 1e ships → green.
 
 ### 1f.2 — Metrics frontend
 
 **Phase 1: Service + binding**
-- [ ] 1.1 Create `frontend/src/app/features/trader/analytics/metrics-api.service.ts` exposing `metrics(period: MetricsPeriod): Observable<MetricsDto>`.
-- [ ] 1.2 Drop `initialBalance = 10000` and `dailyYield = 0.0006` mocks from `analytics.page.ts:900-901`. Bind `pnlAreaPath` and `balanceLinePath` to the server response.
-- [ ] 1.3 Replace `expectancy`, `profitFactor`, `maxDrawdown`, `symbolStats`, `equityPoints`, `balancePoints` `computed()` blocks by direct binding of `MetricsDto` fields (single render path).
+- [x] 1.1 Create `frontend/src/app/features/trader/analytics/metrics-api.service.ts` exposing `metrics(period: MetricsPeriod): Observable<MetricsDto>`.
+- [x] 1.2 Drop `initialBalance = 10000` and `dailyYield = 0.0006` mocks from `analytics.page.ts:900-901`. Bind `pnlAreaPath` and `balanceLinePath` to the server response.
+- [x] 1.3 Replace `expectancy`, `profitFactor`, `maxDrawdown`, `symbolStats`, `equityPoints`, `balancePoints` `computed()` blocks by direct binding of `MetricsDto` fields (single render path).
 
 **Phase 2: Tests**
-- [ ] 2.1 4 jest specs: service mapping (`metrics(period)` calls `/api/trades/metrics`), analytics page renders server values verbatim, period selector toggles `MetricsPeriod` correctly, error/empty states render.
+- [x] 2.1 4 jest specs: service mapping (`metrics(period)` calls `/api/trades/metrics`), analytics page renders server values verbatim, period selector toggles `MetricsPeriod` correctly, error/empty states render.
 
 ## Slice 1a — Risk Profile
 
