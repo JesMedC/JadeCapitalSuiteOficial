@@ -468,7 +468,7 @@ docs/
 ### 🔴 Bloquean el uso real
 
 1. **FluentValidation validators huérfanos.** `RegisterUserValidator`, `LoginValidator`, `RefreshTokenValidator` existen pero **no hay `ValidationBehavior<,>` en el pipeline MediatR**. Los validators **nadie los corre**. Si llegan a invocarse, lanzarían `ValidationException`, pero el handler ya valida con `DomainGuard`. Funciona por casualidad.
-2. **`User.ConfirmEmail` nunca se invoca.** Las cuentas nuevas quedan en `PendingEmailConfirmation` para siempre → `CanAuthenticate()` retorna `false` → `RefreshTokenHandler` rechaza refresh → **el usuario recién registrado puede hacer login (devuelve tokens) pero no puede refrescarlos**. Bug crítico de flujo.
+2. **`User.ConfirmEmail` nunca se invoca — RESUELTO** (estaba mal documentado). El doc previo afirmaba que el constructor dejaba a los nuevos usuarios en `PendingEmailConfirmation` para siempre. FALSO desde el origen: el `UserStatus` enum actual NO contiene `PendingEmailConfirmation` (solo `Active`, `Suspended`, `Cancelled`, `LockedOut`), y el constructor setea `Status = UserStatus.Active` + `EmailConfirmedAt = DateTimeOffset.UtcNow` directamente (ver `src/2.Modules/Identity/JadeCapital.Identity.Domain/Users/User.cs:71-72`, introducido en `8c0e2bb feat(identity): Sprint 0 — auth flow end-to-end working`). El flujo register → login → refresh está confirmado funcional: 8/8 tests `AuthFlowTests` pasan (incluido `Refresh_ValidToken_ReturnsNewTokens` después de register).
 3. **`tier` field inconsistency.** `AuthState` (frontend) espera `tier` en la respuesta de login. `LoginResult`/`RegisterUserResult` (backend) **no incluyen `tier`**. Cast puede fallar.
 4. **`/api/trades?page=1&pageSize=20` consumido por el frontend → 404.** No hay endpoint en el backend (módulo Trading es scaffold vacío).
 5. **Refresh token no se renueva automáticamente.** El frontend tiene `refresh()` definido pero **nadie lo llama**. Access token vence en 15 min → siguiente request 401 → `errorInterceptor` desloguea.
@@ -526,7 +526,7 @@ docs/
 5. **Decidir y aplicar rate-limit** a endpoints Auth (bug crítico #2 en bugs).
 6. **Crear `ValidationBehavior<,>` en Shared.Infrastructure** y registrarlo en MediatR pipeline.
 7. **Leer `RefreshTokenTtlDays` de config** en handlers (bug crítico #6).
-8. **Crear endpoint `POST /api/auth/confirm-email`** o quitar `PendingEmailConfirmation` del estado inicial (decisión de producto: ¿se confirma por email? ¿se auto-confirma en register?). Sin resolver esto, **el login no es funcional end-to-end**.
+8. **Crear endpoint `POST /api/auth/confirm-email`** o quitar `PendingEmailConfirmation` del estado inicial (decisión de producto: ¿se confirma por email? ¿se auto-confirma en register?). Sin resolver esto, **el login no es funcional end-to-end**. → **Resuelto por diseño**: `PendingEmailConfirmation` nunca estuvo en el `UserStatus` enum; el constructor setea `Status = Active` desde el origen. V1 funciona end-to-end sin flujo de email. Si en Wave 1+ se quiere añadir verificación por email, hay que: (a) agregar `PendingEmailConfirmation` al enum, (b) cambiar el constructor para no setear Active, (c) agregar `POST /api/auth/confirm-email {token}` + flujo SMTP.
 9. **Decidir scheduler**: reintroducir Hangfire o BackgroundService simple. Por ahora el cleanup de refresh tokens es deuda viva.
 10. **Implementar refresh automático en el frontend** (interceptor que llame `AuthState.refresh()` en 401 antes de logout).
 11. **Eliminar `tier` de la interface `User` en frontend** o agregarlo al `LoginResult`/`RegisterUserResult` del backend.
