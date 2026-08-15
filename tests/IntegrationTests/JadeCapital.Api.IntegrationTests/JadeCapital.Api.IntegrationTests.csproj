@@ -14,7 +14,7 @@
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.0.0" />
     <PackageReference Include="Testcontainers.Redis" Version="4.0.0" />
     <PackageReference Include="Respawn" Version="6.2.1" />
-    <PackageReference Include="Npgsql" Version="9.0.1" />
+    <PackageReference Include="Npgsql" Version="9.0.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\1.Api\JadeCapital.Host\JadeCapital.Host.csproj" />
