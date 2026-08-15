@@ -30,9 +30,28 @@ export class AuthState {
 
   private readonly _user = signal<User | null>(this.loadUser());
   private readonly _accessToken = signal<string | null>(sessionStorage.getItem(ACCESS_KEY));
+  private readonly _passwordChangeRequired = signal<boolean>(false);
+  private readonly _recoveryGrant = signal<string | null>(null);
+  private readonly _generation = signal<number>(0);
 
   readonly user = this._user.asReadonly();
   readonly isAuthenticated = computed(() => this._accessToken() !== null && this._user() !== null);
+  readonly isAdmin = computed(() => this._user()?.role === 'Admin');
+  readonly passwordChangeRequired = this._passwordChangeRequired.asReadonly();
+  readonly recoveryGrant = this._recoveryGrant.asReadonly();
+  readonly generation = this._generation.asReadonly();
+
+  markPasswordChangeRequired(grantJti: string, generation: number): void {
+    this._recoveryGrant.set(grantJti);
+    this._generation.set(generation);
+    this._passwordChangeRequired.set(true);
+  }
+
+  clearPasswordChangeRequired(): void {
+    this._recoveryGrant.set(null);
+    this._generation.set(0);
+    this._passwordChangeRequired.set(false);
+  }
 
   private refreshInProgress$: Observable<boolean> | null = null;
 

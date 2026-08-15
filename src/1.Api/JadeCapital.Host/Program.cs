@@ -1,15 +1,22 @@
+using JadeCapital.Admin.Api.Authorization;
+using JadeCapital.Admin.Api.Endpoints;
+using JadeCapital.Billing.Infrastructure.DependencyInjection;
+using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Application.Features.Auth.Register;
 using JadeCapital.Identity.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
+using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -27,6 +34,7 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
        .ReadFrom.Services(services)
        .Enrich.FromLogContext()
        .Enrich.WithProperty("Application", "JadeCapital.Host")
+       .Filter.With(new JadeCapital.Host.PiiLogScrubber())
        .WriteTo.Console();
 });
 
@@ -62,13 +70,36 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(opts =>
+{
+    opts.AddRestrictedScopePolicy();
+    opts.AddAdminOnly();
+});
+// Slice 0f — wire the explicit AdminOnly policy handler. The Identity.Api
+// skeleton required an authenticated user + Admin role claim; the dedicated
+// handler in Admin.Api.Authorization.RequireAdminPolicyHandler makes the
+// authorization seam explicit and denies non-Admin / restricted-scope tokens
+// BEFORE any handler runs (no subscription lookup or mutation side effect).
+builder.Services.AddSingleton<IAuthorizationHandler, RequireAdminPolicyHandler>();
 
 // ===== Identity module =====
 builder.Services.AddIdentityInfrastructure(builder.Configuration);
+builder.Services.AddMailOptions(builder.Configuration);
+// Email transport profile: Mailpit (local dev) by default; override in production
+// with MailKitSmtpEmailSender + Mail__* env vars.
+builder.Services.AddMailpitSmtpEmailSender();
+
+// Uniform-timing gate used by /api/auth/forgot-password.
+builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
+
+// ===== Billing module =====
+// Slice 0f — Admin write-path repositories + UoW + plan/owner lookups. Slice 0e
+// created the EF Core DbContext + configurations + migration; slice 0f wires
+// the application abstractions so the Admin API can resolve the handlers.
+builder.Services.AddBillingInfrastructure(builder.Configuration);
 
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
@@ -78,7 +109,9 @@ builder.Services.AddSharedInfrastructure();
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssemblies(
         typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
-        typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly));
+        typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
+        // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
+        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly));
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -130,6 +163,10 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true
             });
     });
+
+    // Slice 0c — recovery throttle: 5 requests / IP / hour (override via RateLimit:RecoveryPermit).
+    var recoveryPermit = builder.Configuration.GetValue<int?>("RateLimit:RecoveryPermit") ?? 5;
+    options.AddRecoveryThrottle(recoveryPermit);
 });
 
 // ===== Health checks =====
@@ -265,10 +302,14 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 }).AllowAnonymous();
 
 // ===== Modules =====
-app.MapAuthEndpoints();
+app.MapIdentityApi();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
+// Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
+// the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
+// owner, plan, or history information leaks to non-Admins.
+app.MapAdminSubscriptionEndpoints();
 
 app.Run();
 

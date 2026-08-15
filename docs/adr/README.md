@@ -11,6 +11,7 @@ Cada ADR documenta **una** decisión significativa: el contexto, las opciones co
 | [0001](./0001-auto-confirm-on-register.md) | Auto-confirmar email en Register (sin flujo de verificación) | Aceptado | 2026-08-07 |
 | [0002](./0002-background-service-over-hangfire.md) | `BackgroundService` para jobs en lugar de Hangfire (V1) | Aceptado | 2026-08-07 |
 | [0003](./0003-remove-tier-field-from-frontend-user.md) | Eliminar campo `tier` de la interface `User` en frontend | Aceptado | 2026-08-07 |
+| [0004](./0004-size-exception-audit-wave-0.md) | Auditar size:exception pattern de Wave 0 antes de Wave 1 | Propuesto | 2026-08-14 |
 
 ## Convenciones
 

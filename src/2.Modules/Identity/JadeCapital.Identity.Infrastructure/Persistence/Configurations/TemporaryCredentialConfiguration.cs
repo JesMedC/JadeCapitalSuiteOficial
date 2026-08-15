@@ -20,6 +20,7 @@ internal sealed class TemporaryCredentialConfiguration : IEntityTypeConfiguratio
         b.Property(t => t.ActivatedAt).HasColumnName("activated_at");
         b.Property(t => t.ExpiresAt).HasColumnName("expires_at").IsRequired();
         b.Property(t => t.ConsumedAt).HasColumnName("consumed_at");
+        b.Property(t => t.SupersededAt).HasColumnName("superseded_at");
         b.Property(t => t.GrantJti).HasColumnName("grant_jti").HasMaxLength(64);
         b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(t => t.UpdatedAt).HasColumnName("updated_at");

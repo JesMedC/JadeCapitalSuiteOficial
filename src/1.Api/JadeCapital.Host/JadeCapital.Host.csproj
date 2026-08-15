@@ -21,6 +21,9 @@
     <PackageReference Include="MediatR" Version="12.4.1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\2.Modules\Admin\JadeCapital.Admin.Api\JadeCapital.Admin.Api.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Billing\JadeCapital.Billing.Infrastructure\JadeCapital.Billing.Infrastructure.csproj" />
     <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Api\JadeCapital.Identity.Api.csproj" />
     <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
     <ProjectReference Include="..\..\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />

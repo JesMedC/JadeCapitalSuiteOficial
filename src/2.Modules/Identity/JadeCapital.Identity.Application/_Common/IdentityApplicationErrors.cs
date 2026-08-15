@@ -28,5 +28,14 @@ public static class IdentityApplicationErrors
 
         public static readonly Error AccountLockedOut =
             Error.Forbidden("auth.account_locked_out", "Account is temporarily locked out.");
+
+        public static readonly Error RecoveryInvalid =
+            Error.Unauthorized("auth.recovery_invalid", "Recovery grant is invalid or has been consumed.");
+
+        public static readonly Error RecoveryExpired =
+            Error.Unauthorized("auth.recovery_expired", "Recovery grant has expired.");
+
+        public static readonly Error ConcurrentUpdate =
+            Error.Conflict("auth.concurrent_update", "Another change is in progress for this user.");
     }
 }

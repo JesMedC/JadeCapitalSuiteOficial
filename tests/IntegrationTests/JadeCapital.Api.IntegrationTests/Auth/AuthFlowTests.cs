@@ -18,9 +18,11 @@ public record TokenResponse(
 public class AuthFlowTests : IClassFixture<JadeApiFactory>
 {
     private readonly HttpClient _client;
+    private readonly JadeApiFactory _factory;
 
     public AuthFlowTests(JadeApiFactory factory)
     {
+        _factory = factory;
         _client = factory.CreateClient();
     }
 
@@ -130,10 +132,17 @@ public class AuthFlowTests : IClassFixture<JadeApiFactory>
     [Fact]
     public async Task RateLimit_Login_BlocksAfter10Attempts()
     {
+        // Override RateLimit:AuthPermit solo en este test para validar la policy
+        // sin afectar los otros tests del fixture (que comparten bucket por IP).
+        using var rateLimitedFactory = _factory.WithWebHostBuilder(b =>
+            b.ConfigureAppConfiguration((_, cfg) => cfg.AddInMemoryCollection(
+                new Dictionary<string, string?> { ["RateLimit:AuthPermit"] = "10" })));
+        using var rateLimitedClient = rateLimitedFactory.CreateClient();
+
         // Disparar 15 requests de login (algunos seran 401 invalidos).
         // Despues del 10mo, debe retornar 429.
         var tasks = Enumerable.Range(0, 15)
-            .Select(_ => _client.PostAsJsonAsync("/api/auth/login",
+            .Select(_ => rateLimitedClient.PostAsJsonAsync("/api/auth/login",
                 new LoginRequest("attacker" + "@" + "test.com", "wrongpass")))
             .ToArray();
 

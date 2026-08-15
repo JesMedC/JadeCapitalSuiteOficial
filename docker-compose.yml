@@ -34,6 +34,19 @@ services:
       retries: 10
     networks: [jadenet]
 
+  mailpit:
+    # Slice 0c — local SMTP capture. Mailpit exposes 1025 (SMTP) + 8025 (web UI).
+    # Browsing localhost:8025 lets the dev inspect every recovery email sent by
+    # the API. Production should NOT depend on Mailpit; Mail__Host/Port override
+    # via env vars to point at the real SMTP relay.
+    image: axllent/mailpit:latest
+    container_name: jade-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP intake (MAIL_HOST=mailpit, MAIL_PORT=1025)
+      - "8025:8025"  # Web UI for inspecting captured mail
+    networks: [jadenet]
+
   minio:
     image: quay.io/minio/minio:latest
     container_name: jade-minio
@@ -61,7 +74,8 @@ services:
       dockerfile: migrate.Dockerfile
     container_name: jade-migrate
     depends_on:
-      postgres: { condition: service_healthy }
+      postgres:
+        condition: service_healthy
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -76,9 +90,14 @@ services:
     container_name: jade-api
     restart: unless-stopped
     depends_on:
-      migrate: { condition: service_completed_successfully }
-      redis:   { condition: service_healthy }
-      minio:   { condition: service_healthy }
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:8080
@@ -96,13 +115,26 @@ services:
       Cors__Origins__0: ${CORS_ORIGIN}
       Cors__Origins__1: http://localhost:4200
       Cors__Origins__2: http://localhost:8080
+      # Slice 0c — recovery email transport
+      Mail__Host: ${MAIL__HOST}
+      Mail__Port: ${MAIL__PORT}
+      Mail__Username: ${MAIL__USERNAME}
+      Mail__Password: ${MAIL__PASSWORD}
+      Mail__From: ${MAIL__FROM}
+      Mail__UseStartTls: ${MAIL__USE_START_TLS}
       # Rate limit permisivo en dev (en prod real, bajar).
       RateLimit__AuthPermit: ${RATE_LIMIT_AUTH_PERMIT:-10000}
       RateLimit__ApiPermit: ${RATE_LIMIT_API_PERMIT:-10000}
     # EXPONER 8080 — API + Swagger + Health + Hangfire.
-    ports: ["8080:8080"]
+    ports: ["18080:8080"]
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 || exit 1"]
+      # La imagen aspnet:10.0 es minimalista (no trae wget/curl/nc/bash).
+      # Usamos /proc/net/{tcp,tcp6} para checkear el puerto 8080 (hex 1F90)
+      # en estado LISTEN (0A). El puerto puede estar bindeado a IPv4, IPv6
+      # (dual-stack), o ambos — revisamos los dos.
+      test:
+        - "CMD-SHELL"
+        - "awk 'BEGIN{p=\"1F90\"} NR>1 {split($2,a,\":\"); if (a[2]==p && $4==\"0A\") found=1} END{exit !found}' /proc/net/tcp /proc/net/tcp6"
       interval: 15s
       timeout: 5s
       retries: 5
@@ -116,7 +148,8 @@ services:
     container_name: jade-frontend
     restart: unless-stopped
     depends_on:
-      api: { condition: service_healthy }
+      api:
+        condition: service_healthy
     # EXPONER 4200 — Landing / Login / Register / Dashboard (puerto 80 interno).
     ports: ["4200:80"]
     networks: [jadenet]

@@ -12,6 +12,7 @@ public enum TemporaryCredentialStatus
     Pending = 0,
     Activated = 1,
     Consumed = 2,
+    Superseded = 3,
 }
 
 /// <summary>
@@ -40,6 +41,7 @@ public sealed class TemporaryCredential : Entity<Guid>
     public DateTimeOffset? ActivatedAt { get; private set; }
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? ConsumedAt { get; private set; }
+    public DateTimeOffset? SupersededAt { get; private set; }
     public string? GrantJti { get; private set; }
 
     // EF Core.
@@ -60,6 +62,7 @@ public sealed class TemporaryCredential : Entity<Guid>
         ActivatedAt = null;
         ExpiresAt = initialExpiresAt;
         ConsumedAt = null;
+        SupersededAt = null;
         GrantJti = null;
     }
 
@@ -141,6 +144,35 @@ public sealed class TemporaryCredential : Entity<Guid>
         GrantJti = grantJti;
         Touch();
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Transitions Activated → Superseded (atomic supersession). Called by the
+    /// ForgotPasswordHandler BEFORE reserving a new Pending generation so that
+    /// the prior active credential can never be used to log in once a newer
+    /// recovery email has been sent.
+    ///
+    /// Idempotency rules:
+    /// - From Activated: success, transitions to Superseded.
+    /// - From Superseded: success, no-op (sweeper retries are safe).
+    /// - From Consumed: success, no-op (Consumed is terminal; the audit trail wins).
+    /// - From Pending: failure — only an already-Activated row may be superseded.
+    /// </summary>
+    public Result MarkSuperseded(DateTimeOffset utcNow)
+    {
+        switch (Status)
+        {
+            case TemporaryCredentialStatus.Activated:
+                Status = TemporaryCredentialStatus.Superseded;
+                SupersededAt = utcNow;
+                Touch();
+                return Result.Success();
+            case TemporaryCredentialStatus.Superseded:
+            case TemporaryCredentialStatus.Consumed:
+                return Result.Success();
+            default:
+                return Result.Failure(IdentityDomainErrors.TemporaryCredential.NotActivated);
+        }
     }
 
     /// <summary>

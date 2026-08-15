@@ -42,23 +42,22 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [x] 0a.8 Rollback: revert domain + repository + Application files; keep `0006` applied (inert columns). Slice 0b owns the atomic DB transaction that supersedes older `Activated` rows when a new recovery email is sent — documented in design.md and apply-progress.md.
 
 ## Slice 0b — Recovery Handlers + App Tests (≤332)
-- [ ] 0b.1 🔴 RED: `tests/UnitTests/JadeCapital.Identity.UnitTests/Features/Auth/ForgotPasswordHandlerTests.cs` + `ChangePasswordHandlerTests.cs` — `ReservesSendsCASActivates`, `LoginWithTemp_MarksUsedIssuesGrantJti`, `ChangePassword_ConsumesGrantRevokesIssuesUnrestricted`, `GrantJtiReplayRejected`, `ConcurrentChangeLoserFailsAtomically`, `ChangeWithoutGrantReturnsRecoveryInvalid`.
-- [ ] 0b.2 🟢 GREEN: `ForgotPasswordHandler`, `LoginWithTemporaryHandler`, `ChangePasswordWithGrantHandler`, `ChangePasswordVoluntaryHandler` in `JadeCapital.Identity.Application/Features/Recovery/`; wire `IRefreshTokenRevoker`, `IPasswordHistoryRepository`, `IDistributedLock` (users row).
-- [ ] 0b.3 🟡 REFACTOR: shared `RecoveryGrantValidator`; intent-revealing test names.
-- [ ] 0b.4 Verify: `dotnet test .../JadeCapital.Identity.UnitTests --nologo --verbosity minimal`; `git diff --stat` <400.
-- [ ] 0b.5 Security: session-replacement (pre-change `session_version` cannot refresh); revoke-on-change.
-- [ ] 0b.6 Rollback: drop handlers; keep domain + repository.
+- [x] 0b.1 RED tests + 0b.2 GREEN handlers — 6 spec names, code diff = 394.
+- [x] 0b.3 REFACTOR: shared abstractions in `RecoveryAbstractions.cs`.
+- [x] 0b.4 Verify: 120/120 tests pass.
+- [x] 0b.5 Security: SessionVersion bumped (pre-change tokens rejected); revoke under per-user lock.
+- [x] 0b.6 Rollback: drop handlers + `RecoveryAbstractions.cs`; keep Domain + `0006` schema.
 
 ## Slice 0c — SMTP/Transport + API/Host + Integration/Config (≤286)
-- [ ] 0c.1 🔴 RED: `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Auth/PasswordRecoveryFlowTests.cs` — `ForgotPassword_Always200Generic`, `TimingBodyStatusIndistinguishable`, `Throttle5PerHourPerIp`, `InMemorySender_NeverLogsBody`, `SmtpFailure_DoesNotActivate`.
-- [ ] 0c.2 🟢 GREEN: `IEmailSender` w/ `MailKitSmtpEmailSender`, `MailpitSmtpEmailSender`, `InMemoryCapturingEmailSender` in `src/3.Shared/JadeCapital.Shared.Infrastructure/Email/`.
-- [ ] 0c.3 🟢 GREEN: minimal-API endpoints `POST /api/auth/forgot-password`, `POST /api/auth/change-password` in `JadeCapital.Identity.Api/Endpoints/AuthEndpoints.cs`; RFC7807 `auth.recovery_invalid|auth.password_reused|concurrent_update`.
-- [ ] 0c.4 🟢 GREEN Host: `AddIdentityInfrastructure`, `MapIdentityApi`, `AddMailOptions`, `AddAdminOnly`, restricted-scope middleware; uniform-timing 14s±250ms w/ dummy PBKDF2; throttle 5/hour/IP in `src/1.Api/JadeCapital.Host/Program.cs`.
-- [ ] 0c.5 🟢 `docker-compose.yml`: add `mailpit` service (`axllent/mailpit:latest`, ports 1025/8025); `.env.example`: add `Mail__Host/Port/Username/Password/From/UseStartTls`.
-- [ ] 0c.6 🟡 REFACTOR: `IUniformTimingGate`; trim mapper allocations.
-- [ ] 0c.7 Verify: `dotnet test .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal` w/ Testcontainers Postgres+Mailpit; `git diff --stat` <400.
-- [ ] 0c.8 Security: log-scrubber (no plaintext password/token/hash/body); Serilog config assertion.
-- [ ] 0c.9 Rollback: unmap endpoints; unset `Mail__*` env.
+- [x] 0c.1 🔴 RED: `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Auth/PasswordRecoveryFlowTests.cs` — `ForgotPassword_Always200Generic`, `TimingBodyStatusIndistinguishable`, `Throttle5PerHourPerIp`, `InMemorySender_NeverLogsBody`, `SmtpFailure_DoesNotActivate`.
+- [x] 0c.2 🟢 GREEN: `IEmailSender` w/ `MailKitSmtpEmailSender`, `MailpitSmtpEmailSender`, `InMemoryCapturingEmailSender` in `src/3.Shared/JadeCapital.Shared.Infrastructure/Email/`.
+- [x] 0c.3 🟢 GREEN: minimal-API endpoints `POST /api/auth/forgot-password`, `POST /api/auth/change-password` in `JadeCapital.Identity.Api/Endpoints/AuthEndpoints.cs`; RFC7807 `auth.recovery_invalid|auth.password_reused|concurrent_update`.
+- [x] 0c.4 🟢 GREEN Host: `AddIdentityInfrastructure`, `MapIdentityApi`, `AddMailOptions`, `AddAdminOnly`, restricted-scope middleware; uniform-timing 14s±250ms w/ dummy PBKDF2; throttle 5/hour/IP in `src/1.Api/JadeCapital.Host/Program.cs`.
+- [x] 0c.5 🟢 `docker-compose.yml`: add `mailpit` service (`axllent/mailpit:latest`, ports 1025/8025); `.env.example`: add `Mail__Host/Port/Username/Password/From/UseStartTls`.
+- [x] 0c.6 🟡 REFACTOR: `IUniformTimingGate`; trim mapper allocations.
+- [x] 0c.7 Verify: `dotnet test .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal` w/ Testcontainers Postgres+Mailpit; `git diff --stat` <400.
+- [x] 0c.8 Security: log-scrubber (no plaintext password/token/hash/body); Serilog config assertion.
+- [x] 0c.9 Rollback: unmap endpoints; unset `Mail__*` env.
 
 ## Slice 0d — Angular Recovery State/Guards/Pages + Jest Harness (≤384)
 - [ ] 0d.1 🟢 PRE: add minimal Jest harness in `frontend/`: `package.json` devDeps `jest@29 ts-jest@29 @types/jest@29 jest-preset-angular@14`; `frontend/jest.config.js` (ts-jest preset, `testEnvironment:'jsdom'`, `setupFilesAfterEach`); `frontend/src/setup-jest.ts`. This is the *only* slice that adds frontend test infra.
@@ -73,25 +72,25 @@ User confirmed `feature-branch-chain` (Engram obs #395); `auto`+`force-chained`.
 - [ ] 0d.10 Rollback: remove routes/guard/state fields; revert Jest harness.
 
 ## Slice 0e — Billing Aggregate + SQL 0007 + New Test Project (≤394)
-- [ ] 0e.1 🟢 PRE: create `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` (xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0; refs `JadeCapital.Billing.Domain` + `JadeCapital.Billing.Application`) + `GlobalUsings.cs`. Add to `JadeCapital.slnx`.
-- [ ] 0e.2 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Subscriptions/SubscriptionTests.cs` — `ChangesTierAppendsHistory`, `Cancel_FromCancellableState`, `ExtendTrial_RejectsExpiredDateOrNonActiveTrial`, `NoOp_Rejection_NoHistory`, `ConcurrentMutation_ExactlyOneWins_ViaVersion`, `HistoryOrder_NewestFirst_StableTieBreaker`, `EligiblePlanOnly`.
-- [ ] 0e.3 🟢 GREEN: `Plan`, `Subscription` aggregates, VOs `PlanCode`, `SubscriptionPeriod`; events `SubscriptionTierChanged/Cancelled/TrialExtended` in `JadeCapital.Billing.Domain/Subscriptions/`.
-- [ ] 0e.4 🟢 EF configs + indexes (`subscriptions.user UNIQUE`, `(status,updated_at DESC)`, `version`); append-only `subscription_history(subscription_id,occurred_at DESC,id DESC)` in `JadeCapital.Billing.Infrastructure/Persistence/Configurations/`.
-- [ ] 0e.5 🟡 REFACTOR: `ISubscriptionMutator`; dedupe Tier/Cancel/Extend rules.
-- [ ] 0e.6 Hand-author `infrastructure/postgres/migrations/2026MMDD_0007_BillingSubscriptions.sql` (idempotent, additive only); append `COPY` + `psql -v ON_ERROR_STOP=1 -f` invocation in `migrate.Dockerfile`.
-- [ ] 0e.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests --nologo --verbosity minimal`; `psql -v ON_ERROR_STOP=1 -f …0007_BillingSubscriptions.sql` twice (both exit 0); `git diff --stat` <400.
-- [ ] 0e.8 Rollback: revert domain files + delete `JadeCapital.Billing.UnitTests` project; keep `0007` applied (inert columns).
+- [x] 0e.1 🟢 PRE: create `tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj` (xUnit 2.9.2, FluentAssertions 7.0.0, NSubstitute 5.3.0; refs `JadeCapital.Billing.Domain` + `JadeCapital.Billing.Application`) + `GlobalUsings.cs`. Add to `JadeCapital.slnx`.
+- [x] 0e.2 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Subscriptions/SubscriptionTests.cs` — `ChangesTierAppendsHistory`, `Cancel_FromCancellableState`, `ExtendTrial_RejectsExpiredDateOrNonActiveTrial`, `NoOp_Rejection_NoHistory`, `ConcurrentMutation_ExactlyOneWins_ViaVersion`, `HistoryOrder_NewestFirst_StableTieBreaker`, `EligiblePlanOnly`.
+- [x] 0e.3 🟢 GREEN: `Plan`, `Subscription` aggregates, VOs `PlanCode`, `SubscriptionPeriod`; events `SubscriptionTierChanged/Cancelled/TrialExtended` in `src/2.Modules/Billing/JadeCapital.Billing.Domain/Subscriptions/`.
+- [x] 0e.4 🟢 EF configs + indexes (`subscriptions.user UNIQUE`, `(status,updated_at DESC)`, `version`); append-only `subscription_history(subscription_id,occurred_at DESC,id DESC)` in `JadeCapital.Billing.Infrastructure/Persistence/Configurations/`.
+- [x] 0e.5 🟡 REFACTOR: `ISubscriptionMutator`; dedupe Tier/Cancel/Extend rules.
+- [x] 0e.6 Hand-author `infrastructure/postgres/migrations/2026MMDD_0007_BillingSubscriptions.sql` (idempotent, additive only); append `COPY` + `psql -v ON_ERROR_STOP=1 -f` invocation in `migrate.Dockerfile`.
+- [x] 0e.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests --nologo --verbosity minimal`; `psql -v ON_ERROR_STOP=1 -f …0007_BillingSubscriptions.sql` twice (both exit 0); `git diff --stat` <400.
+- [x] 0e.8 Rollback: revert domain files + delete `JadeCapital.Billing.UnitTests` project; keep `0007` applied (inert columns).
 
 ## Slice 0f — Billing Handlers + Admin.Api + IUserOwnerProjection + Host/Authz (≤338)
-- [ ] 0f.1 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/{List,ChangeTier,Cancel,ExtendTrial}Tests.cs` + `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/AdminAuthorizationTests.cs` — `ListSubscriptions_PagedByQuery`, `ChangeTier_RequiresVersion`, `Cancel_RecordsActorAndTimestamp`, `ExtendTrial_RejectsIfNotActiveTrial`, `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken`, `OwnerProjection_ExposesOnlyEmailAndDisplayName`.
-- [ ] 0f.2 🟢 GREEN: handlers in `JadeCapital.Billing.Application/Features/Subscriptions/`; contracts DTOs in `JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs`.
-- [ ] 0f.3 🟢 PRE: create new csproj `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` (refs `JadeCapital.Billing.Application` + `JadeCapital.Identity.Contracts`); add to `JadeCapital.slnx`.
-- [ ] 0f.4 🟢 GREEN: thin `JadeCapital.Admin.Api/Endpoints/AdminSubscriptionEndpoints.cs` (list/search, detail+owner+history, tier, cancel, trial extend); `IUserOwnerProjection` in `JadeCapital.Identity.Contracts/Projections/IUserOwnerProjection.cs` (read-only, exposes only `Email` + `DisplayName`).
-- [ ] 0f.5 🟢 GREEN Host: `AddBillingInfrastructure`, `MapAdminApi`, `AddAdminOnly` policy in `src/1.Api/JadeCapital.Host/Program.cs`; reuse restricted-scope middleware.
-- [ ] 0f.6 🟡 REFACTOR: `RequireAdminPolicyHandler`; collapse DTO duplication.
-- [ ] 0f.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal`; runtime `dotnet run` + curl Admin API with Admin/non-Admin/forced-change tokens; `git diff --stat` <400.
-- [ ] 0f.8 Security: denial-before-lookup (no subscription data leak); projection narrowing; narrow-scope (no role/suspend/impersonate routes).
-- [ ] 0f.9 Rollback: unmap Admin API endpoints; remove `JadeCapital.Admin.Api` csproj from `JadeCapital.slnx`; keep data.
+- [x] 0f.1 🔴 RED: `tests/UnitTests/JadeCapital.Billing.UnitTests/Features/Subscriptions/{List,ChangeTier,Cancel,ExtendTrial}Tests.cs` + `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/AdminAuthorizationTests.cs` — `ListSubscriptions_PagedByQuery`, `ChangeTier_RequiresVersion`, `Cancel_RecordsActorAndTimestamp`, `ExtendTrial_RejectsIfNotActiveTrial`, `AdminEndpoint_RejectsNonAdmin_BeforeLookup`, `AdminEndpoint_RejectsForcedChangeToken`, `OwnerProjection_ExposesOnlyEmailAndDisplayName`.
+- [x] 0f.2 � GREEN: handlers in `JadeCapital.Billing.Application/Features/Subscriptions/`; contracts DTOs in `JadeCapital.Billing.Contracts/Subscriptions/SubscriptionDtos.cs`.
+- [x] 0f.3 🟢 PRE: create new csproj `src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj` (refs `JadeCapital.Billing.Application` + `JadeCapital.Identity.Contracts`); add to `JadeCapital.slnx`.
+- [x] 0f.4 � GREEN: thin `JadeCapital.Admin.Api/Endpoints/AdminSubscriptionEndpoints.cs` (list/search, detail+owner+history, tier, cancel, trial extend); `IUserOwnerProjection` in `JadeCapital.Identity.Contracts/Projections/IUserOwnerProjection.cs` (read-only, exposes only `Email` + `DisplayName`).
+- [x] 0f.5 🟢 GREEN Host: `AddBillingInfrastructure`, `MapAdminApi`, `AddAdminOnly` policy in `src/1.Api/JadeCapital.Host/Program.cs`; reuse restricted-scope middleware.
+- [x] 0f.6 🟡 REFACTOR: `RequireAdminPolicyHandler`; collapse DTO duplication.
+- [x] 0f.7 Verify: `dotnet test .../JadeCapital.Billing.UnitTests .../JadeCapital.Api.IntegrationTests --nologo --verbosity minimal`; runtime `dotnet run` + curl Admin API with Admin/non-Admin/forced-change tokens; `git diff --stat` <400.
+- [x] 0f.8 Security: denial-before-lookup (no subscription data leak); projection narrowing; narrow-scope (no role/suspend/impersonate routes).
+- [x] 0f.9 Rollback: unmap Admin API endpoints; remove `JadeCapital.Admin.Api` csproj from `JadeCapital.slnx`; keep data.
 
 ## Slice 0g — Angular Admin List/Detail/History/State/Routes/Tests (≤386)
 - [ ] 0g.1 🔴 RED: `frontend/src/app/features/admin/__tests__/admin.guard.spec.ts` + `state/__tests__/admin.state.spec.ts` + `subscriptions/__tests__/{list,detail,history}.spec.ts` — `BlocksNonAdmin_AndForcedChange`, `ListSearch_DedupesSignals`, `RefreshesHistoryAfterMutation`, `LoadingEmptyErrorStates_NonOverlapping`, `StaleConflict_PreservesInput`, `HistoryTable_NewestFirst_StableTieBreaker`.

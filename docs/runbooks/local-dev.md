@@ -58,7 +58,7 @@ docker compose exec postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup-$(d
 
 ## 6. Incidente: respuesta lenta de `/api/*`
 
-> ⚠️ El endpoint `/api/trades` todavía no existe — el módulo Trading es scaffold. Esta sección aplica una vez que esté implementado.
+Aplica a cualquier endpoint bajo `/api/*` (trading, billing, admin, identity). El módulo Trading está implementado desde Sprint 1 (Trade/Account/Instrument + Dashboard/Calendar).
 
 1. Verificar carga: `docker stats`.
 2. Verificar queries lentas en logs Serilog.

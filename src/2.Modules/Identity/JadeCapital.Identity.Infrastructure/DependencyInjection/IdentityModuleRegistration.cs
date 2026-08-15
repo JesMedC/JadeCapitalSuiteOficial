@@ -29,12 +29,18 @@ public static class IdentityModuleRegistration
         // ===== Repos =====
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<ITemporaryCredentialRepository, TemporaryCredentialRepository>();
+        services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
+        services.AddScoped<IRefreshTokenRevoker, RefreshTokenRevoker>();
+        services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
 
         // ===== Security =====
         services.AddSingleton<IPasswordHasher>(_ =>
             new Pbkdf2PasswordHasher(iterations: configuration.GetValue<int?>("Security:Pbkdf2Iterations") ?? 100_000));
         services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddSingleton<JadeCapital.Identity.Application.Abstractions.IPasswordChangeReuseChecker,
+            JadeCapital.Identity.Application.Authentication.PasswordChangeReuseChecker>();
 
         // ===== Background services =====
         services.AddHostedService<RefreshTokenCleanupService>();

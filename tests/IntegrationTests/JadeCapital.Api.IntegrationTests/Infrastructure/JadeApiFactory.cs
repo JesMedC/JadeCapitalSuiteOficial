@@ -1,7 +1,12 @@
 using JadeCapital.Host;
+using JadeCapital.Identity.Api;
+using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Shared.Infrastructure.Email;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -40,6 +45,12 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
 
     public string PostgresConnectionString { get; private set; } = string.Empty;
     public string RedisConnectionString { get; private set; } = string.Empty;
+
+    /// <summary>Captured log lines for assertions about PII / body leaks.</summary>
+    public List<string> CapturedLogs { get; } = new();
+
+    /// <summary>The single InMemoryCapturingEmailSender registered for this fixture.</summary>
+    public InMemoryCapturingEmailSender EmailSender { get; } = new(Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryCapturingEmailSender>.Instance);
 
     public async Task InitializeAsync()
     {
@@ -98,9 +109,66 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["Jwt:RefreshTokenTtlDays"] = "14",
                 ["RateLimit:AuthPermit"] = "10000",
                 ["RateLimit:ApiPermit"] = "10000",
-                ["Cors:Origins:0"] = "http://localhost"
+                // Default recovery permit is 5/hour per spec. Tests that need
+                // more can override via WebApplicationFactory.WithWebHostBuilder.
+                ["RateLimit:RecoveryPermit"] = "5",
+                ["Cors:Origins:0"] = "http://localhost",
+                ["Mail:Host"] = "localhost",
+                ["Mail:Port"] = "1025",
+                ["Mail:From"] = "test@jadecapital.test"
             });
         });
+
+        // Replace the Mailpit production sender with the in-memory capturing
+        // sender so integration tests can assert on captured messages.
+        builder.ConfigureServices(services =>
+        {
+            var existing = services.Where(s => s.ServiceType == typeof(IEmailSender)).ToList();
+            foreach (var s in existing) services.Remove(s);
+            services.AddSingleton<IEmailSender>(EmailSender);
+
+            // Replace the slow (14s) uniform-timing gate with a no-op so test
+            // runs aren't gated on real PBKDF2 work. The Indistinguishable test
+            // still proves both branches return the same response shape.
+            var gateDescriptors = services.Where(s => s.ServiceType == typeof(IUniformTimingGate)).ToList();
+            foreach (var s in gateDescriptors) services.Remove(s);
+            services.AddSingleton<IUniformTimingGate>(new NoopTimingGate());
+
+            // Tee the host's logger into CapturedLogs so log-leak assertions work.
+            services.AddLogging(b =>
+            {
+                    b.AddProvider(new TeeLoggerProvider(CapturedLogs));
+                });
+            });
+    }
+
+    /// <summary>No-op timing gate for tests. The prod gate is exercised by
+    /// unit tests; integration tests prove shape, not 14s latency.</summary>
+    private sealed class NoopTimingGate : IUniformTimingGate
+    {
+        public Task AwaitAsync(double targetSeconds, CancellationToken ct = default) => Task.CompletedTask;
+    }
+
+    /// <summary>Tees every log line into an in-memory list so tests can assert
+    /// no plaintext / token / body ever leaks into logs.</summary>
+    private sealed class TeeLoggerProvider : ILoggerProvider
+    {
+        private readonly List<string> _sink;
+        public TeeLoggerProvider(List<string> sink) { _sink = sink; }
+        public ILogger CreateLogger(string categoryName) => new TeeLogger(categoryName, _sink);
+        public void Dispose() { }
+        private sealed class TeeLogger : ILogger
+        {
+            private readonly string _cat; private readonly List<string> _sink;
+            public TeeLogger(string cat, List<string> sink) { _cat = cat; _sink = sink; }
+            public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+            public bool IsEnabled(LogLevel logLevel) => true;
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                _sink.Add($"[{logLevel}] {_cat}: {formatter(state, exception)}");
+            }
+            private sealed class NullScope : IDisposable { public static readonly NullScope Instance = new(); public void Dispose() { } }
+        }
     }
 
     private async Task ApplyMigrationAsync()
@@ -112,21 +180,20 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
         await using (var enable = new Npgsql.NpgsqlCommand("CREATE EXTENSION IF NOT EXISTS citext;", conn))
             await enable.ExecuteNonQueryAsync();
 
-        var sqlPath = Path.Combine(AppContext.BaseDirectory, "Migrations", "20260806_0001_InitialIdentitySchema.sql");
-        if (!File.Exists(sqlPath))
-        {
-            // Buscar el archivo fuente (el test runner no copia el .sql al output).
-            // 6 niveles arriba de bin/Debug/net10.0/ llegan a la raiz del repo.
-            var srcPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..",
-                "src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Persistence/Migrations/20260806_0001_InitialIdentitySchema.sql"));
-            if (File.Exists(srcPath))
-                sqlPath = srcPath;
-            else
-                throw new FileNotFoundException($"Migration SQL not found. Tried: {sqlPath}");
-        }
+        // Apply every hand-authored SQL migration from infrastructure/postgres/migrations/.
+        // Order is directory sort (0001, 0006, 0007). All scripts are idempotent
+        // (CREATE TABLE/INDEX IF NOT EXISTS, ADD COLUMN IF NOT EXISTS).
+        var migrationsDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..",
+            "infrastructure/postgres/migrations"));
+        if (!Directory.Exists(migrationsDir))
+            throw new DirectoryNotFoundException($"Migrations directory not found: {migrationsDir}");
 
-        var sql = await File.ReadAllTextAsync(sqlPath);
-        await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
-        await cmd.ExecuteNonQueryAsync();
+        var files = Directory.GetFiles(migrationsDir, "*.sql").OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).ToArray();
+        foreach (var file in files)
+        {
+            var sql = await File.ReadAllTextAsync(file);
+            await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 }
