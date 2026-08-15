@@ -1,5 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { from } from 'rxjs';
+import { PlanApiService } from '@core/api/plan-api.service';
+import { PlanInfo } from '@core/api/plan-info';
 import { AuthState } from '@core/state/auth.state';
 
 interface Feature {
@@ -8,15 +12,26 @@ interface Feature {
   iconPath: string;
 }
 interface Plan {
-  code: 'inicial' | 'profesional' | 'elite';
+  code: string;
   name: string;
   monthly: number;
   annual: number;
   blurb: string;
   features: readonly string[];
-  highlight?: boolean;
+  highlight: boolean;
 }
 interface Faq { q: string; a: string; }
+
+// Marketing copy per plan code. Backend exposes only price/name/currency
+// via GET /api/billing/plans — the bullet lists, highlight flag and blurb
+// are owned by the landing-page and merged at render time. Annual price is
+// a marketing-derived number (20% off monthly) computed locally; the
+// backend does not (yet) expose it.
+const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: string; highlight: boolean; annualDiscount: number }> = {
+  starter: { features: ['1 cuenta', 'Registro ilimitado de operaciones', 'Reportes basicos', 'Soporte por email'],         blurb: 'Para traders que comienzan.',     highlight: false, annualDiscount: 0.20 },
+  pro:     { features: ['Hasta 5 cuentas', 'Metricas avanzadas y filtros', 'Reportes personalizados', 'Exportacion de datos (CSV)', 'Soporte prioritario'], blurb: 'Para traders que quieren crecer.', highlight: true,  annualDiscount: 0.20 },
+  elite:   { features: ['Cuentas ilimitadas', 'Analisis avanzado de rendimiento', 'Backtesting de estrategias', 'Alertas y objetivos personalizados', 'Soporte VIP'],     blurb: 'Para traders exigentes.',         highlight: false, annualDiscount: 0.20 },
+};
 
 @Component({
   selector: 'jcs-landing-page',
@@ -241,7 +256,7 @@ interface Faq { q: string; a: string; }
           <span class="hint">Ahorra 2 meses con el plan anual</span>
         </div>
         <div class="plans-grid">
-          @for (p of plans; track p.code) {
+          @for (p of plans(); track p.code) {
             <article class="plan" [class.plan--highlight]="p.highlight">
               @if (p.highlight) { <span class="plan-flag">MÁS ELEGIDO</span> }
               <header class="plan-head">
@@ -529,7 +544,10 @@ interface Faq { q: string; a: string; }
 })
 export class LandingPage {
   readonly auth = inject(AuthState);
+  private readonly api = inject(PlanApiService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly annual = signal(false);
+  readonly plans = signal<readonly Plan[]>([]);
 
   readonly features: readonly Feature[] = [
     { title: 'Controla tus cuentas', body: 'Gestiona multiples cuentas, visualiza saldos en tiempo real y sigue la evolucion de tu capital.', iconPath: 'M3 7h18M3 12h18M3 17h18' },
@@ -538,11 +556,28 @@ export class LandingPage {
     { title: 'Mejora tu disciplina', body: 'Detecta patrones, controla el riesgo y toma decisiones basadas en datos, no en emociones.', iconPath: 'M12 2l3 7h7l-7 3 3 7-3-7-7 3 7-7-3 3-7 7z' },
   ];
 
-  readonly plans: readonly Plan[] = [
-    { code: 'inicial', name: 'Inicial', monthly: 9, annual: 7, blurb: 'Para traders que comienzan.', features: ['1 cuenta', 'Registro ilimitado de operaciones', 'Reportes basicos', 'Soporte por email'] },
-    { code: 'profesional', name: 'Profesional', monthly: 19, annual: 15, blurb: 'Para traders que quieren crecer.', features: ['Hasta 5 cuentas', 'Metricas avanzadas y filtros', 'Reportes personalizados', 'Exportacion de datos (CSV)', 'Soporte prioritario'], highlight: true },
-    { code: 'elite', name: 'Elite', monthly: 29, annual: 23, blurb: 'Para traders exigentes.', features: ['Cuentas ilimitadas', 'Analisis avanzado de rendimiento', 'Backtesting de estrategias', 'Alertas y objetivos personalizados', 'Soporte VIP'] },
-  ];
+  constructor() {
+    from(this.api.list())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(api => this.plans.set(this.mergeWithMarketing(api)));
+  }
+
+  private mergeWithMarketing(api: readonly PlanInfo[]): readonly Plan[] {
+    return api.map(p => {
+      const meta = PLAN_MARKETING[p.code] ?? { features: [], blurb: '', highlight: false, annualDiscount: 0.20 };
+      const monthly = p.monthlyPrice;
+      const annual = Math.round(monthly * (1 - meta.annualDiscount));
+      return {
+        code: p.code,
+        name: p.name,
+        monthly,
+        annual,
+        blurb: meta.blurb,
+        features: meta.features,
+        highlight: meta.highlight,
+      };
+    });
+  }
 
   readonly faqs: readonly Faq[] = [
     { q: '¿Que tipos de operaciones puedo registrar?', a: 'Forex, binarias, indices, cripto y futuros. Cada tipo con sus campos especificos.' },
