@@ -84,7 +84,7 @@ import {
                 #nameInput
                 type="text"
                 class="sp-input"
-                [maxlength]="NAME_MAX"
+                [attr.maxlength]="NAME_MAX"
                 [value]="formName()"
                 (input)="formName.set($any(nameInput).value)"
                 required
@@ -99,7 +99,7 @@ import {
               <textarea
                 class="sp-textarea"
                 rows="2"
-                [maxlength]="DESCRIPTION_MAX"
+                [attr.maxlength]="DESCRIPTION_MAX"
                 [value]="formDescription()"
                 (input)="formDescription.set($any($event.target).value)"
                 data-testid="strategies-form-description"></textarea>
@@ -137,7 +137,7 @@ import {
               <textarea
                 class="sp-textarea"
                 rows="3"
-                [maxlength]="RULES_MAX"
+                [attr.maxlength]="RULES_MAX"
                 [value]="formRules()"
                 (input)="formRules.set($any($event.target).value)"
                 data-testid="strategies-form-rules"></textarea>
