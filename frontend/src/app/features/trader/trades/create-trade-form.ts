@@ -36,6 +36,9 @@ import {
   PreTradeChecklist,
   PreTradeChecklistPayload,
 } from './pre-trade-checklist';
+import { PositionSizeCalculator } from './position-size-calculator';
+import { PositionSizeCalcResult } from '@core/api/position-size.service';
+import { RiskProfileState } from '@core/state/risk-profile.state';
 
 type TradeTab = MarketType;
 
@@ -51,7 +54,7 @@ const SLIDE_ANIMATION_MS = 280;
 @Component({
   selector: 'jcs-create-trade-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, PreTradeChecklist],
+  imports: [ReactiveFormsModule, RouterLink, PreTradeChecklist, PositionSizeCalculator],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (rendered()) {
@@ -646,6 +649,13 @@ const SLIDE_ANIMATION_MS = 280;
           </div>
 
           <footer class="panel-foot">
+            <!-- ============== Position-size calculator (slice 1b) ============== -->
+            <jcs-position-size-calculator
+              class="panel-calculator"
+              [profile]="riskProfile.profile()"
+              [defaultStopLossDistance]="defaultStopLossForCalc()"
+              (calculated)="onPositionSizeCalculated($event)" />
+
             <!-- ============== Pre-trade checklist (slice 1c.2) ============== -->
             <jcs-pre-trade-checklist
               class="panel-checklist"
@@ -825,6 +835,7 @@ const SLIDE_ANIMATION_MS = 280;
       overflow-y: auto;
     }
     .panel-checklist { display: block; }
+    .panel-calculator { display: block; }
     .panel-actions {
       display: flex;
       justify-content: flex-end;
@@ -1143,6 +1154,8 @@ export class CreateTradeForm implements OnDestroy {
   private readonly tradeApi = inject(TradeApiService);
   readonly accountState = inject(AccountState);
   readonly instrumentState = inject(InstrumentState);
+  /** Slice 1b: active risk profile — fed into the position-size calculator. */
+  readonly riskProfile = inject(RiskProfileState);
 
   readonly visible = input.required<boolean>();
   readonly saved = output<TradeDto>();
@@ -1509,6 +1522,9 @@ export class CreateTradeForm implements OnDestroy {
     await Promise.all([
       this.accountState.load(),
       this.instrumentState.load(),
+      // Slice 1b: position-size calculator needs the active profile.
+      // The state is cache-friendly too; safe to load in parallel.
+      this.riskProfile.load(),
     ]);
   }
 
@@ -1549,6 +1565,35 @@ export class CreateTradeForm implements OnDestroy {
     this.checklistErrorCode.set(null);
     this.checklistFieldErrors.set([]);
   }
+
+  // ===== Position-size calculator handlers (slice 1b) =====
+  /**
+   * Pre-populates the form's `volume` field with the calculator's output.
+   * The trader can still override it manually — the calculator is informational.
+   */
+  onPositionSizeCalculated(result: PositionSizeCalcResult): void {
+    const tab = this.activeTab();
+    if (tab === 1) {
+      this.form.controls.volume.setValue(result.volume);
+    } else {
+      // Binary tab uses `amount` (importe), not `volume` (lots).
+      // The calculator returns base units which don't map directly to binary
+      // "importe" — we leave the binary field alone in this slice.
+      return;
+    }
+  }
+
+  /**
+   * The calculator's default stop-loss input is |entry - sl| from the form,
+   * pre-populated so the user doesn't have to re-type it.
+   */
+  readonly defaultStopLossForCalc = computed<number>(() => {
+    const entry = this.entryPriceValue();
+    const sl = this.stopLossValue();
+    if (!entry || !sl) return 0;
+    const dist = Math.abs(entry - sl);
+    return Number.isFinite(dist) && dist > 0 ? dist : 0;
+  });
 
   async submit(): Promise<void> {
     if (!this.canSubmit()) {
