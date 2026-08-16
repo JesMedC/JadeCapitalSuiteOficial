@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Instruments;
+using JadeCapital.Trading.Domain.Journal;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
 using JadeCapital.Trading.Domain.Trades;
 using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
@@ -12,7 +13,8 @@ namespace JadeCapital.Trading.Infrastructure.Persistence;
 /// <summary>
 /// DbContext del modulo Trading. Esquema dedicado "trading".
 /// Tablas: trading.accounts, trading.instruments, trading.trades,
-/// trading.pre_trade_checklists.
+/// trading.pre_trade_checklists, trading.trade_reviews,
+/// trading.trade_attachments, trading.journal_entries.
 /// </summary>
 public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
@@ -26,6 +28,8 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 1d.1 — post-trade reviews + attachments.
     public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeReviews.TradeReview> TradeReviews => Set<JadeCapital.Trading.Domain.TradeReviews.TradeReview>();
     public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment> TradeAttachments => Set<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment>();
+    // Slice 2a.1 — daily journal entries.
+    public Microsoft.EntityFrameworkCore.DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,6 +40,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new PreTradeChecklistConfiguration());
         modelBuilder.ApplyConfiguration(new TradeReviewConfiguration());
         modelBuilder.ApplyConfiguration(new TradeAttachmentConfiguration());
+        modelBuilder.ApplyConfiguration(new JournalEntryConfiguration());
     }
 }
 

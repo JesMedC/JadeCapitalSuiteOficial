@@ -33,6 +33,8 @@ public static class TradingModuleRegistration
         services.AddScoped<IPreTradeChecklistRepository, ChecklistRepository>();
         // Slice 1d.1 — post-trade review + attachment persistence.
         services.AddScoped<ITradeReviewRepository, TradeReviewRepository>();
+        // Slice 2a.1 — daily journal persistence.
+        services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         // ===== Metrics read store (slice 1f) =====

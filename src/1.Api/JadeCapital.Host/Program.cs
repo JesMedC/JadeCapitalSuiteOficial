@@ -94,6 +94,13 @@ builder.Services.AddMailpitSmtpEmailSender();
 // Uniform-timing gate used by /api/auth/forgot-password.
 builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
+// Slice 2a.1 — HTTP context accessor (consumed by HttpHeaderTimezoneAccessor)
+// and the timezone accessor itself. Singleton because both are stateless
+// thread-safe helpers.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<JadeCapital.Trading.Application.Abstractions.IUserTimezoneAccessor,
+    JadeCapital.Trading.Api.Timezone.HttpHeaderTimezoneAccessor>();
+
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
 
@@ -324,6 +331,8 @@ app.MapTraderMetricsEndpoints();
 app.MapPositionSizeEndpoints();
 // Slice 1d.1 — post-trade review + MinIO attachment endpoints.
 app.MapTradeReviewEndpoints();
+// Slice 2a.1 — daily journal endpoints (GET today, GET range, POST upsert, DELETE).
+app.MapJournalEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
