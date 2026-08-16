@@ -363,4 +363,49 @@ public static class TradingDomainErrors
             Error.NotFound("journal.not_found",
                 "Journal entry not found for the given date.");
     }
+
+    /// <summary>
+    /// Errores del bounded context de Strategies (slice 3a).
+    ///
+    /// Los codigos llevan prefijo <c>strategy.</c>. Las validaciones
+    /// (name vacio, name demasiado largo, etc.) son <see cref="Error.Validation"/>
+    /// y mapean a 400. El duplicate-name (otro active con el mismo name)
+    /// es <see cref="Error.Conflict"/> y mapea a 409. El not-found es
+    /// <see cref="Error.NotFound"/> y mapea a 404.
+    /// </summary>
+    public static class Strategy
+    {
+        public static readonly Error UserIdRequired =
+            Error.Validation("strategy.user_id_required", "User id is required.");
+
+        public static readonly Error NameRequired =
+            Error.Validation("strategy.name_required", "Strategy name is required.");
+
+        public static readonly Error NameTooLong =
+            Error.Validation("strategy.name_too_long",
+                $"Strategy name must be at most {JadeCapital.Trading.Domain.Strategies.Strategy.MaxNameLength} characters.");
+
+        public static readonly Error DescriptionTooLong =
+            Error.Validation("strategy.description_too_long",
+                $"Strategy description must be at most {JadeCapital.Trading.Domain.Strategies.Strategy.MaxDescriptionLength} characters.");
+
+        public static readonly Error RulesTooLong =
+            Error.Validation("strategy.rules_too_long",
+                $"Strategy rules must be at most {JadeCapital.Trading.Domain.Strategies.Strategy.MaxRulesLength} characters.");
+
+        public static readonly Error InvalidTimeframe =
+            Error.Validation("strategy.invalid_timeframe",
+                "Strategy timeframe must be one of M1, M5, M15, M30, H1, H4, D1, W1, MN.");
+
+        public static readonly Error SymbolTooLong =
+            Error.Validation("strategy.symbol_too_long",
+                "Strategy symbol must be at most 20 characters.");
+
+        public static readonly Error DuplicateName =
+            Error.Conflict("strategy.duplicate_name",
+                "An active strategy with this name already exists for the user.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("strategy.not_found", "Strategy not found.");
+    }
 }
