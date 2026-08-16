@@ -301,4 +301,50 @@ public static class TradingDomainErrors
             Error.NotFound("trade_attachment.not_found",
                 "Attachment not found.");
     }
+
+    /// <summary>
+    /// Errores del bounded context del daily journal (slice 2a.1).
+    ///
+    /// Los codigos llevan prefijo <c>journal.</c> y mapean a 400
+    /// (validation) o 404 (notfound) segun corresponda. Los errores
+    /// semanticos (mood fuera de rango, plan demasiado largo, etc.)
+    /// son <see cref="Error.Validation"/>; la falta de entry para un
+    /// GET es <see cref="Error.NotFound"/>.
+    /// </summary>
+    public static class Journal
+    {
+        public static readonly Error UserIdRequired =
+            Error.Validation("journal.user_id_required", "User id is required.");
+
+        public static readonly Error TimezoneRequired =
+            Error.Validation("journal.timezone_required", "Timezone is required.");
+
+        public static readonly Error MoodOutOfRange =
+            Error.Validation("journal.mood_out_of_range",
+                "Mood must be between 1 and 5 inclusive (1=Fearful, 2=Anxious, 3=Neutral, 4=Confident, 5=Euphoric).");
+
+        public static readonly Error PremarketPlanTooLong =
+            Error.Validation("journal.premarket_plan_too_long",
+                "Premarket plan must be at most 2000 characters.");
+
+        public static readonly Error PostmarketReflectionTooLong =
+            Error.Validation("journal.postmarket_reflection_too_long",
+                "Postmarket reflection must be at most 5000 characters.");
+
+        public static readonly Error TooManyTags =
+            Error.Validation("journal.too_many_tags",
+                "Tags array must contain at most 10 items.");
+
+        public static readonly Error TagTooLong =
+            Error.Validation("journal.tag_too_long",
+                "Each tag must be at most 32 characters.");
+
+        public static readonly Error NothingToSave =
+            Error.Validation("journal.nothing_to_save",
+                "At least one field must be present to save or update the journal entry.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("journal.not_found",
+                "Journal entry not found for the given date.");
+    }
 }
