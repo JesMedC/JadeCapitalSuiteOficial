@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
+using Microsoft.EntityFrameworkCore;
 
 namespace JadeCapital.Trading.Infrastructure.Persistence;
 
@@ -23,4 +24,11 @@ public sealed class ChecklistRepository : IPreTradeChecklistRepository
 
     public async Task AddAsync(PreTradeChecklist checklist, CancellationToken ct)
         => await _db.PreTradeChecklists.AddAsync(checklist, ct);
+
+    public async Task<IReadOnlyList<PreTradeChecklist>> ListByUserIdAsync(
+        Guid userId,
+        CancellationToken ct)
+        => await _db.PreTradeChecklists
+            .Where(c => c.UserId == userId)
+            .ToListAsync(ct);
 }

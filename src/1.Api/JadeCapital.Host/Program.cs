@@ -333,6 +333,8 @@ app.MapPositionSizeEndpoints();
 app.MapTradeReviewEndpoints();
 // Slice 2a.1 — daily journal endpoints (GET today, GET range, POST upsert, DELETE).
 app.MapJournalEndpoints();
+// Slice 2b.1 — behavioral analytics (5 detection rules + emotionality buckets).
+app.MapBehavioralEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
