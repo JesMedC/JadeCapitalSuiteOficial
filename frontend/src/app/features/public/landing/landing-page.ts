@@ -58,14 +58,52 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
           <a routerLink="/" fragment="contacto">Contacto</a>
         </nav>
         <div class="nav-cta">
-          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost jcs-btn--sm">Login</a>
+          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost jcs-btn--sm nav-cta-login">Login</a>
           @if (auth.isAuthenticated()) {
             <a routerLink="/app/dashboard" class="jcs-btn jcs-btn--primary jcs-btn--sm">Dashboard</a>
           } @else {
             <a routerLink="/auth/register" class="jcs-btn jcs-btn--primary jcs-btn--sm">Registrarse</a>
           }
+          <!-- Hamburger button — mobile only. -->
+          <button
+            type="button"
+            class="hamburger"
+            (click)="toggleMobileNav()"
+            [attr.aria-expanded]="mobileNavOpen()"
+            aria-controls="landing-mobile-nav"
+            [attr.aria-label]="mobileNavOpen() ? 'Cerrar menú' : 'Abrir menú'">
+            @if (mobileNavOpen()) {
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            }
+          </button>
         </div>
       </div>
+      <!-- Mobile drawer — hidden on tablet+. Closes on backdrop click. -->
+      @if (mobileNavOpen()) {
+        <div class="mobile-drawer-backdrop" (click)="closeMobileNav()" aria-hidden="true"></div>
+        <nav id="landing-mobile-nav" class="mobile-drawer" aria-label="Menú principal">
+          <a routerLink="/" fragment="top" class="mobile-drawer-link" (click)="closeMobileNav()">Home</a>
+          <a routerLink="/" fragment="nosotros" class="mobile-drawer-link" (click)="closeMobileNav()">Nosotros</a>
+          <a routerLink="/" fragment="planes" class="mobile-drawer-link" (click)="closeMobileNav()">Planes</a>
+          <a routerLink="/" fragment="contacto" class="mobile-drawer-link" (click)="closeMobileNav()">Contacto</a>
+          <div class="mobile-drawer-divider"></div>
+          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost" (click)="closeMobileNav()">Login</a>
+          @if (auth.isAuthenticated()) {
+            <a routerLink="/app/dashboard" class="jcs-btn jcs-btn--primary" (click)="closeMobileNav()">Dashboard</a>
+          } @else {
+            <a routerLink="/auth/register" class="jcs-btn jcs-btn--primary" (click)="closeMobileNav()">Registrarse</a>
+          }
+        </nav>
+      }
     </header>
 
     <!-- ============== Hero ============== -->
@@ -396,8 +434,78 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
     .nav-links a:hover { color: var(--text-main); }
     .nav-links a.active { color: var(--green); }
     .nav-links a.active::after { content: ''; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); width: 22px; height: 2px; background: var(--green); border-radius: 2px; }
-    .nav-cta { display: flex; gap: var(--sp-2); }
-    @media (max-width: 768px) { .nav-links { display: none; } }
+    .nav-cta { display: flex; gap: var(--sp-2); align-items: center; }
+
+    /* Hamburger button — hidden on tablet+. */
+    .hamburger {
+      display: none;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      cursor: pointer;
+      padding: 0;
+    }
+    .hamburger:hover { background: var(--bg-hover); border-color: var(--border-active); }
+    .hamburger:focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
+
+    /* Mobile drawer (hamburger menu). */
+    .mobile-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      z-index: calc(var(--z-mobile-nav) - 1);
+    }
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(320px, 85vw);
+      padding: var(--sp-16) var(--sp-6) var(--sp-6);
+      background: var(--bg-sidebar);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+      z-index: var(--z-mobile-nav);
+      box-shadow: -8px 0 24px rgba(0,0,0,0.32);
+      animation: drawer-slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes drawer-slide-in {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    .mobile-drawer-link {
+      color: var(--text-main);
+      text-decoration: none;
+      padding: var(--sp-3) var(--sp-4);
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-base);
+      font-weight: 500;
+      transition: background 150ms ease;
+    }
+    .mobile-drawer-link:hover { background: var(--bg-hover); }
+    .mobile-drawer-divider {
+      height: 1px;
+      background: var(--border);
+      margin: var(--sp-2) 0;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-cta-login { display: none; }
+      .hamburger { display: inline-flex; }
+    }
+    @media (min-width: 769px) {
+      .mobile-drawer,
+      .mobile-drawer-backdrop { display: none !important; }
+    }
 
     /* ============== Hero ============== */
     .hero { padding: var(--sp-16) 0 var(--sp-24); }
@@ -543,6 +651,16 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
   `],
 })
 export class LandingPage {
+  /** Mobile hamburger drawer state. */
+  readonly mobileNavOpen = signal(false);
+
+  toggleMobileNav(): void {
+    this.mobileNavOpen.update(v => !v);
+  }
+
+  closeMobileNav(): void {
+    this.mobileNavOpen.set(false);
+  }
   readonly auth = inject(AuthState);
   private readonly api = inject(PlanApiService);
   private readonly destroyRef = inject(DestroyRef);

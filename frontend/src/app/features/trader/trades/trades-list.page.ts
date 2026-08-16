@@ -213,7 +213,7 @@ type StatusFilter = 'All' | TradeStatus;
           }
         </header>
 
-        <div class="table-wrap">
+        <div class="jcs-table-scroll table-wrap">
           <table class="trades">
             <thead>
               <tr>

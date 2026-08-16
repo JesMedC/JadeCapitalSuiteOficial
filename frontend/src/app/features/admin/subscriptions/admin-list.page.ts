@@ -30,6 +30,7 @@ const STATUSES: Array<string | ''> = [
       } @else if (data() && data()!.items.length === 0) {
         <p class="jcs-muted">Sin suscripciones para este filtro.</p>
       } @else if (data()) {
+        <div class="jcs-table-scroll">
         <table class="jcs-table">
           <thead>
             <tr>
@@ -54,6 +55,7 @@ const STATUSES: Array<string | ''> = [
             }
           </tbody>
         </table>
+        </div>
         <footer class="list-footer">
           <span class="jcs-muted">Total: {{ data()!.total }} · página {{ data()!.page }} de {{ totalPages() }}</span>
           <div class="pager">
