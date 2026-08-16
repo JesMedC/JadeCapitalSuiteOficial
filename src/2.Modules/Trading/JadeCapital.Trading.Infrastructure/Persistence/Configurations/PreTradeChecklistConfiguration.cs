@@ -37,10 +37,10 @@ internal sealed class PreTradeChecklistConfiguration : IEntityTypeConfiguration<
         b.Property(c => c.TradeId).HasColumnName("trade_id").IsRequired();
         b.Property(c => c.UserId).HasColumnName("user_id").IsRequired();
         b.Property(c => c.SubmittedAt).HasColumnName("submitted_at").IsRequired();
-        b.Property(c => c.CreatedAt).HasColumnName("created_at").IsRequired();
-        b.Property(c => c.UpdatedAt).HasColumnName("updated_at");
 
         b.Ignore(c => c.DomainEvents);
+        b.Ignore(c => c.CreatedAt);
+        b.Ignore(c => c.UpdatedAt);
 
         // Submission VO: campos flat en columnas de la misma tabla.
         // Emotionality y SetupQuality son : byte -> SMALLINT en la DB.
