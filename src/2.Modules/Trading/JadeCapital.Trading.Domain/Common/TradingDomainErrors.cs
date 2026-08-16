@@ -61,6 +61,22 @@ public static class TradingDomainErrors
 
         public static readonly Error AccountCurrencyRequired =
             Error.Validation("trade.account_currency_required", "Account currency code is required.");
+
+        /// <summary>
+        /// Slice 2c — MFE/MAE approximation. MFE is non-negative by definition
+        /// (it's a magnitude of favorable excursion). Throwing here keeps the
+        /// invariant enforceable from any caller that might write into the
+        /// aggregate later (admin corrections, data import, etc.).
+        /// </summary>
+        public static readonly Error MfeMustBeNonNegative =
+            Error.Validation("trade.mfe_must_be_non_negative", "MFE amount must be greater than or equal to zero.");
+
+        /// <summary>
+        /// Slice 2c — MAE is non-positive by definition (negative magnitude
+        /// of adverse excursion, or zero when unknown).
+        /// </summary>
+        public static readonly Error MaeMustBeNonPositive =
+            Error.Validation("trade.mae_must_be_non_positive", "MAE amount must be less than or equal to zero.");
     }
 
     public static class Symbol
