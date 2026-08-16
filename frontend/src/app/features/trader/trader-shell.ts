@@ -1,17 +1,18 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
+import { MobileNav, MobileNavItem } from '@shared/mobile-nav';
 
 interface NavItem {
   label: string;
   path: string;
-  icon: 'dashboard' | 'trades' | 'calendar' | 'settings';
+  icon: MobileNavItem['icon'];
 }
 
 @Component({
   selector: 'jcs-trader-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MobileNav],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="shell">
@@ -108,6 +109,9 @@ interface NavItem {
       <main class="main">
         <router-outlet></router-outlet>
       </main>
+
+      <!-- ============== Mobile bottom-nav (< 768px only) ============== -->
+      <jcs-mobile-nav [items]="navItems" />
     </div>
   `,
   styles: [`
@@ -119,7 +123,8 @@ interface NavItem {
       min-height: 100vh;
       background: var(--bg-main);
     }
-    @media (max-width: 960px) {
+    /* Mobile (< 768px): sidebar hidden, single-column shell. */
+    @media (max-width: 767px) {
       .shell { grid-template-columns: 1fr; }
     }
 
@@ -137,7 +142,8 @@ interface NavItem {
       gap: var(--sp-6);
       overflow-y: auto;
     }
-    @media (max-width: 960px) {
+    /* Mobile (< 768px): hide the sidebar; bottom-nav replaces it. */
+    @media (max-width: 767px) {
       .sidebar { display: none; }
     }
 
@@ -354,8 +360,13 @@ interface NavItem {
       min-width: 0;
       overflow-x: hidden;
     }
-    @media (max-width: 960px) {
-      .main { padding: var(--sp-4); }
+    /* Mobile (< 768px): tighter padding + extra room at bottom for the
+       fixed bottom-nav (76px = ~56px nav + safe-area-inset fallback). */
+    @media (max-width: 767px) {
+      .main {
+        padding: var(--sp-4);
+        padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+      }
     }
   `],
 })

@@ -40,6 +40,36 @@ code, pre { font-family: var(--font-mono); font-size: 0.9em; }
   &--glow   { box-shadow: var(--shadow-glow); border-color: var(--border-active); }
 }
 
+// ====== Responsive utilities ======
+.jcs-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  // Subtle hint that the table is scrollable on touch devices.
+  background:
+    linear-gradient(to right, var(--bg-card) 30%, rgba(14,22,32,0)),
+    linear-gradient(to right, rgba(14,22,32,0), var(--bg-card) 70%) 100% 0,
+    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.18), rgba(0,0,0,0)) 100% 0;
+  background-repeat: no-repeat;
+  background-color: var(--bg-card);
+  background-size: 20px 100%, 20px 100%, 8px 100%, 8px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
+@media (max-width: 767px) {
+  .jcs-container { padding: 0 var(--sp-4); }
+}
+
+// Stack-style helper: any multi-column grid/row collapses to one column on mobile.
+.jcs-stack-mobile {
+  @media (max-width: 767px) {
+    grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+    gap: var(--sp-3) !important;
+  }
+}
+
 // ====== Button ======
 .jcs-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
