@@ -57,4 +57,23 @@ public readonly record struct LocalDate(int Year, int Month, int Day)
 
     /// <summary>Convierte a <see cref="DateOnly"/> para persistir en columnas DATE.</summary>
     public DateOnly ToDateOnly() => new(Year, Month, Day);
+
+    /// <summary>
+    /// Comparacion cronologica: primero por Year, luego Month, luego Day.
+    /// Implementada manualmente porque C# no genera los operadores
+    /// automaticamente para <c>readonly record struct</c>.
+    /// </summary>
+    public int CompareTo(LocalDate other)
+    {
+        var c = Year.CompareTo(other.Year);
+        if (c != 0) return c;
+        c = Month.CompareTo(other.Month);
+        if (c != 0) return c;
+        return Day.CompareTo(other.Day);
+    }
+
+    public static bool operator <(LocalDate a, LocalDate b) => a.CompareTo(b) < 0;
+    public static bool operator >(LocalDate a, LocalDate b) => a.CompareTo(b) > 0;
+    public static bool operator <=(LocalDate a, LocalDate b) => a.CompareTo(b) <= 0;
+    public static bool operator >=(LocalDate a, LocalDate b) => a.CompareTo(b) >= 0;
 }

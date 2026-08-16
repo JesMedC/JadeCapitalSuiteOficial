@@ -43,3 +43,4 @@ global using JadeCapital.Trading.Application.Features.Dashboard.GetPnlCalendar;
 global using JadeCapital.Trading.Application.Features.Metrics.GetTradingMetrics;
 global using JadeCapital.Trading.Application.Features.PositionSize;
 global using Microsoft.Extensions.Logging;
+global using NSubstitute.ReturnsExtensions;
