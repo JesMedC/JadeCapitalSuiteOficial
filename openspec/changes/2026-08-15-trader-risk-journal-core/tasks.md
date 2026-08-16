@@ -70,15 +70,15 @@
 ### 1a.1 — Risk profile backend
 
 **Phase 1: Migration**
-- [ ] 1.1 Create `infrastructure/postgres/migrations/0009_risk_profiles.sql` (`identity.risk_profiles(id, user_id, capital_amount NUMERIC(24,8), capital_currency CHAR(3), max_drawdown_percent NUMERIC(5,2), risk_per_trade_percent NUMERIC(5,2), risk_reward_target NUMERIC(6,2), is_active BOOLEAN, superseded_at TIMESTAMPTZ, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)` + partial unique index `ux_risk_profiles_user_active WHERE is_active`).
+- [x] 1.1 Create `infrastructure/postgres/migrations/0009_risk_profiles.sql` (`identity.risk_profiles(id, user_id, capital_amount NUMERIC(24,8), capital_currency CHAR(3), max_drawdown_percent NUMERIC(5,2), risk_per_trade_percent NUMERIC(5,2), risk_reward_target NUMERIC(6,2), is_active BOOLEAN, superseded_at TIMESTAMPTZ, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)` + partial unique index `ux_risk_profiles_user_active WHERE is_active`).
 
 **Phase 2: Domain (TDD)**
-- [ ] 2.1 RED tests `RiskProfileTests` (6 scenarios: valid create, supersede transitions, range violations, currency shape, MarkSuperseded idempotency, concurrency via mock repo).
-- [ ] 2.2 GREEN: `RiskProfile` aggregate + `RiskPerTradePercent`, `MaxDrawdownPercent`, `RiskRewardRatio` value objects + `RiskProfileErrors` + `RiskProfileUpdatedDomainEvent`.
+- [x] 2.1 RED tests `RiskProfileTests` (6 scenarios: valid create, supersede transitions, range violations, currency shape, MarkSuperseded idempotency, concurrency via mock repo).
+- [x] 2.2 GREEN: `RiskProfile` aggregate + `RiskPerTradePercent`, `MaxDrawdownPercent`, `RiskRewardRatio` value objects + `RiskProfileErrors` + `RiskProfileUpdatedDomainEvent`.
 
 **Phase 3: Application (TDD)**
-- [ ] 3.1 RED tests `CreateOrSupersedeRiskProfileHandlerTests` (4 scenarios) + `GetActiveRiskProfileQueryTests` (2 scenarios).
-- [ ] 3.2 GREEN: `CreateOrSupersedeRiskProfileCommand/Handler`, `GetActiveRiskProfileQuery/Handler`, `IRiskProfileRepository` (Application contract).
+- [x] 3.1 RED tests `CreateOrSupersedeRiskProfileHandlerTests` (4 scenarios) + `GetActiveRiskProfileQueryTests` (2 scenarios).
+- [x] 3.2 GREEN: `CreateOrSupersedeRiskProfileCommand/Handler`, `GetActiveRiskProfileQuery/Handler`, `IRiskProfileRepository` (Application contract).
 
 **Phase 4: Infrastructure + Cross-module projection**
 - [ ] 4.1 EF Core `RiskProfileConfiguration` (OwnsOne for VOs, partial unique index annotation).
