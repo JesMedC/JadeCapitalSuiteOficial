@@ -80,9 +80,21 @@ CREATE INDEX IF NOT EXISTS ix_strategies_user_active
 ALTER TABLE trading.trades
     ADD COLUMN IF NOT EXISTS strategy_id UUID NULL;
 
-ALTER TABLE trading.trades
-    ADD CONSTRAINT fk_trades_strategy
-        FOREIGN KEY (strategy_id) REFERENCES trading.strategies(id) ON DELETE SET NULL;
+-- ADD CONSTRAINT no soporta IF NOT EXISTS en Postgres <=16; lo wrapeamos
+-- en un DO block que chequea pg_constraint. Si Wave 4+ migra a PG 17+
+-- podemos reemplazar por IF NOT EXISTS nativo.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_trades_strategy'
+          AND conrelid = 'trading.trades'::regclass
+    ) THEN
+        ALTER TABLE trading.trades
+            ADD CONSTRAINT fk_trades_strategy
+                FOREIGN KEY (strategy_id) REFERENCES trading.strategies(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- Indice sobre (strategy_id) WHERE NOT NULL para queries de analytics
 -- (GET /api/strategies/{id}/analytics carga los trades linkeados).
