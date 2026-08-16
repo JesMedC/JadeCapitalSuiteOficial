@@ -65,13 +65,23 @@ public static class RiskProfileEndpoints
 
     private static IResult ProblemFromResult(Error error)
     {
+        // Spec scenario "Out-of-range field" requires 422 for range
+        // validation failures (i.e. domain-level VOs like
+        // RiskPerTradePercent.Create). FluentValidation still maps to
+        // 400 (schema / structural). Distinguimos por el prefijo
+        // "validation.risk_profile.*" (los codigos del aggregate) vs
+        // los emitidos por FluentValidation ("validation.*" genericos).
         var status = error.Code switch
         {
-            var c when c.StartsWith("validation", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status400BadRequest,
             var c when c.StartsWith("notfound", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status404NotFound,
             var c when c.StartsWith("conflict", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status409Conflict,
             var c when c.StartsWith("unauthorized", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status401Unauthorized,
             var c when c.StartsWith("forbidden", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status403Forbidden,
+            // Domain range errors (aggregate + VOs) → 422 per spec.
+            // FluentValidation ValidationException stays at 400 (handled
+            // by the global exception handler in Program.cs).
+            var c when c.StartsWith("validation.risk_profile", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status422UnprocessableEntity,
+            var c when c.StartsWith("validation", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status422UnprocessableEntity
         };
 

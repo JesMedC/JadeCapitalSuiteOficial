@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS identity.risk_profiles (
     is_active                BOOLEAN         NOT NULL DEFAULT TRUE,
     superseded_at            TIMESTAMPTZ,
     created_at               TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    updated_at               TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at               TIMESTAMPTZ,
 
     CONSTRAINT fk_risk_profiles_user
         FOREIGN KEY (user_id) REFERENCES identity.users(id) ON DELETE CASCADE,
@@ -99,5 +99,13 @@ COMMENT ON COLUMN identity.risk_profiles.risk_per_trade_percent IS 'NUMERIC(5,2)
 COMMENT ON COLUMN identity.risk_profiles.risk_reward_target IS 'NUMERIC(6,2) — target minimo de riesgo/beneficio. >= 1.0 (un trader nunca configura 0.8 como target).';
 COMMENT ON COLUMN identity.risk_profiles.is_active IS 'TRUE para el perfil activo del usuario; FALSE para perfiles superseded. Invariant: TRUE ⇔ superseded_at IS NULL (ver ck_risk_profiles_active_supersede_exclusive).';
 COMMENT ON COLUMN identity.risk_profiles.superseded_at IS 'Timestamp del supersede; poblado si y solo si is_active = FALSE.';
+COMMENT ON COLUMN identity.risk_profiles.updated_at IS 'NULL en la fila inicial recien creada (CreatedAt == UpdatedAt == _clock.UtcNow); populado por el aggregate.Touch() en cada mutacion. Nullable para coexistir con el VO Domain.UpdatedAt que es DateTimeOffset?.';
+
+-- Idempotent ALTER para deployments que ejecutaron 0009 con la version
+-- inicial de la migration (updated_at NOT NULL). La forma correcta en
+-- fresh deploys es la de la CREATE TABLE de arriba (NULL allowed); este
+-- ALTER es seguro de re-ejecutar (no-op si ya es nullable).
+ALTER TABLE identity.risk_profiles
+    ALTER COLUMN updated_at DROP NOT NULL;
 
 COMMIT;

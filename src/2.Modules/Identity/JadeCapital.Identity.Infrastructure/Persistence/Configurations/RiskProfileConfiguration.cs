@@ -70,7 +70,7 @@ internal sealed class RiskProfileConfiguration : IEntityTypeConfiguration<RiskPr
         b.Property(p => p.IsActive).HasColumnName("is_active").IsRequired();
         b.Property(p => p.SupersededAt).HasColumnName("superseded_at");
         b.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
-        b.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        b.Property(p => p.UpdatedAt).HasColumnName("updated_at"); // nullable para coincidir con el VO
 
         b.Ignore(p => p.DomainEvents);
 
