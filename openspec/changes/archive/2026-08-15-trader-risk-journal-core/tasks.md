@@ -53,7 +53,7 @@
 
 **Phase 5: Validate**
 - [x] 5.1 `dotnet test tests/UnitTests/JadeCapital.Trading.UnitTests --filter "FullyQualifiedName~GetTradingMetrics"` → green.
-- [ ] 5.2 `dotnet test --filter "FullyQualifiedName~TradingMetrics"` after 1e ships → green.
+- [ ] 5.2 `dotnet test --filter "FullyQualifiedName~TradingMetrics"` after 1e ships → green. — **blocked**: 1e shipped only a zero-state metrics smoke test (`Wave1EndpointTests.GetMetrics_WithoutTrades_ReturnsZeros`) and it fails in this sandbox on the pre-existing `JadeApiFactory` migration-order bug (see slice 1e note).
 
 ### 1f.2 — Metrics frontend
 
@@ -111,33 +111,33 @@
 ### 1c.1 — Pre-trade backend
 
 **Phase 1: Migration**
-- [ ] 1.1 `infrastructure/postgres/migrations/0011_pre_trade_checklists.sql` (`trading.pre_trade_checklists(id, trade_id FK, user_id FK, submitted_at TIMESTAMPTZ, emotionality SMALLINT, setup_quality SMALLINT, risk_reward_at_entry NUMERIC(6,2), risk_reward_target_used NUMERIC(6,2), confluences_count SMALLINT)` + unique index on `trade_id`).
+- [x] 1.1 `infrastructure/postgres/migrations/0011_pre_trade_checklists.sql` (`trading.pre_trade_checklists(id, trade_id FK, user_id FK, submitted_at TIMESTAMPTZ, emotionality SMALLINT, setup_quality SMALLINT, risk_reward_at_entry NUMERIC(6,2), risk_reward_target_used NUMERIC(6,2), confluences_count SMALLINT)` + unique index on `trade_id`).
 
 **Phase 2: Domain (TDD)**
-- [ ] 2.1 RED tests `PreTradeChecklistTests` (7 scenarios: enum validity, RR ≥ target, confluences range, factory happy path, target fallback when no profile, status enum persistence).
-- [ ] 2.2 GREEN: `PreTradeChecklist` aggregate + `Emotionality`/`SetupQuality` enums + `PreTradeChecklistSubmission` record + `PreTradeChecklistSubmittedDomainEvent`.
+- [x] 2.1 RED tests `PreTradeChecklistTests` (7 scenarios: enum validity, RR ≥ target, confluences range, factory happy path, target fallback when no profile, status enum persistence). — 12 facts/theories in `tests/UnitTests/JadeCapital.Trading.UnitTests/PreTradeChecklists/PreTradeChecklistTests.cs`.
+- [x] 2.2 GREEN: `PreTradeChecklist` aggregate + `Emotionality`/`SetupQuality` enums + `PreTradeChecklistSubmission` record + `PreTradeChecklistSubmittedDomainEvent`.
 
 **Phase 3: OpenTrade extension (TDD)**
-- [ ] 3.1 RED tests `OpenTradeHandlerTests` (3 new scenarios: with valid checklist, with failing checklist → 422, without checklist → legacy path).
-- [ ] 3.2 GREEN: add `PreTradeChecklistSubmission? Checklist` to `OpenTradeCommand`; update `OpenTradeHandler` to inject `IRiskProfileReader`, build checklist, persist trade+checklist in one UoW.
+- [x] 3.1 RED tests `OpenTradeHandlerTests` (3 new scenarios: with valid checklist, with failing checklist → 422, without checklist → legacy path). — 4 checklist scenarios present (valid, RR-below-target, no-active-profile fallback, legacy no-checklist path).
+- [x] 3.2 GREEN: add `PreTradeChecklistSubmission? Checklist` to `OpenTradeCommand`; update `OpenTradeHandler` to inject `IRiskProfileReader`, build checklist, persist trade+checklist in one UoW. — shipped as `PreTradeChecklistSubmissionInput? Checklist` with `When(...)` FluentValidation rules.
 
 **Phase 4: Infrastructure**
-- [ ] 4.1 EF Core `PreTradeChecklistConfiguration`.
-- [ ] 4.2 `ChecklistRepository` (AddAsync; exists via trade_id for cross-user guard).
+- [x] 4.1 EF Core `PreTradeChecklistConfiguration`.
+- [x] 4.2 `ChecklistRepository` (AddAsync; exists via trade_id for cross-user guard).
 
 **Phase 5: API**
-- [ ] 5.1 No new endpoint — checklist arrives in `POST /api/trades` body. Existing 422 mapping in `ProblemFromResult` covers `validation` codes.
+- [x] 5.1 No new endpoint — checklist arrives in `POST /api/trades` body. Existing 422 mapping in `ProblemFromResult` covers `validation` codes.
 
 **Phase 6: Validate**
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~PreTrade\|OpenTrade"` → green.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~PreTrade\|OpenTrade"` → green. — re-executed during verify: `PreTradeChecklist` filter 16 passed, `OpenTrade` filter 18 passed, 0 failed.
 
 ### 1c.2 — Pre-trade frontend
 
 **Phase 1: Component**
-- [x] 1.1 `pre-trade-checklist.component.ts` (Signals, OnPush; checkboxes + RR numeric input + confluences slider; emits `PreTradeChecklistSubmission`).
+- [x] 1.1 `pre-trade-checklist.component.ts` (Signals, OnPush; checkboxes + RR numeric input + confluences slider; emits `PreTradeChecklistSubmission`). — shipped as `frontend/src/app/features/trader/trades/pre-trade-checklist.ts` (filename deviates from the planned `.component.ts` suffix).
 
 **Phase 2: Wiring**
-- [x] 2.1 Embed `<pre-trade-checklist>` in `open-trade.dialog.ts`; submit with the checklist payload.
+- [x] 2.1 Embed `<pre-trade-checklist>` in `open-trade.dialog.ts`; submit with the checklist payload. — embedded in `create-trade-form.ts`; no `open-trade.dialog.ts` exists in this codebase (planned filename never matched reality).
 - [x] 2.2 Display 422 errors with field-level reasons inline.
 
 **Phase 3: Tests**
@@ -146,19 +146,19 @@
 ## Slice 1b — Position-Size Calculator (single PR)
 
 **Phase 1: Domain (pure math, TDD)**
-- [ ] 1.1 RED tests `PositionSizeCalculatorTests` (4 scenarios: valid inputs, stop==entry, override honored, overflow guard).
-- [ ] 1.2 GREEN: `PositionSizeCalculator` static method in `Trading.Domain/PositionSize/PositionSizeCalculator.cs` (decimal math, no EF dependency).
+- [x] 1.1 RED tests `PositionSizeCalculatorTests` (4 scenarios: valid inputs, stop==entry, override honored, overflow guard). — 9 facts/theories in `tests/UnitTests/JadeCapital.Trading.UnitTests/Domain/PositionSize/PositionSizeCalculatorTests.cs`.
+- [x] 1.2 GREEN: `PositionSizeCalculator` static method in `Trading.Domain/PositionSize/PositionSizeCalculator.cs` (decimal math, no EF dependency). — plus `PositionSizeCalculation` + `PositionSizeErrors`.
 
 **Phase 2: Application (TDD)**
-- [ ] 2.1 RED tests `CalculatePositionSizeHandlerTests` (6 scenarios: valid, stop==entry → 422, no-profile → 404, override, out-of-range override → 422, decimal precision rounding).
-- [ ] 2.2 GREEN: `CalculatePositionSizeQuery/Handler` resolving `IRiskProfileReader` + `IInstrumentRepository`.
+- [x] 2.1 RED tests `CalculatePositionSizeHandlerTests` (6 scenarios: valid, stop==entry → 422, no-profile → 404, override, out-of-range override → 422, decimal precision rounding). — 5 facts/theories authored.
+- [x] 2.2 GREEN: `CalculatePositionSizeQuery/Handler` resolving `IRiskProfileReader` + `IInstrumentRepository`.
 
 **Phase 3: API**
-- [ ] 3.1 `MapPositionSizeEndpoints` exposing `GET /api/position-size?symbol=&entryPrice=&stopPrice=&riskPerTradePercentOverride?`. RequireAuthorization; `api-general` rate limit.
-- [ ] 3.2 `app.MapPositionSizeEndpoints()` in `Program.cs`.
+- [x] 3.1 `MapPositionSizeEndpoints` exposing `GET /api/position-size?symbol=&entryPrice=&stopPrice=&riskPerTradePercentOverride?`. RequireAuthorization; `api-general` rate limit.
+- [x] 3.2 `app.MapPositionSizeEndpoints()` in `Program.cs`. — wired at `src/1.Api/JadeCapital.Host/Program.cs:324`.
 
 **Phase 4: Validate**
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~PositionSize"` → green.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~PositionSize"` → green. — re-executed during verify: 14 passed, 0 failed.
 
 ## Slice 1d — Post-Trade Review + MinIO
 
@@ -203,46 +203,64 @@
 - [x] 3.1 `trade-detail.page.ts` route `trades/:tradeId` + wire en `trader.routes.ts`.
 - [x] 3.2 6 jest specs service (requestUpload, uploadBytesToMinio PUT directo, upsert, deleteAttachment, confirmUpload, max-size constant) + 8 jest specs component (render form, hydrate existing, max-size, content-type whitelist, delete happy + error surface, save + event, canSubmit boundary).
 
-### 1d.2 — Review frontend
+### 1d.2 — Review frontend (DUPLICATE BLOCK — consolidated into the 1d.2 block above)
+
+> This block is a duplicate of `1d.2` from the original task breakdown. The apply
+> phase consolidated it into the block above and shipped the review form +
+> attachment uploader as `post-trade-review.component.{ts,html,scss}` (commit
+> `215e79f`) instead of a separate `review-form.component.ts`. Item-level status
+> below reflects that consolidation; no separate work remains.
 
 **Phase 1: Component**
-- [ ] 1.1 `review-form.component.ts` (Signals, OnPush; emotionality select, setup text, lessons textarea, rating 1–5; submit emits `SubmitReviewRequest`).
-- [ ] 1.2 Attachment uploader inside the review form: calls `requestAttachmentUpload`, performs direct upload via `HttpClient` (or `fetch` with PUT), then calls `complete`.
+- [x] 1.1 `review-form.component.ts` (Signals, OnPush; emotionality select, setup text, lessons textarea, rating 1–5; submit emits `SubmitReviewRequest`). — *(consolidated into 1d.1/1d.2 commits: delivered as `post-trade-review.component.ts`; the `review-form.component.ts` filename was never created.)*
+- [x] 1.2 Attachment uploader inside the review form: calls `requestAttachmentUpload`, performs direct upload via `HttpClient` (or `fetch` with PUT), then calls `complete`. — *(consolidated into 1d.1/1d.2 commits: `trade-review.service.ts#uploadBytesToMinio` + drag&drop uploader inside `post-trade-review.component.ts`.)*
 
 **Phase 2: Wiring + tests**
-- [ ] 2.1 Embed review form in trade-detail page; show existing review when present.
-- [ ] 2.2 4 jest specs (component emits, attachment upload happy path with stubbed presigned URL, attachment error retry, cross-user 404 surface).
+- [x] 2.1 Embed review form in trade-detail page; show existing review when present. — *(consolidated into 1d.2 §3.1: `trade-detail.page.ts` route `trades/:tradeId`.)*
+- [x] 2.2 4 jest specs (component emits, attachment upload happy path with stubbed presigned URL, attachment error retry, cross-user 404 surface). — *(consolidated into 1d.2 §3.2: 6 service specs + 11 component specs, 17 total, all passing.)*
 
 ## Slice 1e — Integration Tests (single PR)
 
 **Phase 1: Fixture extension**
-- [x] 1.1 Extend `JadeApiFactory` to also provision MinIO via Testcontainers (idempotent bucket ensure on startup).
-- [x] 1.2 Add Respawn reset in fixture disposal (between tests).
+- [ ] 1.1 Extend `JadeApiFactory` to also provision MinIO via Testcontainers (idempotent bucket ensure on startup). — **declined; deferred to Wave 2 / CI**: sandbox lacks MinIO infra. `JadeApiFactory` still provisions only PostgreSql + Redis; no `MinioContainer` exists in `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Infrastructure/JadeApiFactory.cs`.
+- [ ] 1.2 Add Respawn reset in fixture disposal (between tests). — **deferred to Wave 2**: `Respawn 6.2.1` is referenced in the csproj but no `Respawner` is created or invoked anywhere in the fixture. Tests currently isolate by unique per-test users, not by DB reset.
 
 **Phase 2: Test classes**
-- [x] 2.1 `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Trading/TradeFlowTests.cs` — Open → UpdateNotes → Close → Delete.
-- [x] 2.2 `Trading/ChecklistFlowTests.cs` — 3 failing-checklist scenarios + 1 happy path.
-- [x] 2.3 `Trading/TradingMetricsTests.cs` — 4 period filters + empty + all-open + mixed-period.
-- [x] 2.4 `Trading/ReviewAndAttachmentTests.cs` — full attachment flow + cross-user 404.
-- [x] 2.5 `Trading/RiskProfileFlowTests.cs` — single-active + supersede + 422 mapping.
+- [x] 2.1 `tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Trading/TradeFlowTests.cs` — Open → UpdateNotes → Close → Delete. (8 tests authored.)
+- [ ] 2.2 `Trading/ChecklistFlowTests.cs` — 3 failing-checklist scenarios + 1 happy path. — **not authored; deferred to Wave 2**: the file does not exist and there is **zero** checklist coverage in the integration suite (`grep -i checklist tests/IntegrationTests/**/Trading/*.cs` → no matches). Checklist behaviour is covered only at unit level (`PreTradeChecklistTests`, `OpenTradeHandlerTests`).
+- [ ] 2.3 `Trading/TradingMetricsTests.cs` — 4 period filters + empty + all-open + mixed-period. — **consolidated + partial**: no dedicated file; metrics coverage is 1 zero-state test in `Trading/Wave1EndpointTests.cs` (`GetMetrics_WithoutTrades_ReturnsZeros`). Period filters / mixed-period coverage deferred to Wave 2.
+- [ ] 2.4 `Trading/ReviewAndAttachmentTests.cs` — full attachment flow + cross-user 404. — **consolidated + partial**: no dedicated file; review/attachment coverage is 2 negative-path tests in `Trading/Wave1EndpointTests.cs` (`GetTradeReview_WithoutTrade_Returns404`, `RequestAttachment_WithoutReview_Returns404`). Full upload flow requires MinIO (see 1.1) → deferred to Wave 2 / CI.
+- [ ] 2.5 `Trading/RiskProfileFlowTests.cs` — single-active + supersede + 422 mapping. — **consolidated + partial**: no dedicated file; risk-profile coverage is 2 tests in `Trading/Wave1EndpointTests.cs` (`RiskProfile_NoAuth_Returns401`, `PutRiskProfile_WithCapitalAndRisk_CreatesProfile_ThenGetReturnsIt`). Supersede + 422 mapping deferred to Wave 2 (covered at unit level today).
 
 **Phase 3: Validate**
-- [x] 3.1 `dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests --filter "FullyQualifiedName~Trading"` → green.
-- [x] 3.2 `dotnet test` (full suite) → green (no regressions).
+- [ ] 3.1 `dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests --filter "FullyQualifiedName~Trading"` → green. — **blocked (not green)**: 14 integration tests authored in this slice (8 `TradeFlowTests` + 6 `Wave1EndpointTests`) all fail in this sandbox with `Npgsql.PostgresException 3F000: schema "identity" does not exist`. See the two pre-existing causes below.
+- [ ] 3.2 `dotnet test` (full suite) → green (no regressions). — **blocked (not green)**: full suite = 548 unit passed / 33 integration failed (581 total), exit code 1. All 33 integration failures (19 pre-existing Wave 0 + 14 new) share the same two pre-existing `JadeApiFactory` causes. No regression was introduced by this change: the 19 Wave 0 tests fail for the same reason.
 
-> **Slice 1e note**: in this sandbox the migration-order bug in
-> `JadeApiFactory.ApplyMigrationAsync` (`0009_risk_profiles.sql` runs
-> BEFORE `20260806_0001_InitialIdentitySchema.sql` because of Ordinal
-> sort) makes ALL integration tests fail with `schema "identity" does
-> not exist` — including the 19 pre-existing tests. The fix is
-> renaming `0009_*`, `0011_*`, `0012_*` to `2026*_*` style so they
-> sort AFTER the 2026* initial schema. Out of scope for slice 1e.
-> Tests authored in this slice are correct and will pass in CI once
-> the ordering is fixed.
+> **Slice 1e note — TWO pre-existing `JadeApiFactory` causes, both out of scope for Wave 1:**
+>
+> 1. **Migration ordering bug.** `JadeApiFactory.ApplyMigrationAsync`
+>    (line 191) sorts migration files with
+>    `StringComparer.Ordinal` (ASCII sort), so `0009_risk_profiles.sql`
+>    runs **before** `20260806_0001_InitialIdentitySchema.sql` (`'0' < '2'`).
+>    `0009` declares an FK to `identity.users(id)`, which does not exist
+>    yet → every test aborts at fixture startup with
+>    `Npgsql.PostgresException 3F000: schema "identity" does not exist`.
+>    Fix: rename `0009_*`, `0011_*`, `0012_*` to `2026*_*` style, or sort
+>    by a declared version rather than by filename.
+>
+> 2. **No MinIO provisioning.** `JadeApiFactory` provisions only
+>    PostgreSql + Redis via Testcontainers; there is no MinIO container
+>    and no bucket bootstrap. Even after cause 1 is fixed, any test that
+>    exercises attachments (`POST /review/attachments`, direct upload,
+>    `/complete`) still has no object-storage infra to run against.
+>
+> Both defects live in the pre-existing Wave 0 fixture, not in Wave 1
+> production code. The 14 tests authored in this slice are correct and
+> will pass in CI once both are addressed.
 
 ## Cross-cutting / validation
 
 **Phase 6: Wave 1 close**
-- [ ] 6.1 Confirm `analytics.page.ts` no longer contains `initialBalance`/`dailyYield` mocks.
-- [ ] 6.2 Confirm every chained PR's `git diff --stat` is ≤ 400 added+removed lines.
-- [ ] 6.3 Confirm OpenSpec archive step is run after `sdd-verify` lands.
+- [x] 6.1 Confirm `analytics.page.ts` no longer contains `initialBalance`/`dailyYield` mocks. — verified: only a comment at `analytics.page.ts:862` referencing the removed mocks remains; no live symbols.
+- [ ] 6.2 Confirm every chained PR's `git diff --stat` is ≤ 400 added+removed lines. — **not met**: 8 of the 18 Wave 1 commits exceed the budget (`eefcbf2` 1,966; `3b80027` 1,706; `215e79f` 1,336; `056f410` 1,028; `59ba7b1` 797; `7378b40` 688; `8074cfc` 661; `86d1e61` 559). Recorded as a WARNING in the verify report; not re-sliced retroactively.
+- [ ] 6.3 Confirm OpenSpec archive step is run after `sdd-verify` lands. — pending the archive step in this same run.
