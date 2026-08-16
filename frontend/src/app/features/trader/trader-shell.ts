@@ -71,6 +71,14 @@ interface NavItem {
                       <line x1="12" y1="16" x2="15" y2="16"/>
                     </svg>
                   }
+                  @case ('list') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3z"/>
+                      <line x1="11" y1="6" x2="21" y2="6"/>
+                      <line x1="11" y1="12" x2="21" y2="12"/>
+                      <line x1="11" y1="18" x2="21" y2="18"/>
+                    </svg>
+                  }
                   @case ('calendar') {
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -387,6 +395,7 @@ export class TraderShell {
     { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
     { label: 'Operaciones', path: 'trades',    icon: 'trades' },
     { label: 'Diario',      path: 'journal',   icon: 'journal' },
+    { label: 'Patrones',    path: 'patterns',  icon: 'list' },
     { label: 'Calendario',  path: 'calendar',  icon: 'calendar' },
     { label: 'Settings',    path: 'settings',  icon: 'settings' },
   ];
