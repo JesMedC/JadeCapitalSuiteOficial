@@ -38,6 +38,9 @@ public static class IdentityModuleRegistration
         // the API endpoints and the cross-module Identity.Contracts reader).
         services.AddScoped<IRiskProfileRepository, RiskProfileRepository>();
         services.AddScoped<IIdentityUserRiskProfileReader, IdentityUserRiskProfileReader>();
+        // Slice 3b — exposes active user Ids to the Trading BackgroundService
+        // without forcing Trading to depend on Identity.Domain.
+        services.AddScoped<IActiveUserIdsReader, IdentityActiveUserIdsReader>();
         services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
 

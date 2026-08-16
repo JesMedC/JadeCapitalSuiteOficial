@@ -408,4 +408,54 @@ public static class TradingDomainErrors
         public static readonly Error NotFound =
             Error.NotFound("strategy.not_found", "Strategy not found.");
     }
+
+    /// <summary>
+    /// Errores del bounded context de Alerts (slice 3b).
+    ///
+    /// Los codigos llevan prefijo <c>alert.</c>. Las validaciones (title
+    /// demasiado largo, ruleId vacio, ctaRoute sin "/") son
+    /// <see cref="Error.Validation"/> y mapean a 400.
+    /// </summary>
+    public static class Alert
+    {
+        public static readonly Error UserIdRequired =
+            Error.Validation("alert.user_id_required", "Alert user id is required.");
+
+        public static readonly Error RuleIdRequired =
+            Error.Validation("alert.rule_id_required", "Alert rule id is required.");
+
+        public static readonly Error RuleIdTooLong =
+            Error.Validation("alert.rule_id_too_long",
+                $"Alert rule id must be at most {JadeCapital.Trading.Domain.Alerts.Alert.MaxRuleIdLength} characters.");
+
+        public static readonly Error TitleRequired =
+            Error.Validation("alert.title_required", "Alert title is required.");
+
+        public static readonly Error TitleTooLong =
+            Error.Validation("alert.title_too_long",
+                $"Alert title must be at most {JadeCapital.Trading.Domain.Alerts.Alert.MaxTitleLength} characters.");
+
+        public static readonly Error BodyRequired =
+            Error.Validation("alert.body_required", "Alert body is required.");
+
+        public static readonly Error BodyTooLong =
+            Error.Validation("alert.body_too_long",
+                $"Alert body must be at most {JadeCapital.Trading.Domain.Alerts.Alert.MaxBodyLength} characters.");
+
+        public static readonly Error CtaRouteRequired =
+            Error.Validation("alert.cta_route_required", "Alert CTA route is required.");
+
+        public static readonly Error CtaRouteInvalid =
+            Error.Validation("alert.cta_route_invalid", "Alert CTA route must start with '/'.");
+
+        public static readonly Error CtaLabelRequired =
+            Error.Validation("alert.cta_label_required", "Alert CTA label is required.");
+
+        public static readonly Error CtaLabelTooLong =
+            Error.Validation("alert.cta_label_too_long",
+                "Alert CTA label must be at most 64 characters.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("alert.not_found", "Alert not found.");
+    }
 }

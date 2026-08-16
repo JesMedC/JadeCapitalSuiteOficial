@@ -342,6 +342,8 @@ app.MapTradeMfeMaeEndpoints();
 app.MapCoachingPromptsEndpoint();
 // Slice 3a — trader strategies (CRUD + analytics) + tag/untag trade.
 app.MapStrategyEndpoints();
+// Slice 3b — alerts (list, get-by-id, ack) + BackgroundService evaluation.
+app.MapAlertEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

@@ -33,6 +33,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     // Slice 3a — trader strategies (named setups + analytics).
     public Microsoft.EntityFrameworkCore.DbSet<Strategy> Strategies => Set<Strategy>();
+    // Slice 3b — persistent alerts (BackgroundService writes; API reads).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.Alerts.Alert> Alerts
+        => Set<JadeCapital.Trading.Domain.Alerts.Alert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,6 +48,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new TradeAttachmentConfiguration());
         modelBuilder.ApplyConfiguration(new JournalEntryConfiguration());
         modelBuilder.ApplyConfiguration(new StrategyConfiguration());
+        modelBuilder.ApplyConfiguration(new AlertConfiguration());
     }
 }
 

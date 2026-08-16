@@ -16,6 +16,8 @@ global using JadeCapital.Trading.Domain.PreTradeChecklists;
 global using JadeCapital.Trading.Domain.TradeReviews;
 global using JadeCapital.Trading.Domain.TradeAttachments;
 global using JadeCapital.Trading.Domain.Journal;
+global using JadeCapital.Trading.Domain.Alerts;
+global using JadeCapital.Trading.Domain.Behavioral;
 global using JadeCapital.Trading.Application.Abstractions;
 global using JadeCapital.Trading.Application._Common;
 global using JadeCapital.Trading.Application.Features.Trades.OpenTrade;
