@@ -73,6 +73,15 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
         b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(t => t.UpdatedAt).HasColumnName("updated_at");
 
+        // Slice 2c — MFE/MAE columns (migration 0014). Nullable: open trades
+        // no tienen MFE/MAE computados. La invariante de signo (MFE >= 0,
+        // MAE <= 0) vive en el dominio (MfeMaeCalculator + ApplyMfeMae);
+        // la DB no enforce CHECK para mantener la migracion additive-only.
+        b.Property(t => t.MfeAmount).HasColumnName("mfe_amount").HasColumnType("numeric(24,8)");
+        b.Property(t => t.MaeAmount).HasColumnName("mae_amount").HasColumnType("numeric(24,8)");
+        b.Property(t => t.MfeCurrency).HasColumnName("mfe_currency").HasMaxLength(3).IsFixedLength();
+        b.Property(t => t.MaeCurrency).HasColumnName("mae_currency").HasMaxLength(3).IsFixedLength();
+
         // Money value objects via OwnsOne — Volume, EntryPrice son required.
         // ExitPrice y PnL son nullable y la columna queda NULL cuando el
         // Money es null. Money se serializa via CurrencyCode (string) + Amount

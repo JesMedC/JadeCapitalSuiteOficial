@@ -28,6 +28,13 @@ public sealed record TradeDto(
     decimal? Pnl,
     string? PnlCurrency,
     string AccountCurrency,
+    // Slice 2c — MFE/MAE (Wave 2 approximation). Null for open / cancelled
+    // trades. Always in AccountCurrency. The FE uses these to render the
+    // inline mini-chart in the trades list without an extra round-trip.
+    decimal? MfeAmount,
+    decimal? MaeAmount,
+    string? MfeCurrency,
+    string? MaeCurrency,
     string? Strategy,
     string? Notes,
     DateTimeOffset OpenedAt,

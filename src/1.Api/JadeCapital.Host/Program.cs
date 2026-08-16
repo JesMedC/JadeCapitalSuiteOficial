@@ -335,6 +335,8 @@ app.MapTradeReviewEndpoints();
 app.MapJournalEndpoints();
 // Slice 2b.1 — behavioral analytics (5 detection rules + emotionality buckets).
 app.MapBehavioralEndpoints();
+// Slice 2c — per-trade MFE/MAE approximation + user-aggregate histograms.
+app.MapTradeMfeMaeEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
