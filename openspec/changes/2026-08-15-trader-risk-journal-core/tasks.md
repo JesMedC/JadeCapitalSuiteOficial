@@ -81,17 +81,17 @@
 - [x] 3.2 GREEN: `CreateOrSupersedeRiskProfileCommand/Handler`, `GetActiveRiskProfileQuery/Handler`, `IRiskProfileRepository` (Application contract).
 
 **Phase 4: Infrastructure + Cross-module projection**
-- [ ] 4.1 EF Core `RiskProfileConfiguration` (OwnsOne for VOs, partial unique index annotation).
-- [ ] 4.2 `RiskProfileRepository` (AddAsync + GetActiveAsync + MarkSupersededAsync, all in one UoW).
-- [ ] 4.3 Add `IIdentityUserRiskProfileReader` (Identity.Contracts) + `IdentityUserRiskProfileReader` (Identity.Infrastructure) exposing `GetActiveAsync(Guid userId) → UserRiskProfileSnapshot?` (4 properties only).
-- [ ] 4.4 DI: `AddIdentityInfrastructure` registers `IRiskProfileRepository` + `IIdentityUserRiskProfileReader`.
+- [x] 4.1 EF Core `RiskProfileConfiguration` (OwnsOne for VOs, partial unique index annotation).
+- [x] 4.2 `RiskProfileRepository` (AddAsync + GetActiveAsync + MarkSupersededAsync, all in one UoW).
+- [x] 4.3 Add `IIdentityUserRiskProfileReader` (Identity.Contracts) + `IdentityUserRiskProfileReader` (Identity.Infrastructure) exposing `GetActiveAsync(Guid userId) → UserRiskProfileSnapshot?` (4 properties only).
+- [x] 4.4 DI: `AddIdentityInfrastructure` registers `IRiskProfileRepository` + `IIdentityUserRiskProfileReader`.
 
 **Phase 5: API**
-- [ ] 5.1 `RiskProfileEndpoints` (`MapRiskProfileEndpoints`): `GET /api/risk-profile` (200 with DTO or 404), `PUT /api/risk-profile` (200, 422 mapping for range errors, 409 on supersede conflict). RequireAuthorization; `api-general` rate limit.
-- [ ] 5.2 `app.MapRiskProfileEndpoints()` in `Program.cs`.
+- [x] 5.1 `RiskProfileEndpoints` (`MapRiskProfileEndpoints`): `GET /api/risk-profile` (200 with DTO or 404), `PUT /api/risk-profile` (200, 422 mapping for range errors, 409 on supersede conflict). RequireAuthorization; `api-general` rate limit.
+- [x] 5.2 `app.MapRiskProfileEndpoints()` in `Program.cs` (wired via `MapIdentityApi()` chain).
 
 **Phase 6: Validate**
-- [ ] 6.1 `dotnet test tests/UnitTests/JadeCapital.Identity.UnitTests --filter "FullyQualifiedName~RiskProfile"` → green.
+- [x] 6.1 `dotnet test tests/UnitTests/JadeCapital.Identity.UnitTests --filter "FullyQualifiedName~RiskProfile"` → green.
 
 ### 1a.2 — Risk profile frontend
 

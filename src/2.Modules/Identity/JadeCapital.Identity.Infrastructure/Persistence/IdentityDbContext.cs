@@ -1,4 +1,5 @@
 using JadeCapital.Identity.Domain.Authentication;
+using JadeCapital.Identity.Domain.RiskProfile;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Identity.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,8 @@ namespace JadeCapital.Identity.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext del módulo Identity. Esquema dedicado "identity" dentro del schema "jade".
-/// Tablas: identity.users, identity.refresh_tokens, identity.temporary_credentials, identity.password_history.
+/// Tablas: identity.users, identity.refresh_tokens, identity.temporary_credentials, identity.password_history,
+/// identity.risk_profiles (slice 1a.1b — single-active risk profile per user).
 /// </summary>
 public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
@@ -19,6 +21,7 @@ public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public Microsoft.EntityFrameworkCore.DbSet<TemporaryCredential> TemporaryCredentials => Set<TemporaryCredential>();
     public Microsoft.EntityFrameworkCore.DbSet<PasswordHistoryEntry> PasswordHistory => Set<PasswordHistoryEntry>();
+    public Microsoft.EntityFrameworkCore.DbSet<RiskProfile> RiskProfiles => Set<RiskProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +30,7 @@ public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
         modelBuilder.ApplyConfiguration(new TemporaryCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new PasswordHistoryEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new RiskProfileConfiguration());
     }
 }
 

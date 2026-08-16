@@ -1,4 +1,5 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Contracts.RiskProfiles;
 using JadeCapital.Identity.Domain.RiskProfile;
 using JadeCapital.Shared.Kernel.Results;
 using MediatR;

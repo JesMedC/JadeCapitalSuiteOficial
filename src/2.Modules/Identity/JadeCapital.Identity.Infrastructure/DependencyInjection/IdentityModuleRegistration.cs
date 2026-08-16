@@ -1,6 +1,8 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
 using JadeCapital.Identity.Infrastructure.Persistence;
+using JadeCapital.Identity.Infrastructure.Projections;
 using JadeCapital.Identity.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -32,6 +34,10 @@ public static class IdentityModuleRegistration
         services.AddScoped<ITemporaryCredentialRepository, TemporaryCredentialRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
         services.AddScoped<IRefreshTokenRevoker, RefreshTokenRevoker>();
+        // Slice 1a.1b — single-active risk profile per user (Backs both
+        // the API endpoints and the cross-module Identity.Contracts reader).
+        services.AddScoped<IRiskProfileRepository, RiskProfileRepository>();
+        services.AddScoped<IIdentityUserRiskProfileReader, IdentityUserRiskProfileReader>();
         services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
 
