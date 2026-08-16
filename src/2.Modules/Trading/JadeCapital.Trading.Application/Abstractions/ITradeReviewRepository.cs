@@ -64,9 +64,4 @@ public interface ITradeReviewRepository
     /// que el handler limpie el object de MinIO best-effort), o null si
     /// no se encontro.</summary>
     Task<string?> RemoveAttachmentAsync(Guid attachmentId, Guid userId, CancellationToken ct);
-
-    /// <summary>Verifica si existe un trade con status = Closed y
-    /// pertenece al userId. Lo usa el handler de CreateOrUpdate para
-    /// pasarle el flag <c>tradeIsClosed</c> al factory del domain.</summary>
-    Task<bool> TradeIsClosedAsync(Guid tradeId, Guid userId, CancellationToken ct);
 }

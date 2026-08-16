@@ -23,6 +23,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<Account> Accounts => Set<Account>();
     public Microsoft.EntityFrameworkCore.DbSet<Instrument> Instruments => Set<Instrument>();
     public Microsoft.EntityFrameworkCore.DbSet<PreTradeChecklist> PreTradeChecklists => Set<PreTradeChecklist>();
+    // Slice 1d.1 — post-trade reviews + attachments.
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeReviews.TradeReview> TradeReviews => Set<JadeCapital.Trading.Domain.TradeReviews.TradeReview>();
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment> TradeAttachments => Set<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +34,8 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new InstrumentConfiguration());
         modelBuilder.ApplyConfiguration(new TradeConfiguration());
         modelBuilder.ApplyConfiguration(new PreTradeChecklistConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeReviewConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeAttachmentConfiguration());
     }
 }
 

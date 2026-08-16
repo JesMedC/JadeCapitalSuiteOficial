@@ -10,6 +10,7 @@ using JadeCapital.Identity.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
 using JadeCapital.Shared.Infrastructure.Email;
+using JadeCapital.Shared.Infrastructure.Storage;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
@@ -104,6 +105,12 @@ builder.Services.AddBillingInfrastructure(builder.Configuration);
 
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
+
+// ===== MinIO infrastructure (slice 1d.1) =====
+// Provee IAttachmentStorage + bootstrapea el bucket al startup via
+// MinioInitializerHostedService. La connection string vive en
+// ConnectionStrings__Storage (env var) o .env local.
+builder.Services.AddMinioInfrastructure(builder.Configuration);
 
 // ===== MediatR (handlers de Identity.Application + Trading.Application) =====
 // ValidationBehavior ya queda registrado como IPipelineBehavior<,> via AddSharedInfrastructure.
@@ -315,6 +322,8 @@ app.MapTradeEndpoints();
 app.MapTraderMetricsEndpoints();
 // Slice 1b — read-only position-size calculator (uses IIdentityUserRiskProfileReader).
 app.MapPositionSizeEndpoints();
+// Slice 1d.1 — post-trade review + MinIO attachment endpoints.
+app.MapTradeReviewEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

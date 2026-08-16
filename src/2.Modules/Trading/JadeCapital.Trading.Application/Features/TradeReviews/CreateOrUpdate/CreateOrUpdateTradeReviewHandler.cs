@@ -3,6 +3,8 @@ using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application._Common;
+using JadeCapital.Trading.Domain.Common;
+using JadeCapital.Trading.Domain.Enums;
 using JadeCapital.Trading.Domain.TradeReviews;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -49,35 +51,49 @@ public sealed class CreateOrUpdateTradeReviewHandler
     : IRequestHandler<CreateOrUpdateTradeReviewCommand, Result<TradeReviewDto>>
 {
     private readonly ITradeReviewRepository _reviews;
+    private readonly ITradeRepository _trades;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
+    private readonly ILogger<CreateOrUpdateTradeReviewHandler> _logger;
 
     public CreateOrUpdateTradeReviewHandler(
         ITradeReviewRepository reviews,
+        ITradeRepository trades,
         IUnitOfWork uow,
-        IClock clock)
+        IClock clock,
+        ILogger<CreateOrUpdateTradeReviewHandler> logger)
     {
         _reviews = reviews;
+        _trades = trades;
         _uow = uow;
         _clock = clock;
+        _logger = logger;
     }
 
     public async Task<Result<TradeReviewDto>> Handle(
         CreateOrUpdateTradeReviewCommand req,
         CancellationToken ct)
     {
-        // Cross-user scope + Closed gate: el handler no confia en que el FE
-        // envie un tradeId valido del usuario actual. ITradeReviewRepository
-        // .FindByTradeIdAsync ya filtra por userId, pero el close-gate es
-        // una validacion separada del estado del trade.
-        var tradeIsClosed = await _reviews.TradeIsClosedAsync(req.TradeId, req.UserId, ct);
-        if (!tradeIsClosed)
+        // Cross-user scope: FindByIdAsync trae el trade sin filtrar;
+        // el handler es el responsable de validar userId match. Si no
+        // matchea (o no existe), colapsamos a 404 NotFound para no
+        // enumerar IDs ajenos.
+        var trade = await _trades.FindByIdAsync(req.TradeId, ct);
+        if (trade is null || trade.UserId != req.UserId)
         {
-            // El trade no existe o no es del user: ambos casos colapsan
-            // a 404 (cross-user scope: no revelamos la diferencia entre
-            // "no existe" y "no es tuyo").
             return Result.Failure<TradeReviewDto>(
                 JadeCapital.Trading.Domain.Common.TradingDomainErrors.TradeReview.NotFound);
+        }
+
+        // Closed gate: el review post-trade solo aplica a trades cerrados.
+        // Open / Cancelled -> 409 conflict.trade_review.trade_not_closed
+        // (per spec scenario "Review of an open trade"). Diferenciado del
+        // 404 anterior porque "tu trade existe pero no esta cerrado" es
+        // un caso de negocio legitimo, no un cross-user leak.
+        if (trade.Status != TradeStatus.Closed)
+        {
+            return Result.Failure<TradeReviewDto>(
+                JadeCapital.Trading.Domain.Common.TradingDomainErrors.TradeReview.TradeNotClosed);
         }
 
         var now = _clock.UtcNow;
@@ -123,6 +139,10 @@ public sealed class CreateOrUpdateTradeReviewHandler
         var saved = await _uow.SaveChangesAsync(ct);
         if (saved.IsFailure)
             return Result.Failure<TradeReviewDto>(saved.Error);
+
+        _logger.LogInformation(
+            "TradeReview {ReviewId} upserted for trade {TradeId} by user {UserId}.",
+            review.Id, req.TradeId, req.UserId);
 
         // Sin attachments todavia en el upsert path tipico, pero devolvemos
         // la lista vacia para mantener la forma consistente.

@@ -7,6 +7,7 @@ using JadeCapital.Trading.Application._Common;
 using JadeCapital.Trading.Domain.Common;
 using JadeCapital.Trading.Domain.TradeAttachments;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace JadeCapital.Trading.Application.Features.TradeReviews.RequestAttachmentUpload;
 
@@ -91,17 +92,20 @@ public sealed class RequestAttachmentUploadHandler
     private readonly IAttachmentStorage _storage;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
+    private readonly ILogger<RequestAttachmentUploadHandler> _logger;
 
     public RequestAttachmentUploadHandler(
         ITradeReviewRepository reviews,
         IAttachmentStorage storage,
         IUnitOfWork uow,
-        IClock clock)
+        IClock clock,
+        ILogger<RequestAttachmentUploadHandler> logger)
     {
         _reviews = reviews;
         _storage = storage;
         _uow = uow;
         _clock = clock;
+        _logger = logger;
     }
 
     public async Task<Result<RequestAttachmentUploadResultDto>> Handle(
