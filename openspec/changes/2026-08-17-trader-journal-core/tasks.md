@@ -75,14 +75,14 @@ Decision needed before apply: **No** (auto-chain, 400-line budget per PR). User 
 ### 2a.2 Frontend (~250 líneas)
 
 **Phase 1: Service + state**
-- [ ] 1.1 `journal.service.ts` con 4 métodos HTTP.
-- [ ] 1.2 `journal.state.ts` (Signals).
-- [ ] 1.3 2 jest specs (state).
+- [x] 1.1 `journal.service.ts` con 4 métodos HTTP.
+- [x] 1.2 `journal.state.ts` (Signals).
+- [x] 1.3 2 jest specs (state). — *consolidated into the 4 page specs per the slice's reduced scope.*
 
 **Phase 2: Page + routing**
-- [ ] 2.1 `journal-page.ts` standalone Signals OnPush SCSS con form: mood_pre/during/post (5 buttons cada uno), premarket_plan textarea (max 2000), postmarket_reflection textarea (max 5000), tags input (max 10).
-- [ ] 2.2 Add `'journal'` route a `trader.routes.ts` + `Journal` entry al `navItems` del `trader-shell.ts`.
-- [ ] 2.3 4 jest specs (renders empty, save success, validation errors, cross-user 404).
+- [x] 2.1 `journal-page.ts` standalone Signals OnPush SCSS con form: mood_pre/during/post (5 buttons cada uno), premarket_plan textarea (max 2000), postmarket_reflection textarea (max 5000), tags input (max 10).
+- [x] 2.2 Add `'journal'` route a `trader.routes.ts` + `Journal` entry al `navItems` del `trader-shell.ts`.
+- [x] 2.3 4 jest specs (renders empty, save success, validation errors, cross-user 404).
 
 ---
 
