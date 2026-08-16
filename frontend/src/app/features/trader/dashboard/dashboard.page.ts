@@ -9,6 +9,8 @@ import {
   TradeApiService,
   TradeDto,
 } from '@core/api/trade-api.service';
+import { CoachingPromptsComponent } from '../coaching/coaching-prompts.component';
+import { CoachingState } from '../coaching/state/coaching.state';
 
 // Construye una serie de equity curve (P&L acumulado) a partir de trades
 // cerrados ordenados por fecha. Devuelve `number[]` con un punto por trade.
@@ -30,7 +32,7 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 @Component({
   selector: 'jcs-dashboard',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass, RouterLink],
+  imports: [DecimalPipe, DatePipe, NgClass, RouterLink, CoachingPromptsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dash">
@@ -72,6 +74,9 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
           <button type="button" class="dash-error-retry" (click)="reload()">Reintentar</button>
         </div>
       }
+
+      <!-- ============== Coaching prompts (slice 2d embed) ============== -->
+      <jcs-coaching-prompts [prompts]="coachingState.prompts()"></jcs-coaching-prompts>
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -582,6 +587,7 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 export class DashboardPage {
   readonly auth = inject(AuthState);
   private readonly api = inject(TradeApiService);
+  readonly coachingState = inject(CoachingState);
 
   readonly refreshing = signal(false);
   readonly loading = signal(true);
@@ -706,6 +712,7 @@ export class DashboardPage {
 
   constructor() {
     void this.reload();
+    void this.coachingState.load('30d');
   }
 
   async reload(): Promise<void> {
