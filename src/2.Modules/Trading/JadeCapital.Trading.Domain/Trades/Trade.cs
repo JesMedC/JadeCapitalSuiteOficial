@@ -46,6 +46,13 @@ public sealed class Trade : AggregateRoot<Guid>
     public string? Strategy { get; private set; }
     public string? Notes { get; private set; }
 
+    // ============== Slice 3a — Strategy FK ==============
+    // Nullable FK additive a trading.strategies(id). Set via SetStrategyId
+    // desde SetTradeStrategyHandler (cross-user scope vive en el handler).
+    // Open trades y Closed trades ambos aceptan retro-tagging; Cancelled
+    // rechaza el cambio porque es estado terminal.
+    public Guid? StrategyId { get; private set; }
+
     public DateTimeOffset OpenedAt { get; private set; }
     public DateTimeOffset? ClosedAt { get; private set; }
 
@@ -247,6 +254,33 @@ public sealed class Trade : AggregateRoot<Guid>
         RaiseDomainEvent(new TradeCancelledDomainEvent(
             Id, UserId, ClosedAt.Value, clock.UtcNow));
 
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 3a — asigna/desasigna la strategy (FK nullable) del trade.
+    /// <list type="bullet">
+    ///   <item><paramref name="strategyId"/> == null → untag (set StrategyId=null).</item>
+    ///   <item><paramref name="strategyId"/> == Guid.Empty → fail (400).</item>
+    ///   <item>Cualquier otro valor → tag (la verificacion de ownership /
+    ///   is_active vive en el handler de aplicacion).</item>
+    /// </list>
+    /// Open y Closed ambos aceptan retro-tagging. Cancelled rechaza porque
+    /// es estado terminal (la invariante es "Cancelled es inmutable").
+    /// </summary>
+    public Result SetStrategyId(Guid? strategyId)
+    {
+        if (Status == TradeStatus.Cancelled)
+            return Result.Failure(TradingDomainErrors.Trade.AlreadyCancelled);
+
+        if (strategyId.HasValue && strategyId.Value == Guid.Empty)
+            return Result.Failure(TradingDomainErrors.Trade.IdRequired);
+
+        if (StrategyId == strategyId)
+            return Result.Success();
+
+        StrategyId = strategyId;
+        Touch();
         return Result.Success();
     }
 
