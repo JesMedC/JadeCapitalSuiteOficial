@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Instruments;
+using JadeCapital.Trading.Domain.PreTradeChecklists;
 using JadeCapital.Trading.Domain.Trades;
 using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
 using JadeCapital.Trading.Infrastructure.Persistence.Converters;
@@ -10,7 +11,8 @@ namespace JadeCapital.Trading.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext del modulo Trading. Esquema dedicado "trading".
-/// Tablas: trading.accounts, trading.instruments, trading.trades.
+/// Tablas: trading.accounts, trading.instruments, trading.trades,
+/// trading.pre_trade_checklists.
 /// </summary>
 public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
@@ -20,6 +22,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<Trade> Trades => Set<Trade>();
     public Microsoft.EntityFrameworkCore.DbSet<Account> Accounts => Set<Account>();
     public Microsoft.EntityFrameworkCore.DbSet<Instrument> Instruments => Set<Instrument>();
+    public Microsoft.EntityFrameworkCore.DbSet<PreTradeChecklist> PreTradeChecklists => Set<PreTradeChecklist>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +30,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AccountConfiguration());
         modelBuilder.ApplyConfiguration(new InstrumentConfiguration());
         modelBuilder.ApplyConfiguration(new TradeConfiguration());
+        modelBuilder.ApplyConfiguration(new PreTradeChecklistConfiguration());
     }
 }
 

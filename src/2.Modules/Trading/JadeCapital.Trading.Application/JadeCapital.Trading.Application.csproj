@@ -12,5 +12,11 @@
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Domain\JadeCapital.Trading.Domain.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Contracts\JadeCapital.Trading.Contracts.csproj" />
+    <!-- Slice 1c.1: cross-module narrow projection of the user's active
+         risk profile. Trading.Application reads the RiskRewardTarget via
+         this reader; the implementation lives in Identity.Infrastructure
+         and Trading does NOT depend on JadeCapital.Identity.Domain
+         (Clean Architecture). -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Contracts\JadeCapital.Identity.Contracts.csproj" />
   </ItemGroup>
 </Project>

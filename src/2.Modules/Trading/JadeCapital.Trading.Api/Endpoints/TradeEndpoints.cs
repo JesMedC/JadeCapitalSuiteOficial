@@ -9,6 +9,7 @@ using JadeCapital.Trading.Application.Features.Trades.OpenTrade;
 using JadeCapital.Trading.Application.Features.Trades.UpdateTradeNotes;
 using JadeCapital.Trading.Application._Common;
 using JadeCapital.Trading.Domain.Enums;
+using JadeCapital.Trading.Domain.PreTradeChecklists;
 using MediatR;
 
 namespace JadeCapital.Trading.Api.Endpoints;
@@ -32,6 +33,9 @@ public static class TradeEndpoints
             .Produces<TradeDto>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status409Conflict)
+            // Slice 1c.1: failing pre-trade checklist maps to 422 (per
+            // ProblemFromResult special-case on validation.pre_trade_checklist.*).
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
             .RequireRateLimiting("auth-strict");
 
         // GET /api/trades — listar
@@ -108,6 +112,10 @@ public static class TradeEndpoints
     {
         var status = error.Code switch
         {
+            // Slice 1c.1: pre-trade checklist validation errors map to 422
+            // (not the default 400) per the spec — a failing checklist is
+            // semantically "well-formed request, business-rule rejected".
+            var c when c.StartsWith("validation.pre_trade_checklist", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status422UnprocessableEntity,
             var c when c.StartsWith("validation", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status400BadRequest,
             var c when c.StartsWith("notfound", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status404NotFound,
             var c when c.StartsWith("conflict", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status409Conflict,
@@ -136,6 +144,15 @@ public static class TradeEndpoints
         try { userId = GetUserId(http); }
         catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
 
+        // Slice 1c.1: optional checklist in the request body. If absent,
+        // OpenTradeHandler skips checklist persistence (legacy path).
+        var checklistInput = req.Checklist is null ? null : new PreTradeChecklistSubmissionInput(
+            (Emotionality)req.Checklist.Emotionality,
+            (SetupQuality)req.Checklist.SetupQuality,
+            req.Checklist.RiskRewardAtEntry,
+            req.Checklist.RiskRewardTargetUsed,
+            req.Checklist.ConfluencesCount);
+
         var cmd = new OpenTradeCommand(
             UserId: userId,
             AccountId: req.AccountId,
@@ -148,7 +165,8 @@ public static class TradeEndpoints
             EntryPrice: req.EntryPrice,
             EntryPriceCurrency: req.EntryPriceCurrency,
             Strategy: req.Strategy,
-            Notes: req.Notes);
+            Notes: req.Notes,
+            Checklist: checklistInput);
 
         var result = await sender.Send(cmd, ct);
         return result.IsSuccess
@@ -305,7 +323,26 @@ public sealed record OpenTradeRequest(
     decimal EntryPrice,
     string EntryPriceCurrency,
     string? Strategy,
-    string? Notes);
+    string? Notes,
+    PreTradeChecklistPayload? Checklist = null);
+
+/// <summary>
+/// Subset del checklist pre-trade en el body de <c>POST /api/trades</c>.
+/// Usamos tipos primitivos (short / decimal / byte) en lugar de los enums
+/// de dominio para que System.Text.Json deserialice correctamente sin
+/// necesidad de un JsonConverter custom. El handler hace el cast explicito
+/// a <see cref="Emotionality"/> / <see cref="SetupQuality"/>.
+///
+/// <c>RiskRewardTargetUsed</c> es opcional: si el caller envia null/0, el
+/// handler lo resuelve desde el perfil activo del usuario o cae al default
+/// 1.0 si no hay perfil.
+/// </summary>
+public sealed record PreTradeChecklistPayload(
+    short Emotionality,
+    short SetupQuality,
+    decimal RiskRewardAtEntry,
+    decimal RiskRewardTargetUsed,
+    byte ConfluencesCount);
 
 public sealed record CloseTradeRequest(decimal ExitPrice, string ExitPriceCurrency);
 

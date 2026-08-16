@@ -164,4 +164,39 @@ public static class TradingDomainErrors
         public static readonly Error UserNotFound =
             Error.NotFound("metrics.user_not_found", "Authenticated user was not found.");
     }
+
+    /// <summary>
+    /// Errores del bounded context del pre-trade checklist (slice 1c.1).
+    ///
+    /// Los codigos llevan prefijo <c>pre_trade_checklist.</c> para que
+    /// el endpoint <c>POST /api/trades</c> los distinga de errores de
+    /// Trade (que llevan prefijo <c>trade.</c>) y rutee los del checklist
+    /// a 422 con un mensaje semantico de validacion. Los Trade errors
+    /// continuan mapeando a 400 via <c>validation.*</c> porque son
+    /// invariantes del trade (currency mismatch, volumen cero, etc.); los
+    /// del checklist son business-rule failures que el trader puede
+    /// corregir resubmitiendo.
+    /// </summary>
+    public static class PreTradeChecklist
+    {
+        public static readonly Error SubmissionRequired =
+            Error.Validation("pre_trade_checklist.submission_required",
+                "Pre-trade checklist submission payload is required when checklist is provided.");
+
+        public static readonly Error RrBelowTarget =
+            Error.Validation("pre_trade_checklist.rr_below_target",
+                "Risk/reward at entry must be greater than or equal to the risk/reward target used.");
+
+        public static readonly Error ConfluencesOutOfRange =
+            Error.Validation("pre_trade_checklist.confluences_out_of_range",
+                "Confluences count must be between 1 and 10 inclusive.");
+
+        public static readonly Error EmotionalityOutOfRange =
+            Error.Validation("pre_trade_checklist.emotionality_out_of_range",
+                "Emotionality must be one of Fearful (1), Anxious (2), Neutral (3), Confident (4), Euphoric (5).");
+
+        public static readonly Error SetupQualityOutOfRange =
+            Error.Validation("pre_trade_checklist.setup_quality_out_of_range",
+                "Setup quality must be one of Poor (1), BelowAverage (2), Average (3), Good (4), Excellent (5).");
+    }
 }
