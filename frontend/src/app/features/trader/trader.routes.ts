@@ -13,6 +13,8 @@ export const traderRoutes: Routes = [
   { path: 'strategies', loadChildren: () => import('./strategies/strategies.routes').then((m) => m.STRATEGIES_ROUTES) },
   // Slice 3b.2 — alerts (BackgroundService + ack flow).
   { path: 'alerts', loadChildren: () => import('./alerts/alerts.routes').then((m) => m.ALERTS_ROUTES) },
+  // Slice 3c.2 — weekly planner (planned vs actual trading sessions).
+  { path: 'planner', loadChildren: () => import('./planner/planner.routes').then((m) => m.PLANNER_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

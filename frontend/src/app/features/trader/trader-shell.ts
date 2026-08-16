@@ -392,13 +392,14 @@ export class TraderShell {
   private readonly router = inject(Router);
 
   readonly navItems: NavItem[] = [
-    { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
-    { label: 'Operaciones', path: 'trades',    icon: 'trades' },
+    { label: 'Dashboard',   path: 'dashboard',  icon: 'dashboard' },
+    { label: 'Operaciones', path: 'trades',     icon: 'trades' },
     { label: 'Strategies',  path: 'strategies', icon: 'list' },
-    { label: 'Diario',      path: 'journal',   icon: 'journal' },
-    { label: 'Patrones',    path: 'patterns',  icon: 'list' },
-    { label: 'Alertas',     path: 'alerts',    icon: 'tag' },
-    { label: 'Settings',    path: 'settings',  icon: 'settings' },
+    { label: 'Diario',      path: 'journal',    icon: 'journal' },
+    { label: 'Patrones',    path: 'patterns',   icon: 'list' },
+    { label: 'Alertas',     path: 'alerts',     icon: 'tag' },
+    { label: 'Planner',     path: 'planner',    icon: 'home' },
+    { label: 'Settings',    path: 'settings',   icon: 'settings' },
   ];
 
   userInitial(): string {

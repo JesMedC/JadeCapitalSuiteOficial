@@ -458,4 +458,42 @@ public static class TradingDomainErrors
         public static readonly Error NotFound =
             Error.NotFound("alert.not_found", "Alert not found.");
     }
+
+    /// <summary>
+    /// Errores del bounded context del Planner (slice 3c).
+    ///
+    /// Los codigos llevan prefijo <c>planner.</c>. Las validaciones (notes
+    /// demasiado largo, end before start) son <see cref="Error.Validation"/>
+    /// y mapean a 400. El not-found es <see cref="Error.NotFound"/> y mapea
+    /// a 404 (usado por la aplicacion para cross-user isolation: una sesion
+    /// de otro user colapsa a NotFound, no Forbidden, para no leak existencia).
+    /// </summary>
+    public static class Planner
+    {
+        public static readonly Error UserIdRequired =
+            Error.Validation("planner.user_id_required", "Planner session user id is required.");
+
+        public static readonly Error NotesTooLong =
+            Error.Validation("planner.notes_too_long",
+                $"Planner session notes must be at most {JadeCapital.Trading.Domain.Planner.PlannerSession.MaxNotesLength} characters.");
+
+        public static readonly Error EndBeforeStart =
+            Error.Validation("planner.end_before_start",
+                "Planned end time must be greater than planned start time.");
+
+        public static readonly Error AlreadyExistsForDate =
+            Error.Conflict("planner.already_exists_for_date",
+                "A planner session already exists for this date.");
+
+        public static readonly Error InvalidStatus =
+            Error.Validation("planner.invalid_status",
+                "Planner status must be one of Planned, Completed, Skipped, Cancelled.");
+
+        public static readonly Error InvalidWeek =
+            Error.Validation("planner.invalid_week",
+                "Week parameter must be a Monday in ISO 8601 format (YYYY-MM-DD).");
+
+        public static readonly Error NotFound =
+            Error.NotFound("planner.not_found", "Planner session not found.");
+    }
 }

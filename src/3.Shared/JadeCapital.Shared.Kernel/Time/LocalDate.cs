@@ -58,6 +58,9 @@ public readonly record struct LocalDate(int Year, int Month, int Day)
     /// <summary>Convierte a <see cref="DateOnly"/> para persistir en columnas DATE.</summary>
     public DateOnly ToDateOnly() => new(Year, Month, Day);
 
+    /// <summary>Adds <paramref name="days"/> calendar days (negative subtracts). Cross-month/year-safe.</summary>
+    public LocalDate AddDays(int days) => From(ToDateOnly().AddDays(days));
+
     /// <summary>
     /// Comparacion cronologica: primero por Year, luego Month, luego Day.
     /// Implementada manualmente porque C# no genera los operadores

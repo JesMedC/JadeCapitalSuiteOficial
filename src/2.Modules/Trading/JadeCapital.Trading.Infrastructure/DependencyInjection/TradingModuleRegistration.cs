@@ -43,6 +43,8 @@ public static class TradingModuleRegistration
         services.AddScoped<IStrategyRepository, StrategyRepository>();
         // Slice 3b — alerts persistence (BackgroundService writes; API reads).
         services.AddScoped<IAlertRepository, AlertRepository>();
+        // Slice 3c — planner sessions persistence (weekly planned-vs-actual).
+        services.AddScoped<IPlannerSessionRepository, PlannerSessionRepository>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         // ===== Metrics read store (slice 1f) =====

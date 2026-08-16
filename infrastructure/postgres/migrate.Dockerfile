@@ -20,6 +20,7 @@ COPY migrations/0013_journal_entries.sql                        /migrations/0013
 COPY migrations/0014_trades_mfe_mae.sql                        /migrations/0014_trades_mfe_mae.sql
 COPY migrations/0015a_strategies.sql                           /migrations/0015a_strategies.sql
 COPY migrations/0015b_alerts.sql                              /migrations/0015b_alerts.sql
+COPY migrations/0015c_planner.sql                             /migrations/0015c_planner.sql
 # Importante: como usamos CMD ["bash", "-c", ...] (no el entrypoint oficial),
 # NO se propaga POSTGRES_PASSWORD -> PGPASSWORD automaticamente. Lo seteamos a mano.
 CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep 2; done && \
@@ -40,6 +41,7 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0014_trades_mfe_mae.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015a_strategies.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015b_alerts.sql && \
+       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015c_planner.sql && \
        echo 'ALL MIGRATIONS OK' || \
      (echo 'PARTIAL MIGRATION — retrying (idempotent SQL)' && sleep 3 && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0001_InitialIdentitySchema.sql && \
@@ -57,4 +59,5 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0014_trades_mfe_mae.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015a_strategies.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015b_alerts.sql && \
+       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0015c_planner.sql && \
        echo 'ALL MIGRATIONS OK (retry)')"]

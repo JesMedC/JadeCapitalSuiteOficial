@@ -1,6 +1,7 @@
 using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
+using JadeCapital.Trading.Domain.Planner;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
 using JadeCapital.Trading.Domain.Strategies;
 using JadeCapital.Trading.Domain.Trades;
@@ -36,6 +37,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 3b — persistent alerts (BackgroundService writes; API reads).
     public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.Alerts.Alert> Alerts
         => Set<JadeCapital.Trading.Domain.Alerts.Alert>();
+    // Slice 3c — trader planner sessions (weekly planned-vs-actual).
+    public Microsoft.EntityFrameworkCore.DbSet<PlannerSession> PlannerSessions
+        => Set<PlannerSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +53,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new JournalEntryConfiguration());
         modelBuilder.ApplyConfiguration(new StrategyConfiguration());
         modelBuilder.ApplyConfiguration(new AlertConfiguration());
+        modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
     }
 }
 
