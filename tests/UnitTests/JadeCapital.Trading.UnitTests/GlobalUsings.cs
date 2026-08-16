@@ -38,4 +38,5 @@ global using JadeCapital.Trading.Application.Features.Instruments.DeleteInstrume
 global using JadeCapital.Trading.Application.Features.Dashboard.GetDashboardSummary;
 global using JadeCapital.Trading.Application.Features.Dashboard.GetPnlCalendar;
 global using JadeCapital.Trading.Application.Features.Metrics.GetTradingMetrics;
+global using JadeCapital.Trading.Application.Features.PositionSize;
 global using Microsoft.Extensions.Logging;

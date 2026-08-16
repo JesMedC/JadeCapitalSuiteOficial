@@ -313,6 +313,8 @@ app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
 // Slice 1f — server-side trading metrics (replaces analytics.page.ts mocks).
 app.MapTraderMetricsEndpoints();
+// Slice 1b — read-only position-size calculator (uses IIdentityUserRiskProfileReader).
+app.MapPositionSizeEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
