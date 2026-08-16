@@ -397,6 +397,7 @@ export class TraderShell {
     { label: 'Strategies',  path: 'strategies', icon: 'list' },
     { label: 'Diario',      path: 'journal',   icon: 'journal' },
     { label: 'Patrones',    path: 'patterns',  icon: 'list' },
+    { label: 'Alertas',     path: 'alerts',    icon: 'tag' },
     { label: 'Settings',    path: 'settings',  icon: 'settings' },
   ];
 

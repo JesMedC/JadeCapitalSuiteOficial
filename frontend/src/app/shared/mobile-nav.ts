@@ -122,14 +122,19 @@ export interface MobileNavItem {
       z-index: var(--z-mobile-nav);
       display: flex;
       align-items: stretch;
-      justify-content: space-around;
+      justify-content: flex-start;
       gap: 0;
       padding: var(--sp-1) var(--sp-2) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
       background: var(--bg-sidebar);
       border-top: 1px solid var(--border);
       backdrop-filter: blur(8px);
       box-shadow: 0 -4px 16px rgba(0,0,0,0.18);
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
     }
+    .mobile-nav::-webkit-scrollbar { display: none; }
 
     /* Hide on tablet+ — sidebar takes over. */
     @media (min-width: 768px) {
@@ -137,15 +142,15 @@ export interface MobileNavItem {
     }
 
     .mobile-nav-link {
-      flex: 1;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 2px;
       min-height: 56px;
-      min-width: 56px;
-      padding: var(--sp-2) var(--sp-1);
+      min-width: 72px;
+      padding: var(--sp-2) var(--sp-2);
       border-radius: var(--radius-sm);
       color: var(--text-muted);
       text-decoration: none;
