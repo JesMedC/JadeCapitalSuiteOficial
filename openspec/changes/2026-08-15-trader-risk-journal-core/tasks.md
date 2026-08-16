@@ -134,14 +134,14 @@
 ### 1c.2 — Pre-trade frontend
 
 **Phase 1: Component**
-- [ ] 1.1 `pre-trade-checklist.component.ts` (Signals, OnPush; checkboxes + RR numeric input + confluences slider; emits `PreTradeChecklistSubmission`).
+- [x] 1.1 `pre-trade-checklist.component.ts` (Signals, OnPush; checkboxes + RR numeric input + confluences slider; emits `PreTradeChecklistSubmission`).
 
 **Phase 2: Wiring**
-- [ ] 2.1 Embed `<pre-trade-checklist>` in `open-trade.dialog.ts`; submit with the checklist payload.
-- [ ] 2.2 Display 422 errors with field-level reasons inline.
+- [x] 2.1 Embed `<pre-trade-checklist>` in `open-trade.dialog.ts`; submit with the checklist payload.
+- [x] 2.2 Display 422 errors with field-level reasons inline.
 
 **Phase 3: Tests**
-- [ ] 3.1 3 jest specs (component renders, submit emits correct shape, validation errors surface).
+- [x] 3.1 3 jest specs (component renders, submit emits correct shape, validation errors surface).
 
 ## Slice 1b — Position-Size Calculator (single PR)
 
