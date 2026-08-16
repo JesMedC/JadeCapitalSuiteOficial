@@ -24,6 +24,12 @@ export interface TradeDto {
   pnl: number | null;
   pnlCurrency: string | null;
   accountCurrency: string;
+  /** Slice 2c — Wave 2 MFE approximation. Null on open / cancelled trades. */
+  mfeAmount: number | null;
+  /** Slice 2c — Wave 2 MAE approximation (≤ 0). Null on open / cancelled trades. */
+  maeAmount: number | null;
+  mfeCurrency: string | null;
+  maeCurrency: string | null;
   strategy: string | null;
   notes: string | null;
   openedAt: string;

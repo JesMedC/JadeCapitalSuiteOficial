@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal
 import { DecimalPipe, DatePipe, NgClass } from '@angular/common';
 import { TradeApiService, TradeDto, TradeStatus } from '@core/api/trade-api.service';
 import { CreateTradeForm } from './create-trade-form';
+import { MfeMaeMiniChart } from './mfe-mae-mini-chart';
 
 type DirectionFilter = 'All' | 'Long' | 'Short';
 type StatusFilter = 'All' | TradeStatus;
@@ -9,7 +10,7 @@ type StatusFilter = 'All' | TradeStatus;
 @Component({
   selector: 'jcs-trades-list',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass, CreateTradeForm],
+  imports: [DecimalPipe, DatePipe, NgClass, CreateTradeForm, MfeMaeMiniChart],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="trades-page">
@@ -225,6 +226,8 @@ type StatusFilter = 'All' | TradeStatus;
                 <th class="num">Entrada</th>
                 <th class="num">Salida</th>
                 <th class="num">P&amp;L</th>
+                <th class="num">MFE</th>
+                <th class="num">MAE</th>
               </tr>
             </thead>
             <tbody>
@@ -257,10 +260,24 @@ type StatusFilter = 'All' | TradeStatus;
                       {{ t.pnl >= 0 ? '+' : '' }}{{ t.pnl | number:'1.2-2' }}
                     }
                   </td>
+                  <!-- Slice 2c — MFE / MAE inline mini-chart. Open / cancelled
+                       trades render the "—" placeholder via the chart itself. -->
+                  <td class="num jcs-num trades-mfe-cell">
+                    <jcs-mfe-mae-mini-chart
+                      [mfeAmount]="t.mfeAmount"
+                      [maeAmount]="null"
+                      [currency]="t.mfeCurrency ?? t.accountCurrency" />
+                  </td>
+                  <td class="num jcs-num trades-mae-cell">
+                    <jcs-mfe-mae-mini-chart
+                      [mfeAmount]="null"
+                      [maeAmount]="t.maeAmount"
+                      [currency]="t.maeCurrency ?? t.accountCurrency" />
+                  </td>
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="8" class="empty">
+                  <td colspan="10" class="empty">
                     @if (loading()) {
                       Cargando operaciones…
                     } @else {
