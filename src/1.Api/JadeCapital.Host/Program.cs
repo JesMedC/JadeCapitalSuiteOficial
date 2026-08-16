@@ -340,6 +340,8 @@ app.MapTradeMfeMaeEndpoints();
 // Slice 2d — rule-based coaching prompts (5 rules registered; aggregates
 // over trades + journals + behavioral events in the requested window).
 app.MapCoachingPromptsEndpoint();
+// Slice 3a — trader strategies (CRUD + analytics) + tag/untag trade.
+app.MapStrategyEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

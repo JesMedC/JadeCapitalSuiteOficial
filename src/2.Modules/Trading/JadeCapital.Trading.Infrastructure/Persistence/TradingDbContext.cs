@@ -2,6 +2,7 @@ using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
+using JadeCapital.Trading.Domain.Strategies;
 using JadeCapital.Trading.Domain.Trades;
 using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
 using JadeCapital.Trading.Infrastructure.Persistence.Converters;
@@ -30,6 +31,8 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment> TradeAttachments => Set<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment>();
     // Slice 2a.1 — daily journal entries.
     public Microsoft.EntityFrameworkCore.DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    // Slice 3a — trader strategies (named setups + analytics).
+    public Microsoft.EntityFrameworkCore.DbSet<Strategy> Strategies => Set<Strategy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +44,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new TradeReviewConfiguration());
         modelBuilder.ApplyConfiguration(new TradeAttachmentConfiguration());
         modelBuilder.ApplyConfiguration(new JournalEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new StrategyConfiguration());
     }
 }
 
@@ -81,6 +85,15 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
         b.Property(t => t.MaeAmount).HasColumnName("mae_amount").HasColumnType("numeric(24,8)");
         b.Property(t => t.MfeCurrency).HasColumnName("mfe_currency").HasMaxLength(3).IsFixedLength();
         b.Property(t => t.MaeCurrency).HasColumnName("mae_currency").HasMaxLength(3).IsFixedLength();
+
+        // Slice 3a — Strategy FK additive nullable (migration 0015a).
+        // La shadow navigation HasOne<Strategy>().WithMany() mapea la FK
+        // logica sin requerir navigation property en el aggregate Trade.
+        // ON DELETE SET NULL en la DB; la DB hace el SET NULL si Wave 4+
+        // algun dia hard-delete una strategy.
+        b.Property(t => t.StrategyId).HasColumnName("strategy_id").IsRequired(false);
+        b.HasOne<Strategy>().WithMany().HasForeignKey(t => t.StrategyId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Money value objects via OwnsOne — Volume, EntryPrice son required.
         // ExitPrice y PnL son nullable y la columna queda NULL cuando el

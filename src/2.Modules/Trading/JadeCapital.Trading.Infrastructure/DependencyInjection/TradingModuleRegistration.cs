@@ -35,6 +35,8 @@ public static class TradingModuleRegistration
         services.AddScoped<ITradeReviewRepository, TradeReviewRepository>();
         // Slice 2a.1 — daily journal persistence.
         services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
+        // Slice 3a — strategy persistence (named setups + analytics).
+        services.AddScoped<IStrategyRepository, StrategyRepository>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         // ===== Metrics read store (slice 1f) =====
