@@ -86,25 +86,23 @@ public sealed class AlertEvaluationService
         var closedWindowStart = now.AddDays(-30);
         var journalWindowStart = now.AddDays(-7);
 
-        // Load context. The repository reads may throw — we wrap the whole
-        // method in a try/catch so the BackgroundService survives per-user
-        // failures (per spec scenario "Service survives transient errors").
-        try
-        {
-            var closedTradesTask = _trades.ListClosedByUserIdAsync(userId, ct);
-            var openTradesTask = _trades.ListByUserIdAsync(userId, 1, 100, ct, statusFilter: TradeStatus.Open);
-            var journalsTask = _journals.ListByRangeAsync(userId,
-                JadeCapital.Shared.Kernel.Time.LocalDate.From(DateOnly.FromDateTime(journalWindowStart.UtcDateTime)),
-                JadeCapital.Shared.Kernel.Time.LocalDate.From(DateOnly.FromDateTime(now.UtcDateTime)),
-                ct);
-            var checklistsTask = _checklists.ListByUserIdAsync(userId, ct);
-
-            await Task.WhenAll(closedTradesTask, openTradesTask, journalsTask, checklistsTask);
-
-            var closedTrades = closedTradesTask.Result;
-            var openTrades = openTradesTask.Result;
-            var journals = journalsTask.Result;
-            var checklists = checklistsTask.Result;
+// Load context. The repository reads may throw — we wrap the whole
+            // method in a try/catch so the BackgroundService survives per-user
+            // failures (per spec scenario "Service survives transient errors").
+            //
+            // Important: we MUST serialize the reads because the scoped
+            // TradingDbContext is not thread-safe — Task.WhenAll on parallel
+            // repo calls against the same DbContext throws "A second operation
+            // was started on this context". Sequential await is correct here.
+            try
+            {
+                var closedTrades = await _trades.ListClosedByUserIdAsync(userId, ct);
+                var openTrades = await _trades.ListByUserIdAsync(userId, 1, 100, ct, statusFilter: TradeStatus.Open);
+                var journals = await _journals.ListByRangeAsync(userId,
+                    JadeCapital.Shared.Kernel.Time.LocalDate.From(DateOnly.FromDateTime(journalWindowStart.UtcDateTime)),
+                    JadeCapital.Shared.Kernel.Time.LocalDate.From(DateOnly.FromDateTime(now.UtcDateTime)),
+                    ct);
+                var checklists = await _checklists.ListByUserIdAsync(userId, ct);
 
             BehavioralAnalyticsResult? analytics = null;
             if (closedTrades.Count > 0 || checklists.Count > 0)

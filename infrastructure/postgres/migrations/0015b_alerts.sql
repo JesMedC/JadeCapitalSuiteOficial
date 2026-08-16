@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS trading.alerts (
     acknowledged_at TIMESTAMPTZ     NULL,
     expires_at      TIMESTAMPTZ     NULL,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ     NULL,
 
     -- FK cross-schema a identity.users. Borrar el usuario borra sus alerts.
     CONSTRAINT fk_alerts_user
@@ -99,5 +100,6 @@ COMMENT ON COLUMN trading.alerts.cta_label IS 'Label del CTA en espanol (e.g. Re
 COMMENT ON COLUMN trading.alerts.acknowledged_at IS 'Timestamp del ack. NULL = alerta activa (visible en GET ?activeOnly=true).';
 COMMENT ON COLUMN trading.alerts.expires_at IS 'Timestamp de expiracion. NULL = sin expiry. La API filtra out expired de ?activeOnly=true.';
 COMMENT ON COLUMN trading.alerts.created_at IS 'Timestamp de insercion. Default now(). Usado por el dedup UNIQUE INDEX.';
+COMMENT ON COLUMN trading.alerts.updated_at IS 'Timestamp de la ultima modificacion (e.g. ack). NULL para alertas nunca modificadas.';
 
 COMMIT;

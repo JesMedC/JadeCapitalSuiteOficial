@@ -54,6 +54,11 @@ internal sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
         b.Property(a => a.AcknowledgedAt).HasColumnName("acknowledged_at");
         b.Property(a => a.ExpiresAt).HasColumnName("expires_at");
         b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
+        // UpdatedAt is the inherited DateTimeOffset? — column is nullable so
+        // a fresh INSERT that hasn't been acked stays NULL. Wave 4+ may
+        // promote this to NOT NULL if every alert is required to have a
+        // last-modified timestamp.
+        b.Property(a => a.UpdatedAt).HasColumnName("updated_at");
 
         b.Ignore(a => a.DomainEvents);
 

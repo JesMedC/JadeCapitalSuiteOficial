@@ -56,7 +56,10 @@ public sealed class Alert : AggregateRoot<Guid>
     public string CtaLabel { get; private set; } = default!;
     public DateTimeOffset? AcknowledgedAt { get; private set; }
     public DateTimeOffset? ExpiresAt { get; private set; }
-    public new DateTimeOffset CreatedAt { get; private set; }
+    // CreatedAt inherited from Entity<TId>. The constructor sets it via
+    // SetCreatedAt so test fixtures with a fixed clock get a deterministic
+    // value. EF maps it to created_at (see AlertConfiguration).
+    public new DateTimeOffset? UpdatedAt { get; private set; }
 
     // EF Core.
     private Alert() { }
@@ -81,7 +84,9 @@ public sealed class Alert : AggregateRoot<Guid>
         CtaRoute = ctaRoute;
         CtaLabel = ctaLabel;
         ExpiresAt = expiresAt;
-        CreatedAt = clock.UtcNow;
+        // CreatedAt inherited from Entity<TId>; set it explicitly via
+        // SetCreatedAt so the clock-driven factory is testable.
+        SetCreatedAt(clock.UtcNow);
     }
 
     /// <summary>
@@ -156,9 +161,10 @@ public sealed class Alert : AggregateRoot<Guid>
         string ctaLabel,
         DateTimeOffset? acknowledgedAt,
         DateTimeOffset? expiresAt,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        DateTimeOffset? updatedAt)
     {
-        return new Alert(
+        var a = new Alert(
             id, userId, ruleId,
             (Severity)(byte)severity,
             title, body,
@@ -167,7 +173,9 @@ public sealed class Alert : AggregateRoot<Guid>
             new TrustedRehydrationClock(createdAt))
         {
             AcknowledgedAt = acknowledgedAt,
+            UpdatedAt = updatedAt,
         };
+        return a;
     }
 
     /// <summary>
@@ -180,6 +188,7 @@ public sealed class Alert : AggregateRoot<Guid>
             return Result.Success(); // idempotent
 
         AcknowledgedAt = clock.UtcNow;
+        UpdatedAt = clock.UtcNow;
         return Result.Success();
     }
 
