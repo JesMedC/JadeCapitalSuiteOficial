@@ -394,6 +394,7 @@ export class TraderShell {
   readonly navItems: NavItem[] = [
     { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
     { label: 'Operaciones', path: 'trades',    icon: 'trades' },
+    { label: 'Strategies',  path: 'strategies', icon: 'list' },
     { label: 'Diario',      path: 'journal',   icon: 'journal' },
     { label: 'Patrones',    path: 'patterns',  icon: 'list' },
     { label: 'Settings',    path: 'settings',  icon: 'settings' },
