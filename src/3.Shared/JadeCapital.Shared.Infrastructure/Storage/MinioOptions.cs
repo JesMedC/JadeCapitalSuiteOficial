@@ -9,12 +9,18 @@ namespace JadeCapital.Shared.Infrastructure.Storage;
 /// <code>
 /// Endpoint=http://minio:9000;AccessKey=...;SecretKey=...;Bucket=jade-uploads;Ssl=false
 /// </code>
-/// El parser es tolerante al orden y case-insensitive en las claves.
+///
+/// Nota: el <c>Endpoint</c> puede venir con esquema (<c>http://</c> / <c>https://</c>)
+/// o sin el (<c>minio:9000</c>). El SDK de MinIO acepta SOLO el formato
+/// <c>host:port</c> — el esquema se controla via <see cref="Ssl"/>. El
+/// <see cref="ParseConnectionString"/> quita el esquema si esta presente.
 /// </summary>
 public sealed class MinioOptions
 {
-    /// <summary>Endpoint del servidor MinIO (e.g. <c>http://minio:9000</c>).</summary>
-    public string Endpoint { get; set; } = "http://localhost:9000";
+    /// <summary>Host:port del servidor MinIO (SIN esquema).
+    /// El SDK rechaza strings con <c>http://</c>; use <see cref="Ssl"/>
+    /// para indicar HTTPS.</summary>
+    public string Endpoint { get; set; } = "localhost:9000";
 
     /// <summary>Access key del bucket.</summary>
     public string AccessKey { get; set; } = string.Empty;
@@ -30,9 +36,9 @@ public sealed class MinioOptions
 
     /// <summary>
     /// Parsea la connection string en formato
-    /// <c>Key1=value1;Key2=value2</c>. Usado por el bootstrapper
-    /// <c>AddMinioInfrastructure</c> cuando la config no viene de
-    /// <c>IConfiguration</c> section-style.
+    /// <c>Key1=value1;Key2=value2</c>. Quita el esquema del endpoint si
+    /// esta presente (<c>http://</c> o <c>https://</c>) — el SDK de MinIO
+    /// rechaza endpoints con esquema.
     /// </summary>
     public static MinioOptions ParseConnectionString(string connectionString)
     {
@@ -47,7 +53,11 @@ public sealed class MinioOptions
             var value = part.Substring(eq + 1).Trim();
             switch (key.ToLowerInvariant())
             {
-                case "endpoint":  opts.Endpoint  = value; break;
+                case "endpoint":
+                    opts.Endpoint = StripScheme(value);
+                    if (value.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
+                        opts.Ssl = true;
+                    break;
                 case "accesskey": opts.AccessKey = value; break;
                 case "secretkey": opts.SecretKey = value; break;
                 case "bucket":    opts.Bucket    = value; break;
@@ -57,5 +67,17 @@ public sealed class MinioOptions
             }
         }
         return opts;
+    }
+
+    /// <summary>Quita el prefijo <c>http://</c> o <c>https://</c> del
+    /// endpoint. El SDK de MinIO 6.x requiere <c>host:port</c> sin esquema.</summary>
+    private static string StripScheme(string endpoint)
+    {
+        if (string.IsNullOrEmpty(endpoint)) return endpoint;
+        if (endpoint.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
+            return endpoint.Substring("https://".Length);
+        if (endpoint.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase))
+            return endpoint.Substring("http://".Length);
+        return endpoint;
     }
 }
