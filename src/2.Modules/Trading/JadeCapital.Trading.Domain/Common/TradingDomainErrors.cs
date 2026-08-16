@@ -199,4 +199,106 @@ public static class TradingDomainErrors
             Error.Validation("pre_trade_checklist.setup_quality_out_of_range",
                 "Setup quality must be one of Poor (1), BelowAverage (2), Average (3), Good (4), Excellent (5).");
     }
+
+    /// <summary>
+    /// Errores del bounded context del post-trade review (slice 1d.1).
+    ///
+    /// Mismas convenciones que <c>PreTradeChecklist</c>: los codigos
+    /// llevan prefijo <c>trade_review.</c> para que el endpoint
+    /// <c>POST /api/trades/{id}/review</c> distinga errores de review vs
+    /// errores de Trade (que llevan prefijo <c>trade.</c>) y los rutee
+    /// a HTTP correcto via <c>ProblemFromResult</c>.
+    /// </summary>
+    public static class TradeReview
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("trade_review.id_required", "Review id is required.");
+
+        public static readonly Error TradeIdRequired =
+            Error.Validation("trade_review.trade_id_required", "Trade id is required.");
+
+        public static readonly Error UserIdRequired =
+            Error.Validation("trade_review.user_id_required", "User id is required.");
+
+        public static readonly Error SubmissionRequired =
+            Error.Validation("trade_review.submission_required",
+                "Review payload is required.");
+
+        public static readonly Error EmotionalityOutOfRange =
+            Error.Validation("trade_review.emotionality_out_of_range",
+                "Emotionality must be between 1 and 5 inclusive.");
+
+        public static readonly Error RatingOutOfRange =
+            Error.Validation("trade_review.rating_out_of_range",
+                "Rating must be between 1 and 5 inclusive.");
+
+        public static readonly Error SetupUsedTooLong =
+            Error.Validation("trade_review.setup_used_too_long",
+                "Setup tag must be 64 characters or less.");
+
+        public static readonly Error LessonsTooLong =
+            Error.Validation("trade_review.lessons_too_long",
+                "Lessons must be 5000 characters or less.");
+
+        public static readonly Error TradeNotClosed =
+            Error.Conflict("trade_review.trade_not_closed",
+                "Post-trade review is only allowed for closed trades.");
+
+        public static readonly Error AlreadyExists =
+            Error.Conflict("trade_review.already_exists",
+                "A review already exists for this trade.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("trade_review.not_found",
+                "Post-trade review not found for this trade.");
+    }
+
+    /// <summary>
+    /// Errores del bounded context de trade attachments (slice 1d.1).
+    ///
+    /// Los codigos llevan prefijo <c>trade_attachment.</c>. Los errores
+    /// de validacion (sha256, size, etc.) mapean a 400 default; los de
+    /// conflicto (collision, already_uploaded) mapean a 409.
+    /// </summary>
+    public static class TradeAttachment
+    {
+        public static readonly Error IdRequired =
+            Error.Validation("trade_attachment.id_required", "Attachment id is required.");
+
+        public static readonly Error ReviewIdRequired =
+            Error.Validation("trade_attachment.review_id_required", "Review id is required.");
+
+        public static readonly Error UserIdRequired =
+            Error.Validation("trade_attachment.user_id_required", "User id is required.");
+
+        public static readonly Error ObjectKeyRequired =
+            Error.Validation("trade_attachment.object_key_required", "Object key is required.");
+
+        public static readonly Error ObjectKeyCollision =
+            Error.Conflict("trade_attachment.object_key_collision",
+                "An attachment with this object key already exists.");
+
+        public static readonly Error ContentTypeRequired =
+            Error.Validation("trade_attachment.content_type_required", "Content type is required.");
+
+        public static readonly Error SizeOutOfRange =
+            Error.Validation("trade_attachment.size_out_of_range",
+                "Attachment size must be between 1 byte and 10 MB.");
+
+        public static readonly Error Sha256ShapeInvalid =
+            Error.Validation("trade_attachment.sha256_shape_invalid",
+                "SHA-256 must be 64 hex characters.");
+
+        public static readonly Error AlreadyUploaded =
+            Error.Conflict("trade_attachment.already_uploaded",
+                "Attachment has already been confirmed as uploaded.");
+
+        public static readonly Error AlreadyFailed =
+            Error.Conflict("trade_attachment.already_failed",
+                "Attachment has already been marked as failed.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("trade_attachment.not_found",
+                "Attachment not found.");
+    }
 }
