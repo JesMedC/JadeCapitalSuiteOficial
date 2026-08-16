@@ -96,15 +96,15 @@
 ### 1a.2 — Risk profile frontend
 
 **Phase 1: Service + state**
-- [ ] 1.1 `risk-profile.service.ts` (HTTP client for `GET/PUT /api/risk-profile`).
-- [ ] 1.2 `risk-profile-state.ts` (Signals store: `profile`, `isLoading`, `error`).
+- [x] 1.1 `risk-profile.service.ts` (HTTP client for `GET/PUT /api/risk-profile`).
+- [x] 1.2 `risk-profile-state.ts` (Signals store: `profile`, `isLoading`, `error`).
 
 **Phase 2: Component**
-- [ ] 2.1 `risk-profile-tab.ts` (Angular 19 standalone, Signals, OnPush, SCSS; displays current profile, edit form, loading/error/empty states).
+- [x] 2.1 `risk-profile-tab.ts` (Angular 19 standalone, Signals, OnPush, SCSS; displays current profile, edit form, loading/error/empty states).
 
 **Phase 3: Wiring + tests**
-- [ ] 3.1 Add `'risk-profile'` tab to `settings.page.ts`.
-- [ ] 3.2 4 jest specs (initial load, save success, validation error, 409 conflict).
+- [x] 3.1 Add `'risk-profile'` tab to `settings.page.ts`.
+- [x] 3.2 4 jest specs (initial load, save success, validation error, 409 conflict).
 
 ## Slice 1c — Pre-Trade Checklist
 
