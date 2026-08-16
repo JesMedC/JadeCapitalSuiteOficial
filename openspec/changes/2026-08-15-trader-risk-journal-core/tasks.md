@@ -165,29 +165,43 @@
 ### 1d.1 — Review + attachment backend
 
 **Phase 1: Migration**
-- [ ] 1.1 `infrastructure/postgres/migrations/0012_trade_reviews_and_attachments.sql` (`trading.trade_reviews(id, trade_id FK UNIQUE, user_id FK, emotionality SMALLINT, setup VARCHAR(80), lessons VARCHAR(2000), rating SMALLINT NULL, created_at, updated_at)`; `trading.trade_attachments(id, review_id FK, user_id FK, object_key VARCHAR(500) UNIQUE, content_type VARCHAR(127), size_bytes BIGINT, sha256 CHAR(64) NULL, status SMALLINT, created_at, uploaded_at)` + indexes).
+- [x] 1.1 `infrastructure/postgres/migrations/0012_trade_reviews_and_attachments.sql` (`trading.trade_reviews(id, trade_id FK UNIQUE, user_id FK, emotionality SMALLINT, setup_used VARCHAR(64), lessons TEXT, rating SMALLINT, created_at, updated_at)` + indexes + checks; `trading.trade_attachments(id, review_id FK, user_id FK, object_key VARCHAR(512) UNIQUE, content_type VARCHAR(127), size_bytes BIGINT [1..10485760], sha256 VARCHAR(64), status VARCHAR(16) [pending|uploaded|failed], created_at, uploaded_at)`). Wire en `migrate.Dockerfile`.
 
 **Phase 2: Shared infrastructure**
-- [ ] 2.1 `MinioOptions` (Endpoint, AccessKey, SecretKey, Bucket, UseSsl).
-- [ ] 2.2 `IMinioAttachmentStore` (Shared.Kernel) + `MinioAttachmentStore` (Shared.Infrastructure) implementing `EnsureBucketAsync`, `RequestUploadAsync`, `CompleteAsync`.
-- [ ] 2.3 `AddMinioInfrastructure(IServiceCollection, IConfiguration)` extension.
-- [ ] 2.4 Wire `AddMinioInfrastructure(builder.Configuration)` in `Program.cs` after `AddSharedInfrastructure()`.
+- [x] 2.1 `MinioOptions` (Endpoint [host:port sin scheme], AccessKey, SecretKey, Bucket, Ssl) + `ParseConnectionString` que quita el scheme `http(s)://`.
+- [x] 2.2 `IAttachmentStorage` (Shared.Kernel) + `MinioAttachmentStore` (Shared.Infrastructure) + `MinioInitializerHostedService` (provisiona bucket al startup).
+- [x] 2.3 `AddMinioInfrastructure(IServiceCollection, IConfiguration)` extension (Singleton IMinioClient + IAttachmentStorage + hosted service).
+- [x] 2.4 Wire `AddMinioInfrastructure(builder.Configuration)` en `Program.cs` despues de `AddSharedInfrastructure()`.
 
 **Phase 3: Domain (TDD)**
-- [ ] 3.1 RED tests `TradeReviewTests` (4 scenarios: happy create, open-trade reject, duplicate reject, update path) + `TradeAttachmentTests` (4 scenarios: slot request, mark uploaded, status transitions).
-- [ ] 3.2 GREEN: `TradeReview` + `TradeAttachment` aggregates + `ReviewEmotionality` enum + `TradeReviewCreatedDomainEvent` + `TradeAttachmentUploadedDomainEvent`.
+- [x] 3.1 RED tests `TradeReviewTests` (11 scenarios — happy + trade-not-closed + rating/setup/lessons boundaries + upsert + emotionality immutable) + `TradeAttachmentTests` (11 scenarios — slot happy + size 0/10MB/exact/over + content-type + lifecycle + sha lowercase).
+- [x] 3.2 GREEN: `TradeReview` aggregate + `ReviewEmotionality` enum + `TradeReviewCreatedDomainEvent`; `TradeAttachment` aggregate + `TradeAttachmentStatus` enum + `TradeAttachmentUploadedDomainEvent`.
 
 **Phase 4: Application (TDD)**
-- [ ] 4.1 RED tests `SubmitReviewHandlerTests` (4 scenarios) + `RequestAttachmentUploadHandlerTests` (3) + `CompleteAttachmentUploadHandlerTests` (3).
-- [ ] 4.2 GREEN: `SubmitReviewCommand/Handler`, `RequestAttachmentUploadCommand/Handler`, `CompleteAttachmentUploadCommand/Handler` (latter injects `IMinioAttachmentStore`).
-- [ ] 4.3 EF Core `TradeReviewConfiguration` + `TradeAttachmentConfiguration` + repos.
+- [x] 4.1 RED tests `CreateOrUpdateTradeReviewHandlerTests` (9 scenarios incl cross-user) + `RequestAttachmentUploadHandlerTests` (6 incl. validator + sanitize) + `ConfirmAttachmentUploadedHandlerTests` (5 happy/failure/idempotent/cross-user/sha) + `DeleteAndGetReviewHandlerTests` (5).
+- [x] 4.2 GREEN: `CreateOrUpdateTradeReviewCommand/Handler`, `RequestAttachmentUploadCommand/Handler`, `ConfirmAttachmentUploadedCommand/Handler`, `DeleteAttachmentCommand/Handler`, `GetTradeReviewQuery/Handler`, `ITradeReviewRepository` contract.
+- [x] 4.3 EF Core `TradeReviewConfiguration` + `TradeAttachmentConfiguration` + `TradeReviewRepository` (incl `GetTradeIdByAttachmentIdAsync`).
 
 **Phase 5: API**
-- [ ] 5.1 `MapTraderReviewEndpoints` exposing `POST /api/trades/{id}/review`, `PUT /api/trades/{id}/review`, `POST /api/trades/{id}/review/attachments`, `POST /api/trades/{id}/review/attachments/{attId}/complete`. RequireAuthorization; `auth-strict` for review POST/PUT, `api-general` for attachment slots.
-- [ ] 5.2 `app.MapTraderReviewEndpoints()` in `Program.cs`.
+- [x] 5.1 `MapTradeReviewEndpoints` exponiendo POST `/api/trades/{id}/review` (upsert), GET `/review`, POST `/review/attachments`, POST `/review/attachments/{id}/complete`, DELETE `/review/attachments/{id}`. RequireAuthorization; `api-general` rate limit.
+- [x] 5.2 `app.MapTradeReviewEndpoints()` en `Program.cs`.
 
 **Phase 6: Validate**
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~Review\|Attachment"` → green.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~TradeReview|TradeAttachment"` -> green (52 passed).
+- [x] 6.2 Smoke: 401 sin auth, 404 sin review, bucket MinIO provisioned al startup.
+
+### 1d.2 — Review frontend
+
+**Phase 1: Service + state**
+- [x] 1.1 `trade-review.service.ts` (HttpClient wrappers para get/upsert/requestUpload/confirmUpload/deleteAttachment + helper `uploadBytesToMinio` con fetch directo).
+- [x] 1.2 `trade-review.types.ts` (DTOs + `ALLOWED_ATTACHMENT_CONTENT_TYPES` whitelist + `MAX_ATTACHMENT_SIZE_BYTES` 10MB + `MAX_ATTACHMENTS_PER_REVIEW` 5).
+
+**Phase 2: Component**
+- [x] 2.1 `post-trade-review.component.{ts,html,scss}` (standalone, Signals, OnPush; form emocionalidad 1-5, setup <=64, lessons <=5000, rating 1-5; drag&drop + file picker; thumbnails; cap 5 attachments; client-side size + content-type guards).
+
+**Phase 3: Wiring + tests**
+- [x] 3.1 `trade-detail.page.ts` route `trades/:tradeId` + wire en `trader.routes.ts`.
+- [x] 3.2 6 jest specs service (requestUpload, uploadBytesToMinio PUT directo, upsert, deleteAttachment, confirmUpload, max-size constant) + 8 jest specs component (render form, hydrate existing, max-size, content-type whitelist, delete happy + error surface, save + event, canSubmit boundary).
 
 ### 1d.2 — Review frontend
 
