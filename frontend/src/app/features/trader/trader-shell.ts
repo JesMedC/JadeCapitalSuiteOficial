@@ -6,7 +6,7 @@ import { MobileNav, MobileNavItem } from '@shared/mobile-nav';
 interface NavItem {
   label: string;
   path: string;
-  icon: MobileNavItem['icon'];
+  icon: MobileNavItem['icon'] | 'journal';
 }
 
 @Component({
@@ -60,6 +60,15 @@ interface NavItem {
                       <line x1="3" y1="6" x2="3.01" y2="6"/>
                       <line x1="3" y1="12" x2="3.01" y2="12"/>
                       <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                  }
+                  @case ('journal') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4z"/>
+                      <line x1="8" y1="2" x2="8" y2="22"/>
+                      <line x1="12" y1="8" x2="18" y2="8"/>
+                      <line x1="12" y1="12" x2="18" y2="12"/>
+                      <line x1="12" y1="16" x2="15" y2="16"/>
                     </svg>
                   }
                   @case ('calendar') {
@@ -377,6 +386,7 @@ export class TraderShell {
   readonly navItems: NavItem[] = [
     { label: 'Dashboard',   path: 'dashboard', icon: 'dashboard' },
     { label: 'Operaciones', path: 'trades',    icon: 'trades' },
+    { label: 'Diario',      path: 'journal',   icon: 'journal' },
     { label: 'Calendario',  path: 'calendar',  icon: 'calendar' },
     { label: 'Settings',    path: 'settings',  icon: 'settings' },
   ];
