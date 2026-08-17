@@ -21,6 +21,8 @@ export const traderRoutes: Routes = [
   { path: 'quotes', loadChildren: () => import('./quotes/quotes.routes').then((m) => m.QUOTES_ROUTES) },
   // Slice 4c — realtime watchlist (SignalR-backed live prices).
   { path: 'watchlist', loadChildren: () => import('./watchlist/watchlist.routes').then((m) => m.WATCHLIST_ROUTES) },
+  // Slice 5a.1 — CSV importer (upload + status polling).
+  { path: 'imports', loadChildren: () => import('./imports/imports.routes').then((m) => m.IMPORTS_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
