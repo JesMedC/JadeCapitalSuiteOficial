@@ -1,3 +1,4 @@
+using JadeCapital.Shared.Kernel.MarketData;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
@@ -48,6 +49,9 @@ public static class TradingModuleRegistration
         // Slice 4a — scanner filters persistence + stub data source.
         services.AddScoped<IScannerFilterRepository, ScannerFilterRepository>();
         services.AddScoped<IScannerDataSource, InMemoryScannerDataSource>();
+        // Slice 4b — market data quote cache + deterministic in-memory provider.
+        services.AddScoped<IQuoteCacheRepository, QuoteCacheRepository>();
+        services.AddSingleton<IQuoteProvider, InMemoryQuoteProvider>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         // ===== Metrics read store (slice 1f) =====
