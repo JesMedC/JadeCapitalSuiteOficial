@@ -496,4 +496,41 @@ public static class TradingDomainErrors
         public static readonly Error NotFound =
             Error.NotFound("planner.not_found", "Planner session not found.");
     }
+
+    /// <summary>
+    /// Errores del bounded context del Scanner (slice 4a, Wave 4).
+    /// </summary>
+    public static class Scanner
+    {
+        public static readonly Error UserIdRequired =
+            Error.Validation("scanner.user_id_required", "User id is required.");
+
+        public static readonly Error NameRequired =
+            Error.Validation("scanner.name_required", "Scanner filter name is required.");
+
+        public static readonly Error NameTooLong =
+            Error.Validation("scanner.name_too_long",
+                $"Scanner filter name must be at most {JadeCapital.Trading.Domain.Scanner.ScannerFilter.MaxNameLength} characters.");
+
+        public static readonly Error SpreadNegative =
+            Error.Validation("scanner.spread_negative", "Spread values must be non-negative.");
+
+        public static readonly Error VolumeNegative =
+            Error.Validation("scanner.volume_negative", "Volume values must be non-negative.");
+
+        public static readonly Error InvalidRiskReward =
+            Error.Validation("scanner.invalid_risk_reward",
+                "Min risk-reward ratio must be at least 1.0.");
+
+        public static readonly Error InvalidVolatilityWindow =
+            Error.Validation("scanner.invalid_volatility_window",
+                "Volatility window must be between 1 and 30 days.");
+
+        public static readonly Error MinGreaterThanMax =
+            Error.Validation("scanner.min_greater_than_max",
+                "Min spread cannot be greater than max spread.");
+
+        public static readonly Error NotFound =
+            Error.NotFound("scanner.not_found", "Scanner filter not found.");
+    }
 }

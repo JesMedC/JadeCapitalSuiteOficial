@@ -346,6 +346,8 @@ app.MapCoachingPromptsEndpoint();
 app.MapAlertEndpoints();
 // Slice 3c — planner sessions (create, update, list-by-week, status change).
 app.MapPlannerEndpoints();
+// Slice 4a — scanner filters (CRUD + run against instrument universe).
+app.MapScannerEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

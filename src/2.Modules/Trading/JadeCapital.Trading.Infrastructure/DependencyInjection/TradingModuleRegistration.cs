@@ -45,6 +45,9 @@ public static class TradingModuleRegistration
         services.AddScoped<IAlertRepository, AlertRepository>();
         // Slice 3c — planner sessions persistence (weekly planned-vs-actual).
         services.AddScoped<IPlannerSessionRepository, PlannerSessionRepository>();
+        // Slice 4a — scanner filters persistence + stub data source.
+        services.AddScoped<IScannerFilterRepository, ScannerFilterRepository>();
+        services.AddScoped<IScannerDataSource, InMemoryScannerDataSource>();
         services.AddScoped<IUnitOfWork, TradingUnitOfWork>();
 
         // ===== Metrics read store (slice 1f) =====

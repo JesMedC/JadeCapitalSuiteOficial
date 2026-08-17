@@ -3,6 +3,7 @@ using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
 using JadeCapital.Trading.Domain.Planner;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
+using JadeCapital.Trading.Domain.Scanner;
 using JadeCapital.Trading.Domain.Strategies;
 using JadeCapital.Trading.Domain.Trades;
 using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
@@ -40,6 +41,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 3c — trader planner sessions (weekly planned-vs-actual).
     public Microsoft.EntityFrameworkCore.DbSet<PlannerSession> PlannerSessions
         => Set<PlannerSession>();
+    // Slice 4a — trader scanner filters (user-owned, ranked scan results).
+    public Microsoft.EntityFrameworkCore.DbSet<ScannerFilter> ScannerFilters
+        => Set<ScannerFilter>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +58,8 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new StrategyConfiguration());
         modelBuilder.ApplyConfiguration(new AlertConfiguration());
         modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
+        modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
+        modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
     }
 }
 
