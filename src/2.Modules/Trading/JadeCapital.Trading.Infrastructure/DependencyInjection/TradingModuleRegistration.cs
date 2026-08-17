@@ -112,10 +112,14 @@ services.AddScoped<GetAttachmentThumbnailHandler>();
 // Daily lifecycle sweep (BackgroundService) + per-user quota gate (RequestAttachmentUploadHandler).
 services.AddHostedService<JadeCapital.Trading.Infrastructure.BackgroundServices.AttachmentLifecycleService>();
 
-// ===== Slice 5a.1 — Imports (CSV importer + ImportJob tracking) =====
+// ===== Slice 5a.1 + 5a.2 — Imports (CSV + MT4/MT5 importers + ImportJob tracking) =====
 // Parsers: registered as IImportRowParser so the streaming pipeline can
-// pick the right one via CanParse score. CSV is the only parser registered
-// in 5a.1; MT4/MT5 land in 5a.2.
+// pick the right one via CanParse score. Order matters — the dispatcher
+// picks the FIRST registered parser with CanParse >= 0.8, so MT4/MT5 must
+// come BEFORE CSV to give the more specific signatures priority over the
+// generic CSV fallback (per 5a.2 spec §"5a.2 Phase 2.2").
+services.AddScoped<JadeCapital.Shared.Kernel.Imports.IImportRowParser,
+                  JadeCapital.Trading.Infrastructure.Imports.Mt4ImportRowParser>();
 services.AddScoped<JadeCapital.Shared.Kernel.Imports.IImportRowParser,
                   JadeCapital.Trading.Infrastructure.Imports.CsvImportRowParser>();
 
