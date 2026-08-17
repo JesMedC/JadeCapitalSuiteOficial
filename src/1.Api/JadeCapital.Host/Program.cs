@@ -11,9 +11,11 @@ using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
 using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Infrastructure.Storage;
+using JadeCapital.Shared.Kernel.Ai;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
+using JadeCapital.Trading.Infrastructure.Ai;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
 using JadeCapital.Trading.Infrastructure.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -105,6 +107,25 @@ builder.Services.AddSingleton<JadeCapital.Trading.Application.Abstractions.IUser
 
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
+
+// ===== Slice 5b.1 — AI provider interface + Ollama HTTP client =====
+// Bind AIProviderOptions from the "Ollama" config section (or env vars
+// Ollama__BaseUrl / Ollama__Model / Ollama__Timeout — the project's standard
+// env-var convention). Defaults in the options class cover absent config.
+builder.Services.AddOptions<AIProviderOptions>()
+    .Bind(builder.Configuration.GetSection("Ollama"));
+
+// IHttpClientFactory-managed HttpClient so DNS refresh + socket pooling are
+// owned by the host. The factory delegate stamps BaseAddress + Timeout from
+// the resolved options BEFORE the first send. AddHttpClient registers
+// IAIProvider as transient; the typed-client lifetime is fine because
+// OllamaHttpClient is stateless + cheap to construct.
+builder.Services.AddHttpClient<IAIProvider, OllamaHttpClient>((sp, client) =>
+{
+    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AIProviderOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = opts.Timeout;
+});
 
 // ===== Billing module =====
 // Slice 0f — Admin write-path repositories + UoW + plan/owner lookups. Slice 0e
@@ -379,6 +400,9 @@ app.MapPlannerEndpoints();
 app.MapScannerEndpoints();
 // Slice 5a.1 — CSV importer (upload + status).
 app.MapImportEndpoints();
+// Slice 5b.1 — AI provider health probe. Future AI endpoints (5b.2 coaching,
+// 5c.1 risk-advice) extend the same AiEndpoints class; no extra MapXxx call.
+app.MapAiEndpoints();
 // Slice 4b — market data quotes (single + bulk, cache-backed).
 // NOTE: QuoteEndpoints handles the `api-quotes` rate limit internally via
 // RequireRateLimiting on the endpoints group (added in QuoteEndpoints.cs).
