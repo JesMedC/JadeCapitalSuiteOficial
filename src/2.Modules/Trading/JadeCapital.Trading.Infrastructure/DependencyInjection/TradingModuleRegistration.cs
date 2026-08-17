@@ -1,12 +1,15 @@
 using JadeCapital.Shared.Kernel.MarketData;
+using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
+using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Application.Features.Realtime;
 using JadeCapital.Trading.Infrastructure.BackgroundServices;
 using JadeCapital.Trading.Infrastructure.Persistence;
 using JadeCapital.Trading.Infrastructure.Queries;
 using JadeCapital.Trading.Infrastructure.Realtime;
+using JadeCapital.Trading.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,22 +75,43 @@ services.AddSingleton<IAlertRule, NoTradesInDaysRule>();
         services.AddScoped<AlertEvaluationService>();
         services.AddHostedService<AlertEvaluationBackgroundService>();
 
-        // ===== Slice 4c — Realtime (SignalR QuoteHub + QuoteBroadcastService) =====
-        // Singleton registry — the broadcast loop and the hub share state via
-        // the same instance regardless of scope.
-        services.AddSingleton<IQuoteSubscriptionRegistry, InMemoryQuoteSubscriptionRegistry>();
-        // MediatR handlers for Subscribe/Unsubscribe commands live in
-        // Trading.Application.Features.Realtime. They are picked up by the
-        // existing AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(...))
-        // in Program.cs which scans the Trading.Application assembly.
-        services.AddScoped<SubscribeToQuoteHandler>();
-        services.AddScoped<UnsubscribeFromQuoteHandler>();
-        services.AddScoped<UnsubscribeAllFromQuotesHandler>();
-        // The hub itself is scoped (SignalR resolves per-call); the broadcast
-        // service is a singleton host that polls the registry every 5s.
-        services.AddScoped<QuoteHub>();
-        services.AddHostedService<QuoteBroadcastService>();
+// ===== Slice 4c — Realtime (SignalR QuoteHub + QuoteBroadcastService) =====
+// Singleton registry — the broadcast loop and the hub share state via
+// the same instance regardless of scope.
+services.AddSingleton<IQuoteSubscriptionRegistry, InMemoryQuoteSubscriptionRegistry>();
+// MediatR handlers for Subscribe/Unsubscribe commands live in
+// Trading.Application.Features.Realtime. They are picked up by the
+// existing AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(...))
+// in Program.cs which scans the Trading.Application assembly.
+services.AddScoped<SubscribeToQuoteHandler>();
+services.AddScoped<UnsubscribeFromQuoteHandler>();
+services.AddScoped<UnsubscribeAllFromQuotesHandler>();
+// The hub itself is scoped (SignalR resolves per-call); the broadcast
+// service is a singleton host that polls the registry every 5s.
+services.AddScoped<QuoteHub>();
+services.AddHostedService<QuoteBroadcastService>();
 
-        return services;
-    }
+// ===== Slice 4d — Attachments (quota + lifecycle + thumbnails + virus stub) =====
+// IVirusScanner singleton — the no-op is stateless; Wave 6 swaps the DI
+// registration for a real ClamAV impl without touching consumers.
+services.AddSingleton<JadeCapital.Shared.Kernel.Storage.IVirusScanner,
+                       JadeCapital.Trading.Infrastructure.Storage.VirusScannerNoOp>();
+
+// Usage repository — one SUM + COUNT query per request; cheap.
+services.AddScoped<ITradeAttachmentUsageRepository, TradeAttachmentUsageRepository>();
+// Sweep repository — used only by AttachmentLifecycleService; bounded-batch pages.
+services.AddScoped<IAttachmentSweepRepository, AttachmentSweepRepository>();
+// Thumbnail generator — wraps the MinIO SDK presigned-GET call + transform params.
+services.AddScoped<IAttachmentThumbnailGenerator, MinioThumbnailGenerator>();
+
+// Application-layer handlers/services that need DI.
+services.AddScoped<AttachmentQuotaEnforcer>();
+services.AddScoped<GetAttachmentUsageHandler>();
+services.AddScoped<GetAttachmentThumbnailHandler>();
+
+// Daily lifecycle sweep (BackgroundService) + per-user quota gate (RequestAttachmentUploadHandler).
+services.AddHostedService<JadeCapital.Trading.Infrastructure.BackgroundServices.AttachmentLifecycleService>();
+
+return services;
+}
 }

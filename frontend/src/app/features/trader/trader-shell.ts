@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
 import { MobileNav, MobileNavItem } from '@shared/mobile-nav';
+import { AttachmentUsageBanner } from './attachments/attachment-usage-banner';
 
 interface NavItem {
   label: string;
@@ -12,7 +13,7 @@ interface NavItem {
 @Component({
   selector: 'jcs-trader-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MobileNav],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MobileNav, AttachmentUsageBanner],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="shell">
@@ -120,6 +121,9 @@ interface NavItem {
             </button>
           </div>
         </div>
+
+        <!-- Slice 4d — attachment usage banner (storage indicator). -->
+        <jcs-attachment-usage-banner />
       </aside>
 
       <!-- ============== Main content ============== -->

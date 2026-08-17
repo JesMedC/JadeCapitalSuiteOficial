@@ -1,5 +1,6 @@
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Trading.Domain.Common;
 using JadeCapital.Trading.Domain.TradeReviews;
 
@@ -40,6 +41,43 @@ public sealed class TradeAttachment : AggregateRoot<Guid>
     public string? Sha256 { get; private set; }
     public TradeAttachmentStatus Status { get; private set; }
     public DateTimeOffset? UploadedAt { get; private set; }
+
+    /// <summary>
+    /// Slice 4d — virus scan metadata. Defaults to
+    /// <see cref="VirusScanResult.NotScanned"/> for legacy rows created
+    /// before Wave 4d. The ConfirmAttachmentUploadedHandler stamps
+    /// these via <see cref="ApplyScanResult"/>.
+    /// </summary>
+    public VirusScanResult ScanResult { get; private set; } = VirusScanResult.NotScanned;
+    public DateTimeOffset? VirusScannedAt { get; private set; }
+
+    /// <summary>
+    /// Slice 4d — expiration timestamp set at confirmation time as
+    /// <c>confirmed_at + 90 days</c>. The daily lifecycle sweep soft-deletes
+    /// rows where <c>expires_at &lt; now()</c>. NULL = legacy row, never
+    /// swept.
+    /// </summary>
+    public DateTimeOffset? ExpiresAt { get; private set; }
+
+    /// <summary>
+    /// Slice 4d — MinIO object key for the cached thumbnail (image
+    /// attachments only). Populated by a future thumbnail-generation job;
+    /// the GetThumbnailHandler uses the raw <see cref="ObjectKey"/> +
+    /// ?width= query params for now.
+    /// </summary>
+    public string? ThumbnailObjectKey { get; private set; }
+
+    /// <summary>
+    /// Soft-delete flag. The AttachmentLifecycleService daily sweep
+    /// flips this to <c>false</c> when <see cref="ExpiresAt"/> &lt; now().
+    /// </summary>
+    public bool IsActive { get; private set; } = true;
+
+    /// <summary>
+    /// Timestamp the row was soft-deleted by the sweep. NULL until
+    /// the sweep processes this attachment.
+    /// </summary>
+    public DateTimeOffset? SweptAt { get; private set; }
 
     // EF Core.
     private TradeAttachment() { }
@@ -151,6 +189,36 @@ public sealed class TradeAttachment : AggregateRoot<Guid>
         Status = TradeAttachmentStatus.Failed;
         Touch();
 
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 4d — stamps the virus-scan + lifecycle fields. Called by
+    /// <c>ConfirmAttachmentUploadedHandler</c> right before
+    /// <see cref="MarkUploaded"/>. Stores <paramref name="expiresAt"/> =
+    /// <c>confirmed_at + ExpirationDays</c> for the daily sweep.
+    /// </summary>
+    public void ApplyScanResult(VirusScanResult result, DateTimeOffset scannedAt, DateTimeOffset expiresAt)
+    {
+        ScanResult = result;
+        VirusScannedAt = scannedAt;
+        ExpiresAt = expiresAt;
+        Touch();
+    }
+
+    /// <summary>
+    /// Slice 4d — soft-delete invoked by the daily sweep when
+    /// <see cref="ExpiresAt"/> &lt; now. Idempotent: re-running on an
+    /// already-swept row is a no-op. Does NOT touch the upload status
+    /// (the row remains 'uploaded' for audit purposes; only the
+    /// <see cref="IsActive"/> flag flips).
+    /// </summary>
+    public Result MarkSwept(DateTimeOffset sweptAt)
+    {
+        if (!IsActive) return Result.Success();
+        IsActive = false;
+        SweptAt = sweptAt;
+        Touch();
         return Result.Success();
     }
 }

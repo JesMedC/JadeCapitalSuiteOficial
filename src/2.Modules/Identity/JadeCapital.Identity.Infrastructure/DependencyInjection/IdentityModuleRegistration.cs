@@ -31,6 +31,12 @@ public static class IdentityModuleRegistration
         // ===== Repos =====
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+        // ===== Slice 4d — Attachment quota projection =====
+        // Identity owns identity.users.attachment_quota_bytes + attachment_used_bytes
+        // (migration 0018). The Trading module reads them via the Contracts
+        // projection; this registration wires the EF Core implementation.
+        services.AddScoped<IAttachmentQuotaReader, IdentityAttachmentQuotaReader>();
         services.AddScoped<ITemporaryCredentialRepository, TemporaryCredentialRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
         services.AddScoped<IRefreshTokenRevoker, RefreshTokenRevoker>();

@@ -1,3 +1,4 @@
+using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Trading.Domain.TradeAttachments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -48,6 +49,19 @@ internal sealed class TradeAttachmentConfiguration : IEntityTypeConfiguration<Tr
         b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(a => a.UploadedAt).HasColumnName("uploaded_at");
 
+        // Slice 4d — lifecycle + virus scan + thumbnail (migration 0018).
+        // Note: migration 0018 ALSO adds a redundant `bytes` column for
+        // backward-compat with future snapshots (lifecycle audit) — EF
+        // does NOT map it because SizeBytes is already mapped to the
+        // legacy `size_bytes` column. The sweep reads `size_bytes` via
+        // the existing entity mapping.
+        b.Property(a => a.IsActive).HasColumnName("is_active").IsRequired();
+        b.Property(a => a.SweptAt).HasColumnName("swept_at");
+        b.Property(a => a.ThumbnailObjectKey).HasColumnName("thumbnail_object_key").HasMaxLength(255);
+        b.Property(a => a.ExpiresAt).HasColumnName("expires_at");
+        b.Property(a => a.VirusScannedAt).HasColumnName("virus_scanned_at");
+        b.Property(a => a.ScanResult).HasColumnName("scan_result").HasConversion<byte>();
+
         b.Ignore(a => a.DomainEvents);
 
         // FKs cross-schema: shadow navigation para cardinalidad; los
@@ -58,6 +72,14 @@ internal sealed class TradeAttachmentConfiguration : IEntityTypeConfiguration<Tr
             .OnDelete(DeleteBehavior.Cascade);
 
         b.HasIndex(a => a.ReviewId).HasDatabaseName("ix_trade_attachments_review");
+
+        // Slice 4d — sweep index on expires_at (range scan for the daily
+        // AttachmentLifecycleService). Migration 0018 creates this with
+        // the same definition; EF mirrors it so dotnet-ef migrations add
+        // stays a no-op.
+        b.HasIndex(a => a.ExpiresAt)
+            .HasDatabaseName("ix_trade_attachments_expires_sweep")
+            .HasFilter("is_active = true AND expires_at IS NOT NULL");
     }
 
     private static string StatusToString(TradeAttachmentStatus status) => status switch

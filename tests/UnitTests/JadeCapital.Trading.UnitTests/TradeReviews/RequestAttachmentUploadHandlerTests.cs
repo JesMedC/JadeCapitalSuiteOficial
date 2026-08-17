@@ -1,8 +1,11 @@
 using FluentAssertions;
 using FluentValidation.TestHelper;
+using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Shared.Kernel.Time;
+using JadeCapital.Trading.Application.Abstractions;
+using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Application.Features.TradeReviews.RequestAttachmentUpload;
 using JadeCapital.Trading.Domain.TradeAttachments;
 using JadeCapital.Trading.Domain.TradeReviews;
@@ -31,6 +34,8 @@ public class RequestAttachmentUploadHandlerTests
     private readonly IAttachmentStorage _storage = Substitute.For<IAttachmentStorage>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IClock _clock = Substitute.For<IClock>();
+    private readonly IAttachmentQuotaReader _quotaReader = Substitute.For<IAttachmentQuotaReader>();
+    private readonly ITradeAttachmentUsageRepository _usage = Substitute.For<ITradeAttachmentUsageRepository>();
     private readonly ILogger<RequestAttachmentUploadHandler> _logger
         = Substitute.For<ILogger<RequestAttachmentUploadHandler>>();
 
@@ -45,10 +50,21 @@ public class RequestAttachmentUploadHandlerTests
         _storage.GetPresignedPutUrlAsync(Arg.Any<string>(), Arg.Any<TimeSpan>(),
                                           Arg.Any<CancellationToken>())
             .Returns("http://minio:9000/bucket/presigned?signature=xyz");
+
+        // Slice 4d — default quota + zero usage (tests of the upload flow
+        // don't care about quota; quota-specific scenarios live in
+        // AttachmentQuotaEnforcerTests).
+        _quotaReader.GetQuotaAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new UserAttachmentQuota(Guid.Empty, QuotaBytes: 52_428_800L, UsedBytes: 0L));
+        _usage.GetUsageAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((0L, 0));
     }
 
     private RequestAttachmentUploadHandler CreateSut()
-        => new(_reviews, _storage, _uow, _clock, _logger);
+    {
+        var enforcer = new AttachmentQuotaEnforcer(_quotaReader, _usage);
+        return new RequestAttachmentUploadHandler(_reviews, _storage, _uow, _clock, enforcer, _logger);
+    }
 
     private static TradeReview BuildReview(Guid tradeId, Guid userId)
     {

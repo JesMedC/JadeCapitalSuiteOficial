@@ -4,6 +4,7 @@ using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application._Common;
+using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Domain.Common;
 using JadeCapital.Trading.Domain.TradeAttachments;
 using MediatR;
@@ -92,6 +93,7 @@ public sealed class RequestAttachmentUploadHandler
     private readonly IAttachmentStorage _storage;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
+    private readonly AttachmentQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<RequestAttachmentUploadHandler> _logger;
 
     public RequestAttachmentUploadHandler(
@@ -99,12 +101,14 @@ public sealed class RequestAttachmentUploadHandler
         IAttachmentStorage storage,
         IUnitOfWork uow,
         IClock clock,
+        AttachmentQuotaEnforcer quotaEnforcer,
         ILogger<RequestAttachmentUploadHandler> logger)
     {
         _reviews = reviews;
         _storage = storage;
         _uow = uow;
         _clock = clock;
+        _quotaEnforcer = quotaEnforcer;
         _logger = logger;
     }
 
@@ -127,6 +131,19 @@ public sealed class RequestAttachmentUploadHandler
             return Result.Failure<RequestAttachmentUploadResultDto>(
                 Error.Failure("trade_review.too_many_attachments",
                     $"A review can have at most {MaxAttachmentsPerReview} attachments."));
+
+        // 2.5) Slice 4d — global per-user quota gate (HTTP 413 on exceed).
+        // The enforcer combines the user's quota (Identity projection)
+        // + live usage (Trading aggregate). Returns Allowed=false with
+        // a structured reason that the endpoint maps to 413.
+        var quotaCheck = await _quotaEnforcer.CheckAsync(req.UserId, req.SizeBytes, ct);
+        if (!quotaCheck.Allowed)
+        {
+            _logger.LogWarning(
+                "User {UserId} blocked by attachment quota: {Reason}",
+                req.UserId, quotaCheck.Reason);
+            return Result.Failure<RequestAttachmentUploadResultDto>(AttachmentsErrors.QuotaExceeded);
+        }
 
         // 3) Construir el attachment aggregate (validations delegadas al
         // factory: sizeBytes, contentType format, etc.).
