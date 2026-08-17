@@ -38,6 +38,11 @@ internal sealed class PreTradeChecklistConfiguration : IEntityTypeConfiguration<
         b.Property(c => c.UserId).HasColumnName("user_id").IsRequired();
         b.Property(c => c.SubmittedAt).HasColumnName("submitted_at").IsRequired();
 
+        // Slice 5c.1 — AI risk advisor output attached at OpenTrade time.
+        // Nullable JSONB column; left NULL for trades opened before this
+        // migration or for trades opened without an advisory.
+        b.Property(c => c.AIRiskAdvisoryJson).HasColumnName("ai_advisory").HasColumnType("jsonb");
+
         b.Ignore(c => c.DomainEvents);
         b.Ignore(c => c.CreatedAt);
         b.Ignore(c => c.UpdatedAt);

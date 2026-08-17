@@ -5,6 +5,8 @@ using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Shared.Kernel.Validation;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application._Common;
+using JadeCapital.Trading.Application.Ai;
+using JadeCapital.Trading.Domain.Ai;
 using JadeCapital.Trading.Domain.Common;
 using JadeCapital.Trading.Domain.PreTradeChecklists;
 using JadeCapital.Trading.Domain.Trades;
@@ -25,9 +27,14 @@ namespace JadeCapital.Trading.Application.Features.Trades.OpenTrade;
 ///    - Construye el <see cref="PreTradeChecklist"/> aggregate.
 ///    - Si falla (RR &lt; target, confluences fuera de rango, etc.) el
 ///      handler retorna <c>Result.Failure</c> SIN persistir el trade.
-/// 4) Llama a <see cref="Trade.Open"/> factory del dominio que valida
+/// 4) [Slice 5c.1] Si el checklist esta presente y la IA esta registrada
+///    (<see cref="IAIRiskAdvisor"/> != null), invoca al advisor antes de
+///    persistir. Si devuelve <c>Block</c>, el handler retorna
+///    <c>Result.Failure(ai_risk.blocked)</c> mapeado a 422. Si devuelve
+///    <c>Warning</c>, el advisory se adjunta al checklist.
+/// 5) Llama a <see cref="Trade.Open"/> factory del dominio que valida
 ///    invariantes (AccountId/InstrumentId no vacios, currency match, etc.).
-/// 5) Persiste trade + checklist en una sola UoW.
+/// 6) Persiste trade + checklist en una sola UoW.
 /// </summary>
 public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<TradeDto>>
 {
@@ -45,6 +52,7 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
     private readonly IIdentityUserRiskProfileReader _riskProfileReader;
+    private readonly IAIRiskAdvisor? _advisor;
     private readonly ILogger<OpenTradeHandler> _logger;
 
     public OpenTradeHandler(
@@ -55,7 +63,8 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
         IUnitOfWork uow,
         IClock clock,
         IIdentityUserRiskProfileReader riskProfileReader,
-        ILogger<OpenTradeHandler> logger)
+        ILogger<OpenTradeHandler> logger,
+        IAIRiskAdvisor? advisor = null)
     {
         _trades = trades;
         _accounts = accounts;
@@ -65,6 +74,7 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
         _clock = clock;
         _riskProfileReader = riskProfileReader;
         _logger = logger;
+        _advisor = advisor;
     }
 
     public async Task<Result<TradeDto>> Handle(OpenTradeCommand req, CancellationToken ct)
@@ -163,6 +173,79 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
 
         var trade = openResult.Value;
 
+        // ===== [Slice 5c.1] AI risk advisor (optional) =====
+        // Only invoked when (a) the request carries a checklist AND (b) the
+        // IAIRiskAdvisor is registered. If the advisor is null (legacy DI),
+        // the entire block is skipped — the trade opens on the legacy path.
+        // If the advisor fails, we log + silently fall back (no block).
+        // If the advisor returns Block, we short-circuit with 422.
+        if (checklist is not null && _advisor is not null)
+        {
+            var advisorReq = new AIRiskAdviceRequest(
+                UserId: req.UserId,
+                TradeId: tradeId,
+                TradeSymbol: req.Symbol,
+                Direction: req.Direction.ToString(),
+                Volume: req.Volume,
+                VolumeCurrency: req.VolumeCurrency,
+                EntryPrice: req.EntryPrice,
+                StopLoss: null,
+                RiskRewardAtEntry: checklist.Submission.RiskRewardAtEntry,
+                SetupQuality: checklist.Submission.SetupQuality.ToString());
+
+            AIRiskAdvice advice;
+            try
+            {
+                var advisorResult = await _advisor.AdviseAsync(advisorReq, ct);
+                if (advisorResult.IsFailure)
+                {
+                    _logger.LogWarning(
+                        "AI risk advisor failed for OpenTrade (user {UserId}, trade {TradeId}): {Error}. " +
+                        "Falling back to legacy path (no advisory attached).",
+                        req.UserId, tradeId, advisorResult.Error.Code);
+                    advice = null!;
+                }
+                else
+                {
+                    advice = advisorResult.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Defense in depth — the IAIProvider contract is no-throw on
+                // transient failures, but anything that escapes is caught
+                // here so the OpenTrade flow never crashes.
+                _logger.LogWarning(ex,
+                    "AI risk advisor threw for OpenTrade (user {UserId}, trade {TradeId}). " +
+                    "Falling back to legacy path (no advisory attached).",
+                    req.UserId, tradeId);
+                advice = null!;
+            }
+
+            if (advice is not null)
+            {
+                if (advice.ParsedAction == AIRiskAction.Block)
+                {
+                    _logger.LogInformation(
+                        "AI risk advisor blocked OpenTrade (user {UserId}, trade {TradeId}, reason={Reason}).",
+                        req.UserId, tradeId, advice.Reason);
+                    return Result.Failure<TradeDto>(AIRiskErrors.Errors.Blocked(advice.Reason));
+                }
+
+                // Warning or Allow — attach the advisory to the checklist and
+                // continue with the legacy OpenTrade flow.
+                var advisoryJson = SerializeAdvice(advice);
+                var attachResult = checklist.AttachAIRiskAdvisory(advisoryJson);
+                if (attachResult.IsFailure)
+                {
+                    _logger.LogWarning(
+                        "Failed to attach AI advisory to checklist (user {UserId}, trade {TradeId}): {Error}. " +
+                        "Continuing without advisory.",
+                        req.UserId, tradeId, attachResult.Error.Code);
+                }
+            }
+        }
+
         await _trades.AddAsync(trade, ct);
         if (checklist is not null)
             await _checklists.AddAsync(checklist, ct);
@@ -211,5 +294,38 @@ public sealed class OpenTradeHandler : IRequestHandler<OpenTradeCommand, Result<
 
         var snapshot = await _riskProfileReader.GetActiveAsync(req.UserId, ct);
         return Result.Success(snapshot?.RiskRewardTarget ?? DefaultRiskRewardTarget);
+    }
+
+    /// <summary>
+    /// Serializes the AI risk advisor output into the JSON payload that
+    /// persists on <c>pre_trade_checklists.ai_advisory</c>. The shape is
+    /// opaque to the domain — the FE renders the fields verbatim.
+    /// </summary>
+    private static string SerializeAdvice(AIRiskAdvice advice)
+    {
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            advice_id = advice.Id,
+            action = advice.ParsedAction.ToString().ToLowerInvariant(),
+            reason = advice.Reason,
+            model = advice.Model,
+            latency_ms = advice.LatencyMs,
+            created_at = advice.CreatedAt,
+        });
+    }
+}
+
+/// <summary>
+/// Error catalog for the AI risk advisor integration in OpenTrade (slice 5c.1).
+/// The error code <c>ai_risk.blocked</c> is the wire-stable identifier that
+/// the FE matches on to render the override modal.
+/// </summary>
+public static class AIRiskErrors
+{
+    public static class Errors
+    {
+        public static Error Blocked(string reason) =>
+            Error.Failure("ai_risk.blocked",
+                $"AI risk advisor recommends blocking this trade: {reason}");
     }
 }
