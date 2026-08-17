@@ -94,6 +94,19 @@ interface NavItem {
                       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.38.35.72.64 1 .3.29.69.43 1.1.4H21v4h-.09A1.7 1.7 0 0 0 19.4 15z"/>
                     </svg>
                   }
+                  @case ('tag') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                      <line x1="7" y1="7" x2="7.01" y2="7"/>
+                    </svg>
+                  }
+                  @case ('menu') {
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="3" y1="12" x2="21" y2="12"/>
+                      <line x1="3" y1="6" x2="21" y2="6"/>
+                      <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                  }
                 }
               </span>
               <span class="nav-label">{{ item.label }}</span>
@@ -396,16 +409,15 @@ export class TraderShell {
   private readonly router = inject(Router);
 
   readonly navItems: NavItem[] = [
-    { label: 'Dashboard',   path: 'dashboard',  icon: 'dashboard' },
-    { label: 'Operaciones', path: 'trades',     icon: 'trades' },
-    { label: 'Strategies',  path: 'strategies', icon: 'list' },
-    { label: 'Diario',      path: 'journal',    icon: 'journal' },
-    { label: 'Patrones',    path: 'patterns',   icon: 'list' },
-    { label: 'Alertas',     path: 'alerts',     icon: 'tag' },
-    { label: 'Scanner',     path: 'scanner',    icon: 'menu' },
-    { label: 'Watchlist',   path: 'watchlist',  icon: 'menu' },
-    { label: 'Quotes',      path: 'quotes',     icon: 'menu' },
-    { label: 'Settings',    path: 'settings',   icon: 'settings' },
+    { label: 'Dashboard',  path: 'dashboard',  icon: 'dashboard' },
+    { label: 'Trades',     path: 'trades',     icon: 'trades' },
+    { label: 'Journal',    path: 'journal',    icon: 'journal' },
+    { label: 'Scanner',    path: 'scanner',    icon: 'menu' },
+    { label: 'Watchlist',  path: 'watchlist',  icon: 'menu' },
+    { label: 'Quotes',     path: 'quotes',     icon: 'menu' },
+    { label: 'Strategies', path: 'strategies', icon: 'list' },
+    { label: 'Alerts',     path: 'alerts',     icon: 'tag' },
+    { label: 'Planner',    path: 'planner',    icon: 'calendar' },
   ];
 
   userInitial(): string {
