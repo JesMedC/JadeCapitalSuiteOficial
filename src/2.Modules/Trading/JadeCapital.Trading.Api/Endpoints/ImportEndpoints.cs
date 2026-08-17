@@ -10,14 +10,17 @@ using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JadeCapital.Trading.Api.Endpoints;
 
 /// <summary>
-/// Import endpoints (slice 5a.1, Wave 5):
-/// <list type="bullet">
+/// Import endpoints (Wave 5, slices 5a.1 + 5a.2):
+/// <list type="item">
 ///   <item><c>POST /api/imports/csv</c> — multipart upload (file + accountId),
-///         returns 202 Accepted + { importJobId }.</item>
+///         returns 202 Accepted + { importJobId }. Accepts CSV, MT4, and MT5
+///         formats via auto-detection (the URL stays <c>/csv</c> for backward
+///         compat — the dispatcher picks the right parser).</item>
 ///   <item><c>GET /api/imports/{id}</c> — single-job status.</item>
 /// </list>
 /// Both require auth + the <c>api-general</c> rate-limit policy (Wave 4
@@ -81,9 +84,14 @@ public static class ImportEndpoints
             sha256Hex = await ComputeSha256Async(stream, ct);
         }
 
-        // Detect format via the parser contract. The endpoint is "/csv" so
-        // the CSV parser wins; MT4/MT5 land in 5a.2 with their own endpoints.
-        var detectedFormat = DetectFormat(file.FileName ?? string.Empty, file.OpenReadStream());
+        // Detect format via the dispatcher (slice 5a.2). The first registered
+        // parser whose CanParse score is >= 0.8 wins. MT4/MT5 is registered
+        // before CSV in DI so ambiguous headers go to MT4/MT5.
+        var parsers = services.GetServices<IImportRowParser>().ToList();
+        var detectedFormat = DetectFormat(parsers, file.FileName ?? string.Empty, file.OpenReadStream());
+        if (detectedFormat == ImportFormat.Unknown)
+            return Results.UnprocessableEntity(new { code = "import.format_unrecognized",
+                detail = "File format not recognized. Expected CSV, MT4, or MT5 export." });
 
         var command = new BeginImportCommand(
             UserId: userId.Value,
@@ -105,7 +113,7 @@ public static class ImportEndpoints
         // Use CancellationToken.None — the import must survive client
         // disconnection. The streaming service has its own internal timeout
         // via the parser's cancellation token.
-        _ = Task.Run(async () => await RunImportInBackgroundAsync(jobId, file, services), CancellationToken.None);
+        _ = Task.Run(async () => await RunImportInBackgroundAsync(jobId, file, file.FileName ?? string.Empty, services), CancellationToken.None);
 
         return Results.Accepted(
             uri: $"/api/imports/{jobId}",
@@ -126,7 +134,7 @@ public static class ImportEndpoints
     }
 
     private static async Task RunImportInBackgroundAsync(
-        Guid jobId, IFormFile file, IServiceProvider services)
+        Guid jobId, IFormFile file, string fileName, IServiceProvider services)
     {
         try
         {
@@ -141,11 +149,24 @@ public static class ImportEndpoints
             // buffers the body in memory (multipart/form-data is small —
             // max 10 MiB), so OpenReadStream is safe.
             await using var replayStream = file.OpenReadStream();
-            var parser = scope.ServiceProvider
-                .GetRequiredService<JadeCapital.Shared.Kernel.Imports.IImportRowParser>();
+            var parsers = scope.ServiceProvider
+                .GetServices<JadeCapital.Shared.Kernel.Imports.IImportRowParser>()
+                .ToList();
             var streamSvc = scope.ServiceProvider
                 .GetRequiredService<StreamImportService>();
-            await streamSvc.ExecuteAsync(job, replayStream, parser, CancellationToken.None);
+
+            // Slice 5a.2 — use the auto-detection overload. The streaming
+            // service buffers the body, runs the dispatcher, and dispatches
+            // to the right parser. Returns Result.Failure if no parser wins.
+            var result = await streamSvc.ExecuteAsync(job, replayStream, parsers, fileName, CancellationToken.None);
+            if (result.IsFailure)
+            {
+                using var errScope = services.CreateScope();
+                var logger = errScope.ServiceProvider
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("ImportEndpoints");
+                logger.LogWarning("Import job {JobId} failed to start: {Error}", jobId, result.Error.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -163,17 +184,31 @@ public static class ImportEndpoints
         return Guid.TryParse(raw, out var id) ? id : null;
     }
 
-    private static ImportFormat DetectFormat(string fileName, Stream head)
+    /// <summary>
+    /// Detects the file format via the registered parsers. Returns
+    /// <see cref="ImportFormat.Unknown"/> if no parser matches (caller MUST
+    /// surface that as 422 <c>import.format_unrecognized</c>).
+    /// </summary>
+    private static ImportFormat DetectFormat(
+        IReadOnlyList<IImportRowParser> parsers, string fileName, Stream head)
     {
-        // 5a.1 only supports CSV; the endpoint is /api/imports/csv so the
-        // default is CSV. Future slices (5a.2) may auto-detect MT4/MT5 from
-        // the same endpoint and pick the parser with the highest CanParse score.
-        var parserType = (fileName ?? "").ToLowerInvariant();
-        if (parserType.EndsWith(".csv", StringComparison.Ordinal))
-            return ImportFormat.Csv;
-        if (parserType.EndsWith(".txt", StringComparison.Ordinal))
-            return ImportFormat.Csv;
-        return ImportFormat.Csv;  // safe default; 5a.2 will add MT4/MT5 detection
+        if (parsers is null || parsers.Count == 0) return ImportFormat.Unknown;
+
+        // Buffer the first KiB into a seekable MemoryStream — parsers require
+        // a seekable head. multipart/form-data buffers the body in memory
+        // already, so this is a cheap peek.
+        using var seekableHead = new MemoryStream();
+        var buf = new byte[1024];
+        var read = head.Read(buf, 0, buf.Length);
+        seekableHead.Write(buf, 0, read);
+        seekableHead.Position = 0;
+        // Rewind the source stream so the caller can re-read for the actual
+        // SHA-256 / parser pipeline. IFormFile allows re-opening via
+        // OpenReadStream(), so this is defensive.
+        if (head.CanSeek) head.Position = 0;
+
+        var parser = ImportParserDispatcher.SelectParser(parsers, fileName, seekableHead);
+        return parser?.Format ?? ImportFormat.Unknown;
     }
 
     private static async Task<string> ComputeSha256Async(Stream body, CancellationToken ct)

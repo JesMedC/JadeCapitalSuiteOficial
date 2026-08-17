@@ -52,6 +52,66 @@ public sealed class StreamImportService
     public async Task<Result<ImportJob>> ExecuteAsync(
         ImportJob job, Stream body, IImportRowParser parser, CancellationToken ct)
     {
+        // Single-parser overload — kept for backward compat with 5a.1 callers.
+        return await ExecuteInternalAsync(job, body, parser, fileName: null, ct);
+    }
+
+    /// <summary>
+    /// Auto-detection overload (slice 5a.2). Picks the first parser whose
+    /// <see cref="IImportRowParser.CanParse"/> returns &gt;= 0.8. Returns
+    /// <c>Result.Failure("import.format_unrecognized")</c> if no parser
+    /// matches.
+    /// </summary>
+    public async Task<Result<ImportJob>> ExecuteAsync(
+        ImportJob job, Stream body, IEnumerable<IImportRowParser> parsers,
+        string fileName, CancellationToken ct)
+    {
+        // Buffer the body into a seekable MemoryStream. Multipart bodies are
+        // already buffered in memory by ASP.NET (max 10 MiB per
+        // ImportJob.MaxFileSizeBytes), so this copy is cheap and lets the
+        // parsers' CanParse sniff the same bytes that ParseAsync will read.
+        MemoryStream? owned = null;
+        var seekable = body as MemoryStream;
+        if (seekable is null)
+        {
+            owned = new MemoryStream();
+            await body.CopyToAsync(owned, ct);
+            seekable = owned;
+            seekable.Position = 0;
+        }
+
+        try
+        {
+            // Snapshot the first KiB for sniffing. The seekable stream's
+            // position is reset to 0 before ParseAsync runs so the parser
+            // sees the full body (header + data) from the start.
+            using var head = BufferHeadForSniffing(seekable);
+            seekable.Position = 0;
+
+            var parser = head is null
+                ? null
+                : ImportParserDispatcher.SelectParser(parsers, fileName ?? string.Empty, head);
+
+            if (parser is null)
+            {
+                job.Fail("Unknown file format — no parser matched (import.format_unrecognized).", _clock);
+                await _jobs.UpdateAsync(job, ct);
+                return Result.Failure<ImportJob>(Error.Validation(
+                    "import.format_unrecognized",
+                    "No parser matched the file format. Expected CSV, MT4, or MT5."));
+            }
+
+            return await ExecuteInternalAsync(job, seekable, parser, fileName, ct);
+        }
+        finally
+        {
+            owned?.Dispose();
+        }
+    }
+
+    private async Task<Result<ImportJob>> ExecuteInternalAsync(
+        ImportJob job, Stream body, IImportRowParser parser, string? fileName, CancellationToken ct)
+    {
         // 1) Pending → InProgress (visible immediately to a polling client).
         var inProgressResult = job.MarkInProgress();
         if (inProgressResult.IsFailure)
@@ -196,5 +256,23 @@ public sealed class StreamImportService
             await Task.Yield();
             yield return r;
         }
+    }
+
+    /// <summary>
+    /// Snapshots the first KiB of <paramref name="body"/> into a seekable
+    /// <see cref="MemoryStream"/> so each <see cref="IImportRowParser.CanParse"/>
+    /// can sniff the head without consuming the body. Returns <c>null</c> if
+    /// the body stream is not readable.
+    /// </summary>
+    private static MemoryStream? BufferHeadForSniffing(Stream body)
+    {
+        if (body is null || !body.CanRead) return null;
+        const int headSize = 1024;
+        var head = new MemoryStream(headSize);
+        var buffer = new byte[headSize];
+        var read = body.Read(buffer, 0, headSize);
+        head.Write(buffer, 0, read);
+        head.Position = 0;
+        return head;
     }
 }
