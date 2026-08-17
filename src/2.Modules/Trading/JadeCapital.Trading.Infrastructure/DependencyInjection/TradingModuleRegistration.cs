@@ -2,9 +2,11 @@ using JadeCapital.Shared.Kernel.MarketData;
 using JadeCapital.Trading.Application.Abstractions;
 using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
+using JadeCapital.Trading.Application.Features.Realtime;
 using JadeCapital.Trading.Infrastructure.BackgroundServices;
 using JadeCapital.Trading.Infrastructure.Persistence;
 using JadeCapital.Trading.Infrastructure.Queries;
+using JadeCapital.Trading.Infrastructure.Realtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,8 +60,8 @@ public static class TradingModuleRegistration
         services.AddScoped<IMetricsQueryStore, MetricsQueryStore>();
         services.AddSingleton<IUserExistenceProbe, TradingUserExistenceProbe>();
 
-        // ===== Slice 3b — Alert evaluation pipeline =====
-        // 5 rules + registry + per-user evaluator + hosted background service.
+// ===== Slice 3b — Alert evaluation pipeline =====
+// 5 rules + registry + per-user evaluator + hosted background service.
 services.AddSingleton<IAlertRule, NoTradesInDaysRule>();
         services.AddSingleton<IAlertRule, DrawdownExceededRule>();
         services.AddSingleton<IAlertRule, RRAverageBelowRule>();
@@ -69,6 +71,22 @@ services.AddSingleton<IAlertRule, NoTradesInDaysRule>();
         // via the IServiceScopeFactory inside the BackgroundService.
         services.AddScoped<AlertEvaluationService>();
         services.AddHostedService<AlertEvaluationBackgroundService>();
+
+        // ===== Slice 4c — Realtime (SignalR QuoteHub + QuoteBroadcastService) =====
+        // Singleton registry — the broadcast loop and the hub share state via
+        // the same instance regardless of scope.
+        services.AddSingleton<IQuoteSubscriptionRegistry, InMemoryQuoteSubscriptionRegistry>();
+        // MediatR handlers for Subscribe/Unsubscribe commands live in
+        // Trading.Application.Features.Realtime. They are picked up by the
+        // existing AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(...))
+        // in Program.cs which scans the Trading.Application assembly.
+        services.AddScoped<SubscribeToQuoteHandler>();
+        services.AddScoped<UnsubscribeFromQuoteHandler>();
+        services.AddScoped<UnsubscribeAllFromQuotesHandler>();
+        // The hub itself is scoped (SignalR resolves per-call); the broadcast
+        // service is a singleton host that polls the registry every 5s.
+        services.AddScoped<QuoteHub>();
+        services.AddHostedService<QuoteBroadcastService>();
 
         return services;
     }

@@ -19,6 +19,8 @@ export const traderRoutes: Routes = [
   { path: 'scanner', loadChildren: () => import('./scanner/scanner.routes').then((m) => m.SCANNER_ROUTES) },
   // Slice 4b — market data quotes (live HTTP + cache-backed).
   { path: 'quotes', loadChildren: () => import('./quotes/quotes.routes').then((m) => m.QUOTES_ROUTES) },
+  // Slice 4c — realtime watchlist (SignalR-backed live prices).
+  { path: 'watchlist', loadChildren: () => import('./watchlist/watchlist.routes').then((m) => m.WATCHLIST_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

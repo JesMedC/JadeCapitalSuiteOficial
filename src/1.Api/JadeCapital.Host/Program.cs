@@ -15,12 +15,14 @@ using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
+using JadeCapital.Trading.Infrastructure.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -131,6 +133,14 @@ builder.Services.AddMediatR(cfg =>
         // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
         // BillingPublicEndpoints minimal-api delegate.
         typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly));
+
+// ===== SignalR (slice 4c — realtime quote broadcast) =====
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    // 32 KB ceiling — the wire shape (QuoteUpdate) is ~120 bytes; generous headroom.
+    options.MaximumReceiveMessageSize = 32 * 1024;
+});
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -373,6 +383,10 @@ app.MapScannerEndpoints();
 // The endpoint group uses the higher `api-quotes` policy instead of
 // `api-general` because watchlist pages refresh aggressively.
 app.MapQuoteEndpoints();
+// Slice 4c — SignalR /hubs/quotes endpoint. Auth via [Authorize] on the hub
+// class (rejects unauthenticated handshakes with 401 before WebSocket upgrade).
+// The broadcast loop runs in QuoteBroadcastService (BackgroundService, 5s tick).
+app.MapHub<QuoteHub>("/hubs/quotes");
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

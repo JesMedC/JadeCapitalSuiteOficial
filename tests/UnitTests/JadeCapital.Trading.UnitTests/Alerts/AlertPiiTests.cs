@@ -1,3 +1,4 @@
+using JadeCapital.Shared.Kernel.MarketData;
 using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
 
@@ -57,7 +58,7 @@ public class AlertPiiTests
                 new NoTradesInDaysRule(),
                 new DrawdownExceededRule(),
                 new RRAverageBelowRule(),
-                new CurrentPriceNearStopRule(),
+                new CurrentPriceNearStopRule(Substitute.For<IQuoteProvider>()),
                 new OpenTradeOffPlanRule(),
             },
             Substitute.For<ILogger<AlertRegistry>>());
