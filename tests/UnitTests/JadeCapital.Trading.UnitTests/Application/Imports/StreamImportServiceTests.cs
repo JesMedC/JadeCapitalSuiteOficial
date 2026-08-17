@@ -27,6 +27,7 @@ public class StreamImportServiceTests
     private readonly IImportJobRepository _jobs = Substitute.For<IImportJobRepository>();
     private readonly IImportRowDedupeService _dedupe = Substitute.For<IImportRowDedupeService>();
     private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
+    private readonly IInstrumentRepository _instruments = Substitute.For<IInstrumentRepository>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly ILogger<StreamImportService> _logger = Substitute.For<ILogger<StreamImportService>>();
@@ -35,9 +36,16 @@ public class StreamImportServiceTests
     {
         _clock.UtcNow.Returns(new DateTimeOffset(2026, 8, 19, 14, 0, 0, TimeSpan.Zero));
         _uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success(1));
+        var instrument = JadeCapital.Trading.Domain.Instruments.Instrument.Create(
+            Guid.NewGuid(), "EURUSD",
+            JadeCapital.Trading.Domain.Enums.AssetClass.Forex,
+            contractSize: 100_000m, decimalPlaces: 5,
+            pipValue: 1m, payoutPercent: 0m, _clock).Value;
+        _instruments.FindBySymbolAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(instrument);
     }
 
-    private StreamImportService CreateSut() => new(_jobs, _dedupe, _trades, _uow, _clock, _logger);
+    private StreamImportService CreateSut() => new(_jobs, _dedupe, _trades, _instruments, _uow, _clock, _logger);
 
     private static ImportRow Row(int line, string? ticket = null) => new(
         LineNumber: line,

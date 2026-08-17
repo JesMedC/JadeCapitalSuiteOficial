@@ -29,7 +29,7 @@ public static class TradeImportExtensions
     /// uses these failures to bump <c>RowsErrored</c>.
     /// </summary>
     public static Result<Trade> ImportFromRow(
-        this ImportRow row, Guid userId, Guid accountId, IClock clock)
+        this ImportRow row, Guid userId, Guid accountId, Guid instrumentId, IClock clock)
     {
         // Symbol — required, may need to strip '/' for some brokers (EURUSD vs EUR/USD).
         var symbolResult = Symbol.Create(NormalizeSymbol(row.Symbol));
@@ -52,29 +52,27 @@ public static class TradeImportExtensions
             ? TradeDirection.Long
             : TradeDirection.Short;
 
-        // Open the trade. The Trade factory will validate currency match
-        // (EntryPrice.Currency must equal the symbol's quotable).
-        var tradeResult = Trade.Open(
-            id: Guid.NewGuid(),
-            accountId: accountId,
-            // 5a.1 note: ImportRow doesn't carry an InstrumentId; the
-            // streaming pipeline resolves it via IInstrumentRepository
-            // before calling ImportFromRow (a follow-up slice). For now,
-            // we use a fresh Guid — the unit tests stub ITradeRepository
-            // so the FK isn't enforced; in production, the DB FK will
-            // reject orphan rows (the batch SaveChanges will throw,
-            // marking the import job as Failed).
-            instrumentId: Guid.NewGuid(),
-            userId: userId,
-            symbol: symbolResult.Value,
-            assetClass: assetClass,
-            direction: direction,
-            volume: volumeResult.Value,
-            entryPrice: entryResult.Value,
-            accountCurrency: row.PnlCurrency,
-            strategy: null,
-            notes: row.Notes,
-            openedAt: row.OpenedAt);
+// Open the trade. The Trade factory will validate currency match
+            // (EntryPrice.Currency must equal the symbol's quotable).
+            var tradeResult = Trade.Open(
+                id: Guid.NewGuid(),
+                accountId: accountId,
+                // Bounded-correction fix (review f757b965 — R3-INSTRUMENT-FRESH-GUID-FK):
+                // the streaming pipeline now resolves instrumentId via
+                // IInstrumentRepository.FindBySymbolAsync and passes the
+                // resolved Guid here. Missing instruments are treated as
+                // errored rows by the caller, not silently materialized.
+                instrumentId: instrumentId,
+                userId: userId,
+                symbol: symbolResult.Value,
+                assetClass: assetClass,
+                direction: direction,
+                volume: volumeResult.Value,
+                entryPrice: entryResult.Value,
+                accountCurrency: row.PnlCurrency,
+                strategy: null,
+                notes: row.Notes,
+                openedAt: row.OpenedAt);
 
         if (tradeResult.IsFailure)
             return Result.Failure<Trade>(tradeResult.Error);

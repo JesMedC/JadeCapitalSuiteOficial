@@ -30,17 +30,20 @@ public sealed class StreamImportService
     private readonly IImportJobRepository _jobs;
     private readonly IImportRowDedupeService _dedupe;
     private readonly ITradeRepository _trades;
+    private readonly IInstrumentRepository _instruments;
     private readonly IUnitOfWork _uow;
     private readonly IClock _clock;
     private readonly ILogger<StreamImportService> _logger;
 
     public StreamImportService(
         IImportJobRepository jobs, IImportRowDedupeService dedupe, ITradeRepository trades,
-        IUnitOfWork uow, IClock clock, ILogger<StreamImportService> logger)
+        IInstrumentRepository instruments, IUnitOfWork uow, IClock clock,
+        ILogger<StreamImportService> logger)
     {
         _jobs = jobs;
         _dedupe = dedupe;
         _trades = trades;
+        _instruments = instruments;
         _uow = uow;
         _clock = clock;
         _logger = logger;
@@ -143,11 +146,20 @@ public sealed class StreamImportService
             return (0, dedupe.SkippedCount);
         }
 
-        // Persist each new row as a Trade aggregate.
+        // Persist each new row as a Trade aggregate. We resolve InstrumentId
+        // per-row via IInstrumentRepository.FindBySymbolAsync; symbols that
+        // are not registered count as errored rows (no phantom instruments).
         var errored = 0;
         foreach (var row in dedupe.NewRows)
         {
-            var tradeResult = row.ImportFromRow(job.UserId, job.AccountId, _clock);
+            var instrument = await _instruments.FindBySymbolAsync(row.Symbol, ct);
+            if (instrument is null)
+            {
+                errored++;
+                continue;
+            }
+
+            var tradeResult = row.ImportFromRow(job.UserId, job.AccountId, instrument.Id, _clock);
             if (tradeResult.IsSuccess)
             {
                 await _trades.AddAsync(tradeResult.Value, ct);

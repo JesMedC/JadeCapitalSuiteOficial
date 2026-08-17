@@ -80,11 +80,18 @@ public sealed class CsvImportRowParser : IImportRowParser
         if (body.CanSeek)
         {
             var firstByte = body.ReadByte();
-            body.Position = Math.Max(0, body.Position - 1);
-            if (firstByte != 0xEF)  // not BOM prefix; rewind
+            if (firstByte == 0xEF)
             {
-                if (body.Position > 0)
+                // BOM detected — verify the next 2 bytes are 0xBB, 0xBF; if so,
+                // leave position advanced past the BOM. Otherwise rewind to 0.
+                var b2 = body.ReadByte();
+                var b3 = body.ReadByte();
+                if (b2 != 0xBB || b3 != 0xBF)
                     body.Position = 0;
+            }
+            else
+            {
+                body.Position = 0;
             }
         }
 
