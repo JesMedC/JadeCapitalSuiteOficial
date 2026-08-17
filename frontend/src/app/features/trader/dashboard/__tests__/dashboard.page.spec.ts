@@ -109,4 +109,26 @@ describe('DashboardPage — Wave 3 shortcuts', () => {
     expect(navigateSpy).toHaveBeenCalledTimes(1);
     expect(navigateSpy).toHaveBeenCalledWith('/app/strategies');
   });
+
+  /**
+   * Slice 4e — Phase 2 verification.
+   * The dashboard embeds a `<jcs-watchlist-page>` with 5 symbols so the
+   * trader sees live quotes without leaving the home page. Per design.md
+   * 4e.2.1 the slice must surface exactly 5 default symbols (EURUSD,
+   * GBPJPY, BTCUSD, USDJPY, AUDUSD) wired into the embed.
+   */
+  it('embeds a watchlist with exactly 5 default symbols', async () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const component = fixture.componentInstance;
+    await settle(fixture);
+
+    expect(component.dashboardWatchlist.length).toBe(5);
+    expect(component.dashboardWatchlist).toEqual([
+      'EURUSD', 'GBPJPY', 'BTCUSD', 'USDJPY', 'AUDUSD',
+    ]);
+
+    const html = fixture.nativeElement as HTMLElement;
+    const watchlist = html.querySelector('[data-testid="dash-watchlist"]');
+    expect(watchlist).not.toBeNull();
+  });
 });
