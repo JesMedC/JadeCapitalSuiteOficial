@@ -39,6 +39,15 @@ public sealed class PreTradeChecklist : AggregateRoot<Guid>
     public DateTimeOffset SubmittedAt { get; private set; }
     public PreTradeChecklistSubmission Submission { get; private set; } = default!;
 
+    /// <summary>
+    /// AI risk advisor output attached at OpenTrade time (Wave 5c.1).
+    /// NULL for trades opened before Wave 5c.1, or for trades opened
+    /// without an advisory (advisor unavailable / Allow-without-reason).
+    /// JSON shape: <c>{ action: "allow"|"warning"|"block", reason: "...",
+    /// model: "...", latency_ms: N, created_at: "..." }</c>.
+    /// </summary>
+    public string? AIRiskAdvisoryJson { get; private set; }
+
     // EF Core.
     private PreTradeChecklist() { }
 
@@ -110,6 +119,23 @@ public sealed class PreTradeChecklist : AggregateRoot<Guid>
             submittedAt));
 
         return Result.Success(checklist);
+    }
+
+    /// <summary>
+    /// Attaches the AI risk advisor output (Wave 5c.1) to the checklist.
+    /// Called once from <c>OpenTradeHandler</c> after the advisor returns
+    /// a non-block action. Subsequent calls are idempotent (the latest
+    /// advisory wins). The JSON payload is opaque to the domain — the
+    /// handler is responsible for the shape.
+    /// </summary>
+    public Result AttachAIRiskAdvisory(string advisoryJson)
+    {
+        if (string.IsNullOrWhiteSpace(advisoryJson))
+            return Result.Failure(Error.Validation("ai_risk.advisory_json_required",
+                "AI risk advisory JSON payload is required."));
+
+        AIRiskAdvisoryJson = advisoryJson.Trim();
+        return Result.Success();
     }
 }
 

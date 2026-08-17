@@ -72,13 +72,14 @@ describe('TraderShell — slice 4e 9-item nav', () => {
     { label: 'Alerts',     path: 'alerts' },
     { label: 'Planner',    path: 'planner' },
     { label: 'Imports',    path: 'imports' },
+    { label: 'Risk Advisor', path: 'risk-advice' },
   ];
 
-  it('exposes exactly 10 nav items', () => {
-    expect(component.navItems.length).toBe(10);
+  it('exposes exactly 11 nav items', () => {
+    expect(component.navItems.length).toBe(11);
   });
 
-  it('matches the spec order (... Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports)', () => {
+  it('matches the spec order (... Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports, Risk Advisor)', () => {
     expect(component.navItems.map(i => ({ label: i.label, path: i.path }))).toEqual(
       expectedOrder
     );

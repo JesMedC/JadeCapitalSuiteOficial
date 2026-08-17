@@ -59,6 +59,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 5b.2 — AI coaching prompts (daily BG service + manual triggers).
     public Microsoft.EntityFrameworkCore.DbSet<CoachingPrompt> CoachingPrompts
         => Set<CoachingPrompt>();
+    // Slice 5c.1 — AI risk advisories (pre-trade + manual).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.Ai.AIRiskAdvice> AIRiskAdvices
+        => Set<JadeCapital.Trading.Domain.Ai.AIRiskAdvice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -81,6 +84,8 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new ImportJobConfiguration());
         // Slice 5b.2 — AI coaching prompts. Same single-source pattern.
         modelBuilder.ApplyConfiguration(new CoachingPromptConfiguration());
+        // Slice 5c.1 — AI risk advisories. Same single-source pattern.
+        modelBuilder.ApplyConfiguration(new AIRiskAdviceConfiguration());
     }
 }
 

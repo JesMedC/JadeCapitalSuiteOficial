@@ -23,6 +23,8 @@ export const traderRoutes: Routes = [
   { path: 'watchlist', loadChildren: () => import('./watchlist/watchlist.routes').then((m) => m.WATCHLIST_ROUTES) },
   // Slice 5a.1 — CSV importer (upload + status polling).
   { path: 'imports', loadChildren: () => import('./imports/imports.routes').then((m) => m.IMPORTS_ROUTES) },
+  // Slice 5c.1 — AI risk advisor (pre-trade advisory panel).
+  { path: 'risk-advice', loadChildren: () => import('./risk-advice/risk-advice.routes').then((m) => m.RISK_ADVICE_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

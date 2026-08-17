@@ -141,9 +141,15 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         services.AddScoped<JadeCapital.Trading.Application.Ai.IUserTradingContextProvider,
                   JadeCapital.Trading.Infrastructure.Ai.EfUserTradingContextProvider>();
 
-// AI coaching prompt repository (Scoped — same lifetime as DbContext).
+        // AI coaching prompt repository (Scoped — same lifetime as DbContext).
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.ICoachingPromptRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.CoachingPromptRepository>();
+
+        // Slice 5c.1 — AI risk advisor (Scoped — uses IAIProvider + DbContext).
+        services.AddScoped<JadeCapital.Trading.Application.Ai.IAIRiskAdvisor,
+                  JadeCapital.Trading.Infrastructure.Ai.OllamaAIRiskAdvisor>();
+        services.AddScoped<JadeCapital.Trading.Application.Abstractions.IAIRiskAdviceRepository,
+                  JadeCapital.Trading.Infrastructure.Persistence.AIRiskAdviceRepository>();
 
 // BackgroundService — daily tick at 03:00 UTC ± 30min jitter. Resolves
 // GenerateCoachingPromptHandler + IUserTradingContextProvider from a per-tick
