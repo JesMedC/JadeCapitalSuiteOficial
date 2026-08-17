@@ -1,6 +1,4 @@
 using JadeCapital.Shared.Kernel.Results;
-using JadeCapital.Trading.Application.Abstractions;
-using JadeCapital.Trading.Application._Common;
 using JadeCapital.Trading.Application.Features.Scanner.CreateOrUpdateScannerFilter;
 using JadeCapital.Trading.Application.Features.Scanner.DeleteScannerFilter;
 using JadeCapital.Trading.Application.Features.Scanner.ListScannerFilters;
@@ -49,14 +47,19 @@ public static class ScannerEndpoints
     }
 
     private static async Task<IResult> GetFilterAsync(
-        Guid id, HttpContext http, IScannerFilterRepository repository, CancellationToken ct)
+        Guid id, HttpContext http, ISender sender, CancellationToken ct)
     {
         var userId = GetUserId(http);
         if (userId is null) return Results.Unauthorized();
-        var found = await repository.GetByIdAsync(id, ct);
-        return found is null || found.UserId != userId.Value
-            ? Results.NotFound(new { code = "scanner.not_found" })
-            : Results.Ok(found.ToDto());
+        var result = await sender.Send(new ListScannerFiltersQuery(userId.Value, false), ct);
+        if (result.IsSuccess)
+        {
+            var found = result.Value.FirstOrDefault(f => f.Id == id);
+            return found is null
+                ? Results.NotFound(new { code = "scanner.not_found" })
+                : Results.Ok(found);
+        }
+        return Results.BadRequest(new { code = result.Error.Code, detail = result.Error.Message });
     }
 
     private static async Task<IResult> UpdateFilterAsync(
@@ -66,7 +69,7 @@ public static class ScannerEndpoints
         if (userId is null) return Results.Unauthorized();
         var result = await sender.Send(new CreateOrUpdateScannerFilterCommand(
             userId.Value, body.Name, body.MinSpread, body.MaxSpread, body.MinVolume,
-            body.MinRiskReward, body.VolatilityWindow, body.ActiveHours, id), ct);
+            body.MinRiskReward, body.VolatilityWindow, body.ActiveHours), ct);
         return ResultToHttp(result, dto => Results.Ok(dto));
     }
 

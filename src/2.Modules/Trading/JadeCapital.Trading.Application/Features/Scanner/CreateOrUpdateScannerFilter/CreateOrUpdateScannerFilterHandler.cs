@@ -19,8 +19,7 @@ public sealed record CreateOrUpdateScannerFilterCommand(
     decimal? MinVolume,
     decimal? MinRiskReward,
     byte VolatilityWindow,
-    string? ActiveHours,
-    Guid? FilterId = null) : IRequest<Result<ScannerFilterDto>>;
+    string? ActiveHours) : IRequest<Result<ScannerFilterDto>>;
 
 public sealed class CreateOrUpdateScannerFilterHandler
     : IRequestHandler<CreateOrUpdateScannerFilterCommand, Result<ScannerFilterDto>>
@@ -37,14 +36,7 @@ public sealed class CreateOrUpdateScannerFilterHandler
     {
         var window = (VolatilityWindow)req.VolatilityWindow;
 
-        var existing = req.FilterId is Guid filterId
-            ? await _repo.GetByIdAsync(filterId, ct)
-            : await _repo.GetByUserAndNameAsync(req.UserId, req.Name, ct);
-        if (existing is not null && existing.UserId != req.UserId)
-            existing = null;
-        if (req.FilterId is not null && existing is null)
-            return Result.Failure<ScannerFilterDto>(Error.NotFound(
-                "scanner.not_found", "Scanner filter was not found."));
+        var existing = await _repo.GetByUserAndNameAsync(req.UserId, req.Name, ct);
         Result<ScannerFilter> result;
         if (existing is null)
         {
