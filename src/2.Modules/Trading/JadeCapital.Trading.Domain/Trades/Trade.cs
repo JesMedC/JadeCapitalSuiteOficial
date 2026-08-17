@@ -2,6 +2,7 @@ using JadeCapital.Shared.Kernel.Money;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
+using JadeCapital.Trading.Domain.Analytics;
 using JadeCapital.Trading.Domain.Common;
 using JadeCapital.Trading.Domain.Enums;
 using JadeCapital.Trading.Domain.ValueObjects;
@@ -45,6 +46,13 @@ public sealed class Trade : AggregateRoot<Guid>
     public string? Strategy { get; private set; }
     public string? Notes { get; private set; }
 
+    // ============== Slice 3a — Strategy FK ==============
+    // Nullable FK additive a trading.strategies(id). Set via SetStrategyId
+    // desde SetTradeStrategyHandler (cross-user scope vive en el handler).
+    // Open trades y Closed trades ambos aceptan retro-tagging; Cancelled
+    // rechaza el cambio porque es estado terminal.
+    public Guid? StrategyId { get; private set; }
+
     public DateTimeOffset OpenedAt { get; private set; }
     public DateTimeOffset? ClosedAt { get; private set; }
 
@@ -54,6 +62,18 @@ public sealed class Trade : AggregateRoot<Guid>
     /// en queries EF. Se valida formato en Open.
     /// </summary>
     public string AccountCurrency { get; private set; } = default!;
+
+    // ============== Slice 2c — MFE/MAE ==============
+    // Maximum Favorable / Adverse Excursion. Nullable: open trades no tienen
+    // MFE/MAE computados (la aproximacion de Wave 2 requiere P&L, que solo
+    // existe despues del Close). Se aplican sincrónicamente dentro de
+    // Trade.Close() — mismo aggregate, mismo SaveChanges, misma transacción.
+    // Wave 4 reemplazara la aproximacion por datos reales de ticks.
+
+    public decimal? MfeAmount { get; private set; }
+    public decimal? MaeAmount { get; private set; }
+    public string? MfeCurrency { get; private set; }
+    public string? MaeCurrency { get; private set; }
 
     // EF Core.
     private Trade() { }
@@ -202,6 +222,15 @@ public sealed class Trade : AggregateRoot<Guid>
         PnL = pnlResult.Value;
         Status = TradeStatus.Closed;
         ClosedAt = closedAt;
+
+        // Slice 2c — MFE/MAE Wave 2 approximation. Sincronico: mismo aggregate,
+        // mismo SaveChanges, misma transaccion. No hace falta dispatcher de
+        // domain events (el codebase no tiene INotificationHandler<...>); la
+        // atomicidad la garantiza el UoW de EF. Wave 4 reemplazara la
+        // aproximacion por datos reales de ticks sin tocar este sitio.
+        var (mfe, mae, currency) = MfeMaeCalculator.Compute(this);
+        ApplyMfeMae(mfe, mae, currency);
+
         Touch();
 
         RaiseDomainEvent(new TradeClosedDomainEvent(
@@ -229,6 +258,33 @@ public sealed class Trade : AggregateRoot<Guid>
     }
 
     /// <summary>
+    /// Slice 3a — asigna/desasigna la strategy (FK nullable) del trade.
+    /// <list type="bullet">
+    ///   <item><paramref name="strategyId"/> == null → untag (set StrategyId=null).</item>
+    ///   <item><paramref name="strategyId"/> == Guid.Empty → fail (400).</item>
+    ///   <item>Cualquier otro valor → tag (la verificacion de ownership /
+    ///   is_active vive en el handler de aplicacion).</item>
+    /// </list>
+    /// Open y Closed ambos aceptan retro-tagging. Cancelled rechaza porque
+    /// es estado terminal (la invariante es "Cancelled es inmutable").
+    /// </summary>
+    public Result SetStrategyId(Guid? strategyId)
+    {
+        if (Status == TradeStatus.Cancelled)
+            return Result.Failure(TradingDomainErrors.Trade.AlreadyCancelled);
+
+        if (strategyId.HasValue && strategyId.Value == Guid.Empty)
+            return Result.Failure(TradingDomainErrors.Trade.IdRequired);
+
+        if (StrategyId == strategyId)
+            return Result.Success();
+
+        StrategyId = strategyId;
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
     /// Actualiza metadata opcional (strategy/notes). Trimea espacios.
     /// Falla si el trade esta Cancelled (estado terminal inmutable).
     /// Closed sigue siendo modificable para correcciones post-cierre
@@ -249,6 +305,45 @@ public sealed class Trade : AggregateRoot<Guid>
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         Touch();
 
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 2c — aplica el resultado del calculo de MFE/MAE al aggregate.
+    /// Invocado desde <see cref="Close"/> con el output de
+    /// <see cref="MfeMaeCalculator.Compute"/>; expuesto como método público
+    /// para mantener la posibilidad de que un caso de uso futuro (admin
+    /// correction, recompute batch) pueda escribir los valores sin re-correr
+    /// el calculator.
+    ///
+    /// Validaciones:
+    ///  - MFE >= 0 (magnitud de excursion favorable, no puede ser negativo).
+    ///  - MAE <= 0 (magnitud de excursion adversa, no puede ser positivo).
+    ///  - currency null o string vacío permitido (MFE/MAE pueden ser null
+    ///    cuando el trade esta Open y solo currency se setea).
+    ///  - break-even (MFE == 0 Y MAE == 0) está permitido.
+    ///
+    /// No emite domain event propio: el close ya emite TradeClosedDomainEvent
+    /// y los valores de MFE/MAE son derivados de ese close (mismo aggregate).
+    /// </summary>
+    public Result ApplyMfeMae(decimal? mfe, decimal? mae, string? currency)
+    {
+        if (mfe.HasValue && mfe.Value < 0m)
+            return Result.Failure(TradingDomainErrors.Trade.MfeMustBeNonNegative);
+
+        if (mae.HasValue && mae.Value > 0m)
+            return Result.Failure(TradingDomainErrors.Trade.MaeMustBeNonPositive);
+
+        MfeAmount = mfe;
+        MaeAmount = mae;
+        // Currency: si el caller pasa null/empty mantenemos null (open trade);
+        // cualquier string no vacío se persiste tal cual (la longitud es CHAR(3)
+        // en DB pero la invariante de longitud vive en MfeMaeCalculator/Apply,
+        // no en el aggregate).
+        MfeCurrency = string.IsNullOrWhiteSpace(currency) ? null : currency;
+        MaeCurrency = string.IsNullOrWhiteSpace(currency) ? null : currency;
+
+        Touch();
         return Result.Success();
     }
 }

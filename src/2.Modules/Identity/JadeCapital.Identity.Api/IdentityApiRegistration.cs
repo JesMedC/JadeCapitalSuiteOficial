@@ -23,9 +23,17 @@ namespace JadeCapital.Identity.Api;
 /// </summary>
 public static class IdentityApiRegistration
 {
-    /// <summary>Map all Identity-module endpoints. Alias of <c>MapAuthEndpoints</c> today; placeholder for future Identity endpoints.</summary>
+    /// <summary>
+    /// Map all Identity-module endpoints. Combines <c>MapAuthEndpoints</c> (auth,
+    /// recovery, refresh) + <c>MapRiskProfileEndpoints</c> (slice 1a.1b —
+    /// GET/PUT /api/risk-profile).
+    /// </summary>
     public static IEndpointRouteBuilder MapIdentityApi(this IEndpointRouteBuilder app)
-        => app.MapAuthEndpoints();
+    {
+        app.MapAuthEndpoints();
+        app.MapRiskProfileEndpoints();
+        return app;
+    }
 
     /// <summary>Registers the rate limit policy used by the recovery endpoints (5 requests / IP / hour by default;
     /// overridable via <c>RateLimit:RecoveryPermit</c> in configuration for fast-running integration tests).</summary>

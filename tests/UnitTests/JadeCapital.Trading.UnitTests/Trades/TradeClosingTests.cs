@@ -106,4 +106,79 @@ public class TradeClosingTests
         r.IsFailure.Should().BeTrue();
         r.Error.Code.Should().Be("validation.trade.exit_price_currency_mismatch");
     }
+
+    // ============================================================
+    //  Slice 2c — MFE/MAE integration on Trade.Close.
+    //
+    //  The Wave 2 approximation runs synchronously inside Trade.Close so
+    //  MFE/MAE end up on the same aggregate / same SaveChanges / same
+    //  transaction as the close itself. After Close, the aggregate exposes
+    //  MfeAmount / MaeAmount populated with the deterministic values from
+    //  MfeMaeCalculator.
+    // ============================================================
+
+    [Fact]
+    public void Close_WinnerLong_PopulatesMfeAndMae()
+    {
+        // 1000 units, entry 1.10 → exit 1.20 → PnL = +100. Winner.
+        var trade = CreateOpenLong(volumeAmount: 1000m, entryPriceAmount: 1.10m);
+
+        var r = trade.Close(Money.Create(1.20m, Currency.Usd).Value, ClosedAt, FixedClock());
+
+        r.IsSuccess.Should().BeTrue();
+        trade.MfeAmount.Should().Be(100m);
+        trade.MaeAmount.Should().Be(0m);
+        trade.MfeCurrency.Should().Be("USD");
+        trade.MaeCurrency.Should().Be("USD");
+    }
+
+    [Fact]
+    public void Close_LoserLong_PopulatesMfeAndMae()
+    {
+        // 1000 units, entry 1.10 → exit 1.00 → PnL = -100. Loser.
+        var trade = CreateOpenLong(volumeAmount: 1000m, entryPriceAmount: 1.10m);
+
+        var r = trade.Close(Money.Create(1.00m, Currency.Usd).Value, ClosedAt, FixedClock());
+
+        r.IsSuccess.Should().BeTrue();
+        trade.MfeAmount.Should().Be(0m);
+        trade.MaeAmount.Should().Be(-100m);
+        trade.MfeCurrency.Should().Be("USD");
+        trade.MaeCurrency.Should().Be("USD");
+    }
+
+    // ============================================================
+    //  Slice 2c — ApplyMfeMae validation invariants.
+    //
+    //  ApplyMfeMae is also exposed for admin / batch recompute use cases
+    //  beyond Trade.Close. The validation rules must hold regardless of
+    //  the caller (Close path, admin correction, data import).
+    // ============================================================
+
+    [Fact]
+    public void ApplyMfeMae_NegativeMfe_Fails()
+    {
+        var trade = CreateOpenLong();
+
+        var r = trade.ApplyMfeMae(mfe: -1m, mae: 0m, currency: "USD");
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.trade.mfe_must_be_non_negative");
+        // Aggregate state remains untouched on failure.
+        trade.MfeAmount.Should().BeNull();
+        trade.MaeAmount.Should().BeNull();
+    }
+
+    [Fact]
+    public void ApplyMfeMae_PositiveMae_Fails()
+    {
+        var trade = CreateOpenLong();
+
+        var r = trade.ApplyMfeMae(mfe: 0m, mae: 1m, currency: "USD");
+
+        r.IsFailure.Should().BeTrue();
+        r.Error.Code.Should().Be("validation.trade.mae_must_be_non_positive");
+        trade.MfeAmount.Should().BeNull();
+        trade.MaeAmount.Should().BeNull();
+    }
 }

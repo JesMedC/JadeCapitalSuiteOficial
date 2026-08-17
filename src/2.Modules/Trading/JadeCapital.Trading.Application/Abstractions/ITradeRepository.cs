@@ -42,6 +42,18 @@ public interface ITradeRepository
         CancellationToken ct);
 
     /// <summary>
+    /// Lista TODOS los trades cerrados del usuario sin limite inferior ni
+    /// superior. Usado por el behavioral analyzer con <c>period=all</c>.
+    /// El analyzer filtra por <c>ClosedAt</c> en memoria — esta query es
+    /// la red de seguridad para no paginar accidentalmente el historial
+    /// completo del usuario. Wave 3 introducira un cursor si algun user
+    /// pasa de ~10k trades.
+    /// </summary>
+    Task<IReadOnlyList<Trade>> ListClosedByUserIdAsync(
+        Guid userId,
+        CancellationToken ct);
+
+    /// <summary>
     /// Cuenta cuantos trades (de cualquier usuario) apuntan a un instrumento.
     /// Usado por DeleteInstrument para el pre-check de FK RESTRICT.
     /// </summary>

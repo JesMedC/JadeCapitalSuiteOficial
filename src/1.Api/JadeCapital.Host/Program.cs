@@ -1,6 +1,7 @@
 using JadeCapital.Admin.Api.Authorization;
 using JadeCapital.Admin.Api.Endpoints;
 using JadeCapital.Billing.Infrastructure.DependencyInjection;
+using JadeCapital.Billing.PublicApi.Endpoints;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -9,6 +10,7 @@ using JadeCapital.Identity.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
 using JadeCapital.Shared.Infrastructure.Email;
+using JadeCapital.Shared.Infrastructure.Storage;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
@@ -92,6 +94,13 @@ builder.Services.AddMailpitSmtpEmailSender();
 // Uniform-timing gate used by /api/auth/forgot-password.
 builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
+// Slice 2a.1 — HTTP context accessor (consumed by HttpHeaderTimezoneAccessor)
+// and the timezone accessor itself. Singleton because both are stateless
+// thread-safe helpers.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<JadeCapital.Trading.Application.Abstractions.IUserTimezoneAccessor,
+    JadeCapital.Trading.Api.Timezone.HttpHeaderTimezoneAccessor>();
+
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
 
@@ -104,6 +113,12 @@ builder.Services.AddBillingInfrastructure(builder.Configuration);
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
 
+// ===== MinIO infrastructure (slice 1d.1) =====
+// Provee IAttachmentStorage + bootstrapea el bucket al startup via
+// MinioInitializerHostedService. La connection string vive en
+// ConnectionStrings__Storage (env var) o .env local.
+builder.Services.AddMinioInfrastructure(builder.Configuration);
+
 // ===== MediatR (handlers de Identity.Application + Trading.Application) =====
 // ValidationBehavior ya queda registrado como IPipelineBehavior<,> via AddSharedInfrastructure.
 builder.Services.AddMediatR(cfg =>
@@ -111,7 +126,11 @@ builder.Services.AddMediatR(cfg =>
         typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
         typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
         // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
-        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly));
+        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly,
+        // Wave-1.3 — Billing public catalog query (GetPublicPlansHandler) so
+        // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
+        // BillingPublicEndpoints minimal-api delegate.
+        typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly));
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -306,10 +325,36 @@ app.MapIdentityApi();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
+// Slice 1f — server-side trading metrics (replaces analytics.page.ts mocks).
+app.MapTraderMetricsEndpoints();
+// Slice 1b — read-only position-size calculator (uses IIdentityUserRiskProfileReader).
+app.MapPositionSizeEndpoints();
+// Slice 1d.1 — post-trade review + MinIO attachment endpoints.
+app.MapTradeReviewEndpoints();
+// Slice 2a.1 — daily journal endpoints (GET today, GET range, POST upsert, DELETE).
+app.MapJournalEndpoints();
+// Slice 2b.1 — behavioral analytics (5 detection rules + emotionality buckets).
+app.MapBehavioralEndpoints();
+// Slice 2c — per-trade MFE/MAE approximation + user-aggregate histograms.
+app.MapTradeMfeMaeEndpoints();
+// Slice 2d — rule-based coaching prompts (5 rules registered; aggregates
+// over trades + journals + behavioral events in the requested window).
+app.MapCoachingPromptsEndpoint();
+// Slice 3a — trader strategies (CRUD + analytics) + tag/untag trade.
+ app.MapStrategyEndpoints();
+// Slice 3b — alerts (list, get-by-id, ack) + BackgroundService evaluation.
+app.MapAlertEndpoints();
+// Slice 3c — planner sessions (create, update, list-by-week, status change).
+app.MapPlannerEndpoints();
+// Slice 4a — scanner filters (CRUD + run against instrument universe).
+app.MapScannerEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
 app.MapAdminSubscriptionEndpoints();
+// Wave-1.3 — Public Billing catalog endpoints (AllowAnonymous; pricing page
+// must load the plan list before the visitor authenticates).
+app.MapBillingPublicEndpoints();
 
 app.Run();
 

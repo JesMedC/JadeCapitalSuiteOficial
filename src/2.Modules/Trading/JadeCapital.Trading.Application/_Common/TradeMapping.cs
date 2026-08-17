@@ -39,6 +39,14 @@ internal static class TradeMapping
             trade.PnL?.Amount,
             trade.PnL?.Currency.Code,
             trade.AccountCurrency,
+            // Slice 2c — MFE/MAE projected straight from the aggregate.
+            // The Close factory in Trade invokes MfeMaeCalculator.Compute
+            // synchronously, so by the time ToDto runs on a closed trade
+            // these fields are already populated.
+            trade.MfeAmount,
+            trade.MaeAmount,
+            trade.MfeCurrency,
+            trade.MaeCurrency,
             trade.Strategy,
             trade.Notes,
             trade.OpenedAt,

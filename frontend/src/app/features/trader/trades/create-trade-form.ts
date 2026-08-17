@@ -32,6 +32,13 @@ import {
 } from '@core/api/trade-api.service';
 import { AccountState } from '@core/state/account.state';
 import { InstrumentState } from '@core/state/instrument.state';
+import {
+  PreTradeChecklist,
+  PreTradeChecklistPayload,
+} from './pre-trade-checklist';
+import { PositionSizeCalculator } from './position-size-calculator';
+import { PositionSizeCalcResult } from '@core/api/position-size.service';
+import { RiskProfileState } from '@core/state/risk-profile.state';
 
 type TradeTab = MarketType;
 
@@ -47,7 +54,7 @@ const SLIDE_ANIMATION_MS = 280;
 @Component({
   selector: 'jcs-create-trade-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, PreTradeChecklist, PositionSizeCalculator],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (rendered()) {
@@ -642,23 +649,40 @@ const SLIDE_ANIMATION_MS = 280;
           </div>
 
           <footer class="panel-foot">
-            <button
-              type="button"
-              class="jcs-btn jcs-btn--ghost"
-              (click)="cancel()"
-              [disabled]="submitting()">Cancelar</button>
-            <button
-              type="button"
-              class="jcs-btn jcs-btn--primary"
-              (click)="submit()"
-              [disabled]="submitting() || !canSubmit()">
-              @if (submitting()) {
-                <span class="btn-spinner" aria-hidden="true"></span>
-                Guardando…
-              } @else {
-                Crear operación
-              }
-            </button>
+            <!-- ============== Position-size calculator (slice 1b) ============== -->
+            <jcs-position-size-calculator
+              class="panel-calculator"
+              [profile]="riskProfile.profile()"
+              [defaultStopLossDistance]="defaultStopLossForCalc()"
+              (calculated)="onPositionSizeCalculated($event)" />
+
+            <!-- ============== Pre-trade checklist (slice 1c.2) ============== -->
+            <jcs-pre-trade-checklist
+              class="panel-checklist"
+              [errorCode]="checklistErrorCode()"
+              [fieldErrors]="checklistFieldErrors()"
+              (submission)="onChecklistSubmission($event)"
+              (cancelled)="onChecklistCancelled()" />
+
+            <div class="panel-actions">
+              <button
+                type="button"
+                class="jcs-btn jcs-btn--ghost"
+                (click)="cancel()"
+                [disabled]="submitting()">Cancelar</button>
+              <button
+                type="button"
+                class="jcs-btn jcs-btn--primary"
+                (click)="submit()"
+                [disabled]="submitting() || !canSubmit()">
+                @if (submitting()) {
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                  Guardando…
+                } @else {
+                  Crear operación
+                }
+              </button>
+            </div>
           </footer>
         </aside>
       </div>
@@ -801,12 +825,22 @@ const SLIDE_ANIMATION_MS = 280;
     /* ============== Footer ============== */
     .panel-foot {
       display: flex;
-      justify-content: flex-end;
-      gap: var(--sp-3);
+      flex-direction: column;
+      gap: var(--sp-4);
       padding: var(--sp-4) var(--sp-6);
       border-top: 1px solid var(--border-soft);
       background: var(--bg-card);
       flex-shrink: 0;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+    .panel-checklist { display: block; }
+    .panel-calculator { display: block; }
+    .panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--sp-3);
+      flex-wrap: wrap;
     }
 
     /* ============== Sections & fields ============== */
@@ -1109,8 +1143,9 @@ const SLIDE_ANIMATION_MS = 280;
       .form-grid { grid-template-columns: 1fr; }
       .panel-tabs { flex-direction: column; }
       .panel-tab { width: 100%; justify-content: flex-start; }
-      .panel-foot { flex-direction: column-reverse; }
-      .panel-foot .jcs-btn { width: 100%; }
+      .panel-foot { flex-direction: column; }
+      .panel-actions { flex-direction: column-reverse; }
+      .panel-actions .jcs-btn { width: 100%; }
     }
   `],
 })
@@ -1119,6 +1154,8 @@ export class CreateTradeForm implements OnDestroy {
   private readonly tradeApi = inject(TradeApiService);
   readonly accountState = inject(AccountState);
   readonly instrumentState = inject(InstrumentState);
+  /** Slice 1b: active risk profile — fed into the position-size calculator. */
+  readonly riskProfile = inject(RiskProfileState);
 
   readonly visible = input.required<boolean>();
   readonly saved = output<TradeDto>();
@@ -1126,6 +1163,14 @@ export class CreateTradeForm implements OnDestroy {
 
   readonly submitting = signal(false);
   readonly submitError = signal<string | null>(null);
+
+  // ===== Pre-trade checklist state (slice 1c.2) =====
+  /** Latest submission emitted by `<jcs-pre-trade-checklist>`. Null until the user accepts. */
+  readonly checklistSubmission = signal<PreTradeChecklistPayload | null>(null);
+  /** Error code from the last 422 RFC 7807 problem (e.g. "pre_trade_checklist.rr_below_target"). */
+  readonly checklistErrorCode = signal<string | null>(null);
+  /** Field names flagged by the last 422 RFC 7807 problem. */
+  readonly checklistFieldErrors = signal<string[]>([]);
 
   /** Active tab (1 = Forex, 2 = Binary). */
   readonly activeTab = signal<TradeTab>(1);
@@ -1477,6 +1522,9 @@ export class CreateTradeForm implements OnDestroy {
     await Promise.all([
       this.accountState.load(),
       this.instrumentState.load(),
+      // Slice 1b: position-size calculator needs the active profile.
+      // The state is cache-friendly too; safe to load in parallel.
+      this.riskProfile.load(),
     ]);
   }
 
@@ -1501,6 +1549,51 @@ export class CreateTradeForm implements OnDestroy {
     this.form.controls.direction.setValue(dir);
     this.form.controls.direction.markAsTouched();
   }
+
+  // ===== Pre-trade checklist handlers (slice 1c.2) =====
+  /** Stores the latest checklist payload so `submit()` can include it in the POST body. */
+  onChecklistSubmission(payload: PreTradeChecklistPayload): void {
+    this.checklistSubmission.set(payload);
+    // Clear stale 422 error state — the user has just committed a new attempt.
+    this.checklistErrorCode.set(null);
+    this.checklistFieldErrors.set([]);
+  }
+
+  /** Clears the stored checklist payload (cancel button on the checklist component). */
+  onChecklistCancelled(): void {
+    this.checklistSubmission.set(null);
+    this.checklistErrorCode.set(null);
+    this.checklistFieldErrors.set([]);
+  }
+
+  // ===== Position-size calculator handlers (slice 1b) =====
+  /**
+   * Pre-populates the form's `volume` field with the calculator's output.
+   * The trader can still override it manually — the calculator is informational.
+   */
+  onPositionSizeCalculated(result: PositionSizeCalcResult): void {
+    const tab = this.activeTab();
+    if (tab === 1) {
+      this.form.controls.volume.setValue(result.volume);
+    } else {
+      // Binary tab uses `amount` (importe), not `volume` (lots).
+      // The calculator returns base units which don't map directly to binary
+      // "importe" — we leave the binary field alone in this slice.
+      return;
+    }
+  }
+
+  /**
+   * The calculator's default stop-loss input is |entry - sl| from the form,
+   * pre-populated so the user doesn't have to re-type it.
+   */
+  readonly defaultStopLossForCalc = computed<number>(() => {
+    const entry = this.entryPriceValue();
+    const sl = this.stopLossValue();
+    if (!entry || !sl) return 0;
+    const dist = Math.abs(entry - sl);
+    return Number.isFinite(dist) && dist > 0 ? dist : 0;
+  });
 
   async submit(): Promise<void> {
     if (!this.canSubmit()) {
@@ -1537,11 +1630,25 @@ export class CreateTradeForm implements OnDestroy {
         entryPriceCurrency: this.entryPriceCurrency(),
         strategy: this.form.controls.strategy.value.trim() || null,
         notes: this.form.controls.notes.value.trim() || null,
+        // Slice 1c.2: optional pre-trade checklist. Backend maps a failing
+        // checklist to 422 with `validation.pre_trade_checklist.*`.
+        checklist: this.checklistSubmission(),
       };
       const created = await this.tradeApi.open(request);
       this.saved.emit(created);
     } catch (e) {
-      this.submitError.set(this.toMessage(e));
+      // Slice 1c.2: parse RFC 7807 problem for pre-trade checklist errors
+      // and surface them to the checklist via its errorCode/fieldErrors inputs.
+      const parsed = this.parseChecklistProblem(e);
+      if (parsed) {
+        this.checklistErrorCode.set(parsed.code);
+        this.checklistFieldErrors.set(parsed.fields);
+        this.submitError.set(parsed.message);
+      } else {
+        this.checklistErrorCode.set(null);
+        this.checklistFieldErrors.set([]);
+        this.submitError.set(this.toMessage(e));
+      }
     } finally {
       this.submitting.set(false);
     }
@@ -1648,6 +1755,12 @@ export class CreateTradeForm implements OnDestroy {
       expiresAt: null,
     });
     this.submitError.set(null);
+    // Slice 1c.2: clear any leftover pre-trade checklist state from a
+    // previous open of the dialog (success path emits `saved`, but if the
+    // user cancels mid-edit or the API rejected, we don't want stale state).
+    this.checklistSubmission.set(null);
+    this.checklistErrorCode.set(null);
+    this.checklistFieldErrors.set([]);
     // Determinar tab inicial según cuentas disponibles.
     if (this.forexAccounts().length > 0) {
       this.activeTab.set(1);
@@ -1672,6 +1785,49 @@ export class CreateTradeForm implements OnDestroy {
     const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
     const local = new Date(now.getTime() - tzOffsetMs);
     return local.toISOString().slice(0, 16);
+  }
+
+  /**
+   * Slice 1c.2: parses a 422 RFC 7807 problem coming from
+   * `POST /api/trades` when the pre-trade checklist fails validation.
+   * Returns null when the error is unrelated to the checklist so the caller
+   * can fall back to the generic `toMessage` formatter.
+   *
+   * The backend's `ProblemFromResult` (slice 1c.1) emits:
+   *   { type: "https://jadecapital/errors/<code>", title, detail,
+   *     status: 422, code: "<code>", extensions?: { code, fields? } }
+   *
+   * We pull the `<code>` suffix out of `type` (last URL segment) and merge
+   * `extensions.fields` into the fieldErrors array.
+   */
+  private parseChecklistProblem(error: unknown): { code: string; fields: string[]; message: string } | null {
+    if (!(error instanceof HttpErrorResponse) || error.status !== 422) return null;
+    const body = (error.error ?? {}) as {
+      type?: string;
+      code?: string;
+      detail?: string;
+      title?: string;
+      extensions?: { code?: string; fields?: string[] };
+    };
+
+    // Backend's validation.pre_trade_checklist.* codes are what trigger 422 here.
+    const candidate = body.code ?? body.extensions?.code ?? '';
+    if (!candidate.startsWith('pre_trade_checklist.') && !candidate.startsWith('validation.pre_trade_checklist.')) {
+      // Try the `type` URL: "https://jadecapital/errors/<code>"
+      const fromType = body.type?.split('/').pop() ?? '';
+      if (!fromType.startsWith('pre_trade_checklist.')) return null;
+      const code = fromType;
+      const fields = body.extensions?.fields ?? [];
+      const message = body.detail ?? body.title ?? 'El checklist falló la validación.';
+      return { code, fields, message };
+    }
+
+    const code = candidate.startsWith('validation.')
+      ? candidate.slice('validation.'.length)
+      : candidate;
+    const fields = body.extensions?.fields ?? [];
+    const message = body.detail ?? body.title ?? 'El checklist falló la validación.';
+    return { code, fields, message };
   }
 
   private toMessage(error: unknown): string {

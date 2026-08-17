@@ -19,8 +19,9 @@ import {
 import { AccountState } from '@core/state/account.state';
 import { AuthState } from '@core/state/auth.state';
 import { InstrumentState } from '@core/state/instrument.state';
+import { RiskProfileTab } from './risk-profile/risk-profile-tab';
 
-type SettingsTab = 'accounts' | 'instruments';
+type SettingsTab = 'accounts' | 'instruments' | 'risk-profile';
 type DeleteKind = 'account' | 'instrument';
 
 interface DeleteTarget {
@@ -32,7 +33,7 @@ interface DeleteTarget {
 @Component({
   selector: 'jcs-settings',
   standalone: true,
-  imports: [DecimalPipe, NgClass, ReactiveFormsModule],
+  imports: [DecimalPipe, NgClass, ReactiveFormsModule, RiskProfileTab],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="settings-page">
@@ -64,6 +65,15 @@ interface DeleteTarget {
           (click)="setTab('instruments')">
           Instrumentos
           <span class="tab-count jcs-num">{{ instrumentState.instruments().length }}</span>
+        </button>
+        <button
+          type="button"
+          class="tab-pill"
+          [class.tab-pill--active]="activeTab() === 'risk-profile'"
+          [attr.aria-selected]="activeTab() === 'risk-profile'"
+          role="tab"
+          (click)="setTab('risk-profile')">
+          Perfil de riesgo
         </button>
       </div>
 
@@ -223,7 +233,7 @@ interface DeleteTarget {
             </form>
           }
         </section>
-      } @else {
+      } @else if (activeTab() === 'instruments') {
         <section class="tab-panel" role="tabpanel">
           <header class="section-head">
             <div>
@@ -404,6 +414,16 @@ interface DeleteTarget {
               </footer>
             </form>
           }
+        </section>
+      } @else {
+        <section class="tab-panel" role="tabpanel">
+          <header class="section-head">
+            <div>
+              <h2>Perfil de riesgo</h2>
+              <p class="jcs-muted">Tamaño de posición, drawdown y ratio R/R para el calculador y el checklist de pre-trade.</p>
+            </div>
+          </header>
+          <jcs-risk-profile-tab />
         </section>
       }
     </div>

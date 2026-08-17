@@ -33,4 +33,13 @@
   --fs-2xl:1.5rem; --fs-3xl:2rem; --fs-4xl:2.5rem; --fs-5xl:3.5rem; --fs-6xl:4.5rem;
   --sp-1:0.25rem; --sp-2:0.5rem; --sp-3:0.75rem; --sp-4:1rem; --sp-5:1.25rem; --sp-6:1.5rem; --sp-8:2rem; --sp-10:2.5rem; --sp-12:3rem; --sp-16:4rem; --sp-20:5rem; --sp-24:6rem;
   --container-max: 1280px;
+  // ====== Breakpoints (mobile-first) ======
+  --bp-mobile: 480px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
+  --bp-wide: 1280px;
+  // ====== Z-index ======
+  --z-mobile-nav: 60;
+  --z-overlay: 70;
+  --z-modal: 80;
 }

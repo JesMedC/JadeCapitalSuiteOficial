@@ -89,6 +89,16 @@ public sealed class TradeRepository : ITradeRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Trade>> ListClosedByUserIdAsync(
+        Guid userId,
+        CancellationToken ct)
+    {
+        return await _db.Trades
+            .Where(t => t.UserId == userId && t.Status == TradeStatus.Closed)
+            .OrderBy(t => t.ClosedAt)
+            .ToListAsync(ct);
+    }
+
     public Task<int> CountByInstrumentIdAsync(Guid instrumentId, CancellationToken ct)
         => _db.Trades.CountAsync(t => t.InstrumentId == instrumentId, ct);
 
