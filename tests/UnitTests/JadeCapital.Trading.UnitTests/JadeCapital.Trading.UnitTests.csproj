@@ -17,5 +17,10 @@
     <!-- Slice 1d.1 PR-2: tests for MinioAttachmentStore require
          the Shared.Infrastructure project + Minio SDK directly. -->
     <ProjectReference Include="..\..\..\src\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
+    <!-- Slice 4c — QuoteBroadcastService + QuoteHub live in Infrastructure. -->
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Infrastructure\JadeCapital.Trading.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
   </ItemGroup>
 </Project>

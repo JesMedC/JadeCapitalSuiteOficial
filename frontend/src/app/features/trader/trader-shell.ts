@@ -399,6 +399,7 @@ export class TraderShell {
     { label: 'Patrones',    path: 'patterns',   icon: 'list' },
     { label: 'Alertas',     path: 'alerts',     icon: 'tag' },
     { label: 'Scanner',     path: 'scanner',    icon: 'menu' },
+    { label: 'Watchlist',   path: 'watchlist',  icon: 'menu' },
     { label: 'Quotes',      path: 'quotes',     icon: 'menu' },
     { label: 'Settings',    path: 'settings',   icon: 'settings' },
   ];

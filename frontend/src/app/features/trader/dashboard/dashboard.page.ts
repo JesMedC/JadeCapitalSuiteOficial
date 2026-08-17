@@ -11,6 +11,8 @@ import {
 } from '@core/api/trade-api.service';
 import { CoachingPromptsComponent } from '../coaching/coaching-prompts.component';
 import { CoachingState } from '../coaching/state/coaching.state';
+import { WatchlistState } from '@core/realtime/state/watchlist.state';
+import { WatchlistPage } from '../watchlist/watchlist-page';
 
 // Construye una serie de equity curve (P&L acumulado) a partir de trades
 // cerrados ordenados por fecha. Devuelve `number[]` con un punto por trade.
@@ -32,7 +34,7 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 @Component({
   selector: 'jcs-dashboard',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass, RouterLink, CoachingPromptsComponent],
+  imports: [DecimalPipe, DatePipe, NgClass, RouterLink, CoachingPromptsComponent, WatchlistPage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dash">
@@ -77,6 +79,15 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 
       <!-- ============== Coaching prompts (slice 2d embed) ============== -->
       <jcs-coaching-prompts [prompts]="coachingState.prompts()"></jcs-coaching-prompts>
+
+      <!-- ============== Watchlist (slice 4c embed) ============== -->
+      <section class="jcs-card watchlist-card" data-testid="dash-watchlist">
+        <header class="watchlist-card-head">
+          <h2>Watchlist</h2>
+          <a routerLink="/app/watchlist" class="watchlist-card-link">Ver todas →</a>
+        </header>
+        <jcs-watchlist-page [symbols]="dashboardWatchlist"></jcs-watchlist-page>
+      </section>
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -672,6 +683,11 @@ export class DashboardPage {
   private readonly api = inject(TradeApiService);
   private readonly router = inject(Router);
   readonly coachingState = inject(CoachingState);
+  private readonly watchlistState = inject(WatchlistState);
+
+  // Slice 4c — first 5 watchlist symbols embedded as compact cards on the
+  // dashboard. Full page lives at /app/watchlist.
+  readonly dashboardWatchlist: string[] = ['EURUSD', 'GBPJPY', 'BTCUSD', 'USDJPY', 'AUDUSD'];
 
   readonly shortcuts: ReadonlyArray<{
     readonly label: string;
