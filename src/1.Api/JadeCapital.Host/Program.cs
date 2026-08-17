@@ -150,6 +150,8 @@ builder.Services.AddMediatR(cfg =>
         typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
         // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
         typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly,
+        // Wave 6a.1 — Stripe handlers (create-or-get-customer + handle-webhook).
+        typeof(JadeCapital.Billing.Application.Stripe.CreateOrGetCustomerHandler).Assembly,
         // Wave-1.3 — Billing public catalog query (GetPublicPlansHandler) so
         // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
         // BillingPublicEndpoints minimal-api delegate.
@@ -228,6 +230,25 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = apiQuotesPermit,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("api-billing", ctx =>
+    {
+        // Wave 6a.1 — Stripe-backed endpoints (customers, checkout, portal).
+        // Per the spec: 10 calls/hour/user. We use a 1-hour window keyed
+        // by user id when authenticated, by IP otherwise.
+        var partitionKey = ctx.User?.Identity?.IsAuthenticated == true
+            ? $"billing-{ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}"
+            : $"billing-{ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue<int?>("RateLimit:BillingPermit") ?? 10,
+                Window = TimeSpan.FromHours(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
             });
@@ -420,6 +441,10 @@ app.MapAdminSubscriptionEndpoints();
 // Wave-1.3 — Public Billing catalog endpoints (AllowAnonymous; pricing page
 // must load the plan list before the visitor authenticates).
 app.MapBillingPublicEndpoints();
+// Wave 6a.1 — Stripe-backed Billing endpoints (Customer create/fetch +
+// webhook receiver). 4 endpoints total; 6a.1 ships customers + webhooks,
+// 6a.2 adds checkout + portal.
+app.MapBillingStripeEndpoints();
 
 app.Run();
 

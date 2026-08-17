@@ -1,3 +1,4 @@
+using JadeCapital.Billing.Domain.Stripe;
 using JadeCapital.Billing.Domain.Subscriptions;
 using JadeCapital.Billing.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
@@ -18,11 +19,15 @@ public sealed class BillingDbContext : DbContext
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<SubscriptionHistoryEntry> SubscriptionHistory => Set<SubscriptionHistoryEntry>();
 
+    /// <summary>Wave 6a.1: Stripe Customer mapping per user.</summary>
+    public DbSet<StripeCustomer> StripeCustomers => Set<StripeCustomer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("billing");
         modelBuilder.ApplyConfiguration(new PlanConfiguration());
         modelBuilder.ApplyConfiguration(new SubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new SubscriptionHistoryConfiguration());
+        modelBuilder.ApplyConfiguration(new StripeCustomerConfiguration());
     }
 }
