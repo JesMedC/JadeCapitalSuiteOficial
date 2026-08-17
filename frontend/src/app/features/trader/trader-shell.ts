@@ -418,6 +418,7 @@ export class TraderShell {
     { label: 'Strategies', path: 'strategies', icon: 'list' },
     { label: 'Alerts',     path: 'alerts',     icon: 'tag' },
     { label: 'Planner',    path: 'planner',    icon: 'calendar' },
+    { label: 'Imports',    path: 'imports',    icon: 'menu' },
   ];
 
   userInitial(): string {

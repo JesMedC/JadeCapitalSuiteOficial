@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.AttachmentAudits;
+using JadeCapital.Trading.Domain.Imports;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
 using JadeCapital.Trading.Domain.Planner;
@@ -51,6 +52,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 4d — attachment quota audit (daily lifecycle sweep log).
     public Microsoft.EntityFrameworkCore.DbSet<AttachmentQuotaAudit> AttachmentQuotaAudits
         => Set<AttachmentQuotaAudit>();
+    // Slice 5a.1 — trader import jobs (CSV uploads).
+    public Microsoft.EntityFrameworkCore.DbSet<ImportJob> ImportJobs
+        => Set<ImportJob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +72,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
         modelBuilder.ApplyConfiguration(new QuoteCacheConfiguration());
         modelBuilder.ApplyConfiguration(new AttachmentQuotaAuditConfiguration());
+        // Slice 5a.1 — import jobs. Registered ONCE here (Wave 4 lesson:
+        // do NOT also register via DI; ApplyConfiguration is the single source).
+        modelBuilder.ApplyConfiguration(new ImportJobConfiguration());
     }
 }
 
