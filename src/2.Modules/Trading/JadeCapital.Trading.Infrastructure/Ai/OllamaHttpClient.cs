@@ -26,11 +26,14 @@ namespace JadeCapital.Trading.Infrastructure.Ai;
 /// returns <c>Result.Failure</c> with one of:
 /// <list type="bullet">
 ///   <item><c>ai.unavailable</c> — Ollama unreachable or returned 5xx after 3 attempts</item>
-///   <item><c>ai.timeout</c> — request cancelled (HttpClient timeout / linked CTS)</item>
+///   <item><c>ai.timeout</c> — provider-side timeout (HttpClient.Timeout fired)</item>
 ///   <item><c>ai.empty_response</c> — Ollama returned 200 but <c>response</c> was empty/whitespace</item>
 ///   <item><c>ai.parse_error</c> — response body was not valid JSON for the expected shape</item>
 ///   <item><c>ai.internal_error</c> — anything else (logged + wrapped)</item>
 /// </list>
+/// Caller-initiated cancellation (via the <c>CancellationToken</c> parameter)
+/// is propagated as <see cref="OperationCanceledException"/> — it is NOT
+/// classified as <c>ai.timeout</c>.
 /// </para>
 ///
 /// <para>
@@ -75,12 +78,21 @@ public sealed class OllamaHttpClient : IAIProvider
         {
             return await GenerateInternalAsync(request, stopwatch, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Caller cancelled: propagate per .NET cancellation contract.
+            // ai.timeout is reserved for provider-side timeouts (HttpClient.Timeout).
+            stopwatch.Stop();
+            throw;
+        }
         catch (Exception ex)
         {
-            // Defense-in-depth: the IAIProvider contract guarantees no throw.
-            // Anything that escapes the inner loop (e.g. InvalidOperationException
-            // from a misconfigured HttpClient) becomes ai.internal_error so the
-            // BG service + advisor can keep running.
+            // Defense-in-depth: the IAIProvider contract guarantees no throw on
+            // transient provider failures. Anything that escapes the inner loop
+            // (e.g. InvalidOperationException from a misconfigured HttpClient)
+            // becomes ai.internal_error so the BG service + advisor can keep
+            // running. OperationCanceledException is excluded above so user
+            // cancellation still propagates.
             stopwatch.Stop();
             _logger.LogError(ex, "Unexpected exception in Ollama GenerateAsync.");
             return Result<PromptResponse>.Failure(Error.Failure("ai.internal_error",
@@ -114,12 +126,23 @@ public sealed class OllamaHttpClient : IAIProvider
             {
                 response = await _http.PostAsJsonAsync("/api/generate", body, ct);
             }
-            catch (TaskCanceledException ex) when (ct.IsCancellationRequested || ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+            catch (TaskCanceledException ex) when (!ct.IsCancellationRequested && ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
             {
+                // Provider-side timeout (HttpClient.Timeout fired, caller's ct
+                // is still active). If ct.IsCancellationRequested is true the
+                // cancellation came from the caller — the top-level catch will
+                // re-throw it.
                 stopwatch.Stop();
-                _logger.LogWarning(ex, "Ollama request cancelled (timeout) on attempt {Attempt}", attempt);
+                _logger.LogWarning(ex, "Ollama request timed out on attempt {Attempt}", attempt);
                 return Result<PromptResponse>.Failure(Error.Failure("ai.timeout",
                     $"Ollama request timed out after {stopwatch.ElapsedMilliseconds}ms."));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Caller cancellation — propagate so callers can distinguish
+                // their own cancel from a provider timeout.
+                stopwatch.Stop();
+                throw;
             }
             catch (HttpRequestException ex)
             {
@@ -206,11 +229,18 @@ public sealed class OllamaHttpClient : IAIProvider
             using var response = await _http.GetAsync("/api/tags", ct);
             return response.IsSuccessStatusCode;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Caller cancelled — propagate per .NET cancellation contract.
+            // Transient connection errors (refused / timeout / DNS) still
+            // collapse to false below.
+            throw;
+        }
         catch (Exception ex)
         {
-            // Contract: must NOT throw. Connection refused / timeout / DNS
-            // errors all collapse to false so /api/ai/health can return a
-            // useful 503 instead of a 500.
+            // Contract: must NOT throw on transient provider failures.
+            // Connection refused / timeout / DNS errors all collapse to
+            // false so /api/ai/health returns a useful 503 instead of a 500.
             _logger.LogDebug(ex, "Ollama health probe failed (returning false).");
             return false;
         }
@@ -221,6 +251,12 @@ public sealed class OllamaHttpClient : IAIProvider
         try
         {
             return await response.Content.ReadAsStringAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Caller cancelled body read — propagate so the surrounding
+            // GenerateAsync top-level catch can re-throw it.
+            throw;
         }
         catch
         {

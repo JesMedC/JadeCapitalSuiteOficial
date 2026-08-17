@@ -29,10 +29,12 @@ namespace JadeCapital.Trading.UnitTests.Infrastructure.Ai;
 /// <list type="bullet">
 ///   <item>200 OK + non-empty <c>response</c> → <c>Result.Success(PromptResponse)</c></item>
 ///   <item>5xx after 3 attempts → <c>ai.unavailable</c></item>
-///   <item>timeout / TaskCanceled → <c>ai.timeout</c></item>
+///   <item>HttpClient.Timeout (provider-side) → <c>ai.timeout</c></item>
+///   <item>caller <c>CancellationToken</c> fires → <c>OperationCanceledException</c> (NOT <c>ai.timeout</c>)</item>
 ///   <item>200 OK + empty <c>response</c> → <c>ai.empty_response</c></item>
 ///   <item>200 OK + malformed JSON → <c>ai.parse_error</c></item>
 ///   <item>IsHealthyAsync on 200 → true; connection refused / 5xx → false (no throw)</item>
+///   <item>IsHealthyAsync on caller cancel → <c>OperationCanceledException</c></item>
 /// </list>
 /// </para>
 /// </summary>
@@ -202,6 +204,47 @@ public class OllamaHttpClientTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("failure.ai.timeout");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_Propagates_OperationCanceledException_When_Caller_Cancels()
+    {
+        // Caller-initiated cancellation must NOT be classified as ai.timeout
+        // — it must propagate as OperationCanceledException per the .NET
+        // cancellation contract. The handler throws as soon as it sees the ct
+        // fire (mimicking HttpClient's behavior when the caller's ct trips).
+        using var cts = new CancellationTokenSource();
+        var handler = new StubHttpMessageHandler((req, ct) =>
+        {
+            cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return HttpResponse(HttpStatusCode.OK, OllamaBody("ok"));
+        });
+        var client = BuildClient(handler);
+
+        Func<Task> act = () => client.GenerateAsync(new PromptRequest(User: "hi"), cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task IsHealthyAsync_Propagates_OperationCanceledException_When_Caller_Cancels()
+    {
+        // Caller-initiated cancellation on the health probe must propagate —
+        // returning false on cancel would mask caller cancellation as a
+        // provider outage.
+        using var cts = new CancellationTokenSource();
+        var handler = new StubHttpMessageHandler((req, ct) =>
+        {
+            cts.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return HttpResponse(HttpStatusCode.OK, "{\"models\":[]}");
+        });
+        var client = BuildClient(handler);
+
+        Func<Task> act = () => client.IsHealthyAsync(cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]
