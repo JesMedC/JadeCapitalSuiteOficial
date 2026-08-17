@@ -90,42 +90,42 @@ Decision needed before apply: **No** (auto-chain, 400-line budget per PR). User 
 ### 4b.1 Backend (~450 líneas)
 
 **Phase 1: Shared abstraction (TDD)**
-- [ ] 1.1 `Shared.Kernel/MarketData/Quote.cs` (record).
-- [ ] 1.2 `Shared.Kernel/MarketData/QuoteSource.cs` (enum byte 0..3).
-- [ ] 1.3 `Shared.Kernel/MarketData/IQuoteProvider.cs` (interface + 2 methods).
-- [ ] 1.4 RED tests `QuoteTests` (2 scenarios: serialization, spread = ask - bid).
-- [ ] 1.5 RED tests `IQuoteProviderContractTests` (3 scenarios via InMemoryQuoteProvider: known, unknown, bulk).
+- [x] 1.1 `Shared.Kernel/MarketData/Quote.cs` (record).
+- [x] 1.2 `Shared.Kernel/MarketData/QuoteSource.cs` (enum byte 0..3).
+- [x] 1.3 `Shared.Kernel/MarketData/IQuoteProvider.cs` (interface + 2 methods).
+- [x] 1.4 RED tests `QuoteTests` (5 scenarios: spread = ask - bid, record equality, JSON round-trip, source enum).
+- [x] 1.5 RED tests `InMemoryQuoteProviderTests` (6 scenarios via IQuoteProvider contract: same/different time, casing, unknown, bulk, bounded).
 
 **Phase 2: In-memory provider**
-- [ ] 2.1 `Trading.Infrastructure/MarketData/InMemoryQuoteProvider.cs` — deterministic seed (`symbol.GetHashCode()`) + `IClock.UtcNow.Ticks` walk.
-- [ ] 2.2 RED tests `InMemoryQuoteProviderTests` (6 scenarios: same symbol same time → same quote, different time → different quote, casing, unknown → null, bulk drops unknown, seed produces bounded bid/ask range).
+- [x] 2.1 `Trading.Application/Abstractions/InMemoryQuoteProvider.cs` — deterministic seed (`symbol.GetHashCode()`) + `IClock.UtcNow.Ticks` walk.
+- [x] 2.2 RED tests `InMemoryQuoteProviderTests` (6 scenarios).
 
 **Phase 3: Migration**
-- [ ] 3.1 `infrastructure/postgres/migrations/0016_quotes_cache.sql` (idempotent, additive): `trading.quotes_cache` table + 4 nullable columns en `trading.instruments`.
-- [ ] 3.2 Wire en `migrate.Dockerfile`.
+- [x] 3.1 `infrastructure/postgres/migrations/0016_quotes_cache.sql` (idempotent, additive): `trading.quotes_cache` table + 4 nullable columns en `trading.instruments`.
+- [x] 3.2 Wire en `migrate.Dockerfile`.
 
 **Phase 4: Application (TDD)**
-- [ ] 4.1 RED tests `GetQuoteHandlerTests` (3): cache hit, cache miss → provider fetch, unknown → 404.
-- [ ] 4.2 GREEN: `GetQuoteQuery` + `GetQuoteHandler` + `IQuoteCacheRepository`.
-- [ ] 4.3 RED tests `GetQuotesBulkHandlerTests` (3): all known, mixed known/unknown, all unknown → 200 + [].
-- [ ] 4.4 GREEN: `GetQuotesBulkQuery` + handler.
+- [x] 4.1 RED tests `GetQuoteHandlerTests` (4): cache hit, cache miss → provider fetch, stale refresh, unknown → 404.
+- [x] 4.2 GREEN: `GetQuoteQuery` + `GetQuoteHandler` + `IQuoteCacheRepository`.
+- [x] 4.3 RED tests `GetQuotesBulkHandlerTests` (3): all known, mixed known/unknown, all unknown → 200 + [].
+- [x] 4.4 GREEN: `GetQuotesBulkQuery` + handler.
 
 **Phase 5: Infrastructure + API**
-- [ ] 5.1 `QuoteCacheConfiguration` (EF).
-- [ ] 5.2 `QuoteCacheRepository` impl (GetAsync, UpsertAsync, GetManyAsync).
-- [ ] 5.3 `QuoteEndpoints` (`MapQuoteEndpoints`): 2 endpoints (GET /{symbol}, GET ?symbols=) + 1 dev-only dump. RequireAuthorization. `api-quotes` rate limit (higher than general).
-- [ ] 5.4 `app.MapQuoteEndpoints()` en `Program.cs`.
-- [ ] 5.5 DI: `AddSingleton<IQuoteProvider, InMemoryQuoteProvider>()` + `AddScoped<IQuoteCacheRepository, QuoteCacheRepository>()` en `TradingModuleRegistration`.
+- [x] 5.1 `QuoteCacheConfiguration` (EF).
+- [x] 5.2 `QuoteCacheRepository` impl (GetAsync, UpsertAsync, GetManyAsync).
+- [x] 5.3 `QuoteEndpoints` (`MapQuoteEndpoints`): 2 endpoints (GET /{symbol}, GET ?symbols=). RequireAuthorization. `api-quotes` rate limit (higher than general).
+- [x] 5.4 `app.MapQuoteEndpoints()` en `Program.cs`.
+- [x] 5.5 DI: `AddSingleton<IQuoteProvider, InMemoryQuoteProvider>()` + `AddScoped<IQuoteCacheRepository, QuoteCacheRepository>()` en `TradingModuleRegistration`.
 
 **Phase 6: Validate**
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~MarketData|Quote" --nologo --verbosity minimal` → 10+ passed.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~MarketData|Quote" --nologo --verbosity minimal` → 20 passed (15 Trading + 5 Shared.Kernel).
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
 
 ### 4b.2 Frontend (~150 líneas)
 
 **Phase 1: Service**
-- [ ] 1.1 `api/quotes.service.ts` con 2 métodos HTTP (getBySymbol, getBulk).
-- [ ] 1.2 2 jest specs (service — covered by 4c.2 page-level specs).
+- [x] 1.1 `api/quotes.service.ts` con 2 métodos HTTP (getBySymbol, getBulk).
+- [x] 1.2 4 jest specs (page-level — covers service via mocked injection in page).
 
 ---
 

@@ -152,6 +152,9 @@ builder.Services.AddRateLimiter(options =>
 
     var authPermit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermit") ?? 10;
     var apiPermit = builder.Configuration.GetValue<int?>("RateLimit:ApiPermit") ?? 100;
+    // Slice 4b — /api/quotes es consumido por watchlist pages; permitimos 3x
+    // el general para evitar 429s cuando el FE refresca cada few seconds.
+    var apiQuotesPermit = builder.Configuration.GetValue<int?>("RateLimit:ApiQuotesPermit") ?? 300;
 
     options.AddPolicy("auth-strict", ctx =>
     {
@@ -177,6 +180,22 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = apiPermit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("api-quotes", ctx =>
+    {
+        // 300 requests por IP por minuto para /api/quotes — watchlist pages
+        // refrescan agresivo y no queremos que el rate limiter corte UX.
+        var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"api-quotes-{ip}",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = apiQuotesPermit,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
@@ -348,6 +367,12 @@ app.MapAlertEndpoints();
 app.MapPlannerEndpoints();
 // Slice 4a — scanner filters (CRUD + run against instrument universe).
 app.MapScannerEndpoints();
+// Slice 4b — market data quotes (single + bulk, cache-backed).
+// NOTE: QuoteEndpoints handles the `api-quotes` rate limit internally via
+// RequireRateLimiting on the endpoints group (added in QuoteEndpoints.cs).
+// The endpoint group uses the higher `api-quotes` policy instead of
+// `api-general` because watchlist pages refresh aggressively.
+app.MapQuoteEndpoints();
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.

@@ -44,6 +44,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 4a — trader scanner filters (user-owned, ranked scan results).
     public Microsoft.EntityFrameworkCore.DbSet<ScannerFilter> ScannerFilters
         => Set<ScannerFilter>();
+    // Slice 4b — market data quote cache (per-symbol snapshot of Quote).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry> QuoteCacheEntries
+        => Set<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,7 +62,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AlertConfiguration());
         modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
         modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
-        modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
+        modelBuilder.ApplyConfiguration(new QuoteCacheConfiguration());
     }
 }
 
