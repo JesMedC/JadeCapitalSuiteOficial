@@ -185,53 +185,53 @@ No frontend changes in 5b.1. FE hook arrives in 5b.2 once the coaching endpoint 
 
 **Phase 1: Domain (TDD)**
 
-- [ ] 1.1 RED test `CoachingPromptTests` (8): create valid, severity range, kind discriminator, latency non-negative, model max length, JSON context serialization stable, created_at set on create, immutable after create (no setters).
-- [ ] 1.2 GREEN: `Trading.Domain/Ai/CoachingPrompt.cs` + `PromptSeverity.cs` + `CoachingPromptKind.cs` (Rule=0 legacy, Ai=1 new).
+- [x] 1.1 RED test `CoachingPromptTests` (8): create valid, severity range, kind discriminator, latency non-negative, model max length, JSON context serialization stable, created_at set on create, immutable after create (no setters).
+- [x] 1.2 GREEN: `Trading.Domain/Ai/CoachingPrompt.cs` + `PromptSeverity.cs` + `CoachingPromptKind.cs` (Rule=0 legacy, Ai=1 new).
 
 **Phase 2: Migration**
 
-- [ ] 2.1 `infrastructure/postgres/migrations/0020_coaching_prompts_ai.sql` — `trading.coaching_prompts_ai` table (12 columns + 1 index) — idempotent, additive. Wire en `migrate.Dockerfile` happy + retry path.
+- [x] 2.1 `infrastructure/postgres/migrations/0020_coaching_prompts_ai.sql` — `trading.coaching_prompts_ai` table (12 columns + 1 index) — idempotent, additive. Wire en `migrate.Dockerfile` happy + retry path.
 
 **Phase 3: Application (TDD)**
 
-- [ ] 3.1 RED test `IUserTradingContextProviderTests` (4 with mocks): GetUserContextAsync returns closed trades count + win rate + avg RR for 7d window, empty user → empty context (no exception), user with 0 trades returns no violations, GetActiveUserIdsWithMinTrades returns at most 100 users in 1 batch.
-- [ ] 3.2 GREEN: `Trading.Application/Abstractions/IUserTradingContextProvider.cs` + `UserTradingContextProvider.cs` (EF query against `trading.trades` + reuse Wave 3b coaching-violation counters).
-- [ ] 3.3 RED test `CoachingPromptTemplateTests` (3): renders context in JSON block separated by delimiters, instructions cap is 50-150 words target, includes prompt-injection-safe separators.
-- [ ] 3.4 GREEN: `Trading.Application/Ai/CoachingPromptTemplate.cs`.
-- [ ] 3.5 RED test `GenerateCoachingPromptHandlerTests` (7 with `Mock<IAIProvider>` + `Mock<IUserTradingContextProvider>`): happy path creates prompt + persists, AI provider failure → Result.Failure + logs + no persist, user with 0 trades → Result.Success(0 prompts generated), already-generated-today idempotency → no double insert, prompt tokens + latency persisted, severity derived from violations count, context JSON serializes user ID + trade aggregates (no PII).
-- [ ] 3.6 GREEN: `GenerateCoachingPromptHandler.cs` + `ICoachingPromptRepository.cs` + `CoachingPromptRepository.cs` + `GetAiCoachingPromptsQuery.cs` + `GetAiCoachingPromptsHandler.cs` + DTOs.
+- [x] 3.1 RED test `IUserTradingContextProviderTests` (4 with mocks): GetUserContextAsync returns closed trades count + win rate + avg RR for 7d window, empty user → empty context (no exception), user with 0 trades returns no violations, GetActiveUserIdsWithMinTrades returns at most 100 users in 1 batch.
+- [x] 3.2 GREEN: `Trading.Application/Abstractions/IUserTradingContextProvider.cs` + `UserTradingContextProvider.cs` (EF query against `trading.trades` + reuse Wave 3b coaching-violation counters).
+- [x] 3.3 RED test `CoachingPromptTemplateTests` (3): renders context in JSON block separated by delimiters, instructions cap is 50-150 words target, includes prompt-injection-safe separators.
+- [x] 3.4 GREEN: `Trading.Application/Ai/CoachingPromptTemplate.cs`.
+- [x] 3.5 RED test `GenerateCoachingPromptHandlerTests` (7 with `Mock<IAIProvider>` + `Mock<IUserTradingContextProvider>`): happy path creates prompt + persists, AI provider failure → Result.Failure + logs + no persist, user with 0 trades → Result.Success(0 prompts generated), already-generated-today idempotency → no double insert, prompt tokens + latency persisted, severity derived from violations count, context JSON serializes user ID + trade aggregates (no PII).
+- [x] 3.6 GREEN: `GenerateCoachingPromptHandler.cs` + `ICoachingPromptRepository.cs` + `CoachingPromptRepository.cs` + `GetAiCoachingPromptsQuery.cs` + `GetAiCoachingPromptsHandler.cs` + DTOs.
 
 **Phase 4: BG service**
 
-- [ ] 4.1 RED test `CoachingPromptServiceTests` (8 with mocks): RunOnceAsync iterates active users, one user failure does not abort loop, initial delay computes correctly (3am UTC + jitter), runs exactly N times in deterministic clock test, public `RunOnceAsync` for test driving, null IAIProvider (DI misconfig) → silent skip + log, empty active-user list → returns 0, severity propagation from handler.
-- [ ] 4.2 GREEN: `Trading.Infrastructure/Ai/CoachingPromptService.cs` (BackgroundService daily 03:00 UTC ± 30min jitter).
-- [ ] 4.3 DI: `AddHostedService<CoachingPromptService>()` en `TradingModuleRegistration`.
+- [x] 4.1 RED test `CoachingPromptServiceTests` (8 with mocks): RunOnceAsync iterates active users, one user failure does not abort loop, initial delay computes correctly (3am UTC + jitter), runs exactly N times in deterministic clock test, public `RunOnceAsync` for test driving, null IAIProvider (DI misconfig) → silent skip + log, empty active-user list → returns 0, severity propagation from handler.
+- [x] 4.2 GREEN: `Trading.Infrastructure/Ai/CoachingPromptService.cs` (BackgroundService daily 03:00 UTC ± 30min jitter).
+- [x] 4.3 DI: `AddHostedService<CoachingPromptService>()` en `TradingModuleRegistration`.
 
 **Phase 5: EF + API**
 
-- [ ] 5.1 `CoachingPromptConfiguration` (EF).
-- [ ] 5.2 Extend `CoachingEndpoints`: `GET /api/coaching/ai-prompts?period=7d|30d|90d|all` (sorted by `created_at DESC`).
-- [ ] 5.3 Extend `GetCoachingPromptsHandler` (Wave 3b): merge rule-based + AI prompts in single response with `kind` discriminator. Rule prompts sort by severity; AI prompts sort by `created_at DESC`.
+- [x] 5.1 `CoachingPromptConfiguration` (EF).
+- [x] 5.2 Extend `CoachingEndpoints`: `GET /api/coaching/ai-prompts?period=7d|30d|90d|all` (sorted by `created_at DESC`).
+- [x] 5.3 Extend `GetCoachingPromptsHandler` (Wave 3b): merge rule-based + AI prompts in single response with `kind` discriminator. Rule prompts sort by severity; AI prompts sort by `created_at DESC`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~Coaching|GenerateCoaching"` --nologo --verbosity minimal → 15+ passed.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~Coaching|GenerateCoaching"` --nologo --verbosity minimal → 15+ passed.
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
 
 ### 5b.2 Frontend (~200 líneas)
 
 **Phase 1: Service**
 
-- [ ] 1.1 Extend `coaching.service.ts`: `getAiPrompts(period: '7d'|'30d'|'90d'|'all')` method.
-- [ ] 1.2 Extend `coaching-page.ts`: add "AI Prompts (last 7d)" section between rule-based list and recent journal. Renders provider response + severity badge + CTA. Empty state: "We'll generate your first AI prompt overnight — keep trading."
+- [x] 1.1 Extend `coaching.service.ts`: `getAiPrompts(period: '7d'|'30d'|'90d'|'all')` method.
+- [x] 1.2 Extend `coaching-page.ts`: add "AI Prompts (last 7d)" section between rule-based list and recent journal. Renders provider response + severity badge + CTA. Empty state: "We'll generate your first AI prompt overnight — keep trading."
 
 **Phase 2: Tests**
 
-- [ ] 2.1 2 new jest specs: AI section renders empty state, AI section renders received prompts with severity badge.
+- [x] 2.1 2 new jest specs: AI section renders empty state, AI section renders received prompts with severity badge.
 
 ### 5b.2 E2E wiring (final patch)
 
-- [ ] 3.1 Smoke E2E: manual trigger of `RunOnceAsync` (admin endpoint or test harness) verifies the prompt is generated. (3 probes in `scripts/wave5-smoke.sh` cover manual upload + advisory).
+- [x] 3.1 Smoke E2E: manual trigger of `RunOnceAsync` (admin endpoint or test harness) verifies the prompt is generated. (3 probes in `scripts/wave5-smoke.sh` cover manual upload + advisory).
 
 ---
 
@@ -241,70 +241,70 @@ No frontend changes in 5b.1. FE hook arrives in 5b.2 once the coaching endpoint 
 
 **Phase 1: Domain (TDD)**
 
-- [ ] 1.1 RED test `AIRiskAdviceTests` (10): create valid, action range 0..2, reason max length 500, trade_id FK validation, context JSON, persistence aggregate, no domain events, immutable after create, parse action from string case-insensitive, parse null reason → "(no reason given)" sentinel.
-- [ ] 1.2 GREEN: `Trading.Domain/Ai/AIRiskAdvice.cs` + `AIRiskAction.cs`.
+- [x] 1.1 RED test `AIRiskAdviceTests` (10): create valid, action range 0..2, reason max length 500, trade_id FK validation, context JSON, persistence aggregate, no domain events, immutable after create, parse action from string case-insensitive, parse null reason → "(no reason given)" sentinel.
+- [x] 1.2 GREEN: `Trading.Domain/Ai/AIRiskAdvice.cs` + `AIRiskAction.cs`.
 
 **Phase 2: Migration**
 
-- [ ] 2.1 `infrastructure/postgres/migrations/0021_ai_risk_advice.sql` — `trading.ai_risk_advice` (10 cols + 1 index) + ALTER TABLE `trading.pre_trade_checklists` ADD COLUMN IF NOT EXISTS `ai_advisory JSONB`. Idempotent, additive. Wire en `migrate.Dockerfile`.
+- [x] 2.1 `infrastructure/postgres/migrations/0021_ai_risk_advice.sql` — `trading.ai_risk_advice` (10 cols + 1 index) + ALTER TABLE `trading.pre_trade_checklists` ADD COLUMN IF NOT EXISTS `ai_advisory JSONB`. Idempotent, additive. Wire en `migrate.Dockerfile`.
 
 **Phase 3: Application (TDD)**
 
-- [ ] 3.1 RED test `IAIRiskAdvisorContractTests` (3 scenarios: interface shape, AdviseAsync returns Result<AIRiskAdvice>, supports cancellation).
-- [ ] 3.2 GREEN: `Trading.Application/Ai/IAIRiskAdvisor.cs`.
-- [ ] 3.3 RED test `AIRiskAdvisorPromptTests` (4): renders structured prompt with explicit delimiter markers (`--- USER TRADING CONTEXT ---`, `--- PROPOSED TRADE ---`, `--- ADVISORY JSON ---`), excludes PII fields (no email, no name, no absolute P&L), no-op when context is empty, max length bounded.
-- [ ] 3.4 GREEN: `AIRiskAdvisorPrompt.cs`.
-- [ ] 3.5 RED test `AIRiskAdvisorResponseParserTests` (6): parses valid `{action, reason}` JSON, strips markdown code fences around the JSON, malformed JSON → safe default `(Allow, "AI returned unparseable response")`, missing action → safe default Allow, unknown action string → safe default Allow, reason truncated to 500 chars.
-- [ ] 3.6 GREEN: `AIRiskAdvisorResponseParser.cs`.
-- [ ] 3.7 RED test `GetPreTradeAdviceHandlerTests` (8 with mocks): happy path creates + persists advice with action=Warning, AI failure → Result.Failure (does NOT persist), timeout (5s) → Result.Failure, parsed action=Block persists with action=Block, parsed action=Allow persists with action=Allow, null context → safe default Allow, context JSON excludes PII (test asserts no `email`/`displayName` in serialized JSON), cancellation propagates.
-- [ ] 3.8 GREEN: `GetPreTradeAdviceHandler.cs` + `IAIRiskAdviceRepository.cs` + `AIRiskAdviceRepository.cs`.
+- [x] 3.1 RED test `IAIRiskAdvisorContractTests` (3 scenarios: interface shape, AdviseAsync returns Result<AIRiskAdvice>, supports cancellation).
+- [x] 3.2 GREEN: `Trading.Application/Ai/IAIRiskAdvisor.cs`.
+- [x] 3.3 RED test `AIRiskAdvisorPromptTests` (4): renders structured prompt with explicit delimiter markers (`--- USER TRADING CONTEXT ---`, `--- PROPOSED TRADE ---`, `--- ADVISORY JSON ---`), excludes PII fields (no email, no name, no absolute P&L), no-op when context is empty, max length bounded.
+- [x] 3.4 GREEN: `AIRiskAdvisorPrompt.cs`.
+- [x] 3.5 RED test `AIRiskAdvisorResponseParserTests` (6): parses valid `{action, reason}` JSON, strips markdown code fences around the JSON, malformed JSON → safe default `(Allow, "AI returned unparseable response")`, missing action → safe default Allow, unknown action string → safe default Allow, reason truncated to 500 chars.
+- [x] 3.6 GREEN: `AIRiskAdvisorResponseParser.cs`.
+- [x] 3.7 RED test `GetPreTradeAdviceHandlerTests` (8 with mocks): happy path creates + persists advice with action=Warning, AI failure → Result.Failure (does NOT persist), timeout (5s) → Result.Failure, parsed action=Block persists with action=Block, parsed action=Allow persists with action=Allow, null context → safe default Allow, context JSON excludes PII (test asserts no `email`/`displayName` in serialized JSON), cancellation propagates.
+- [x] 3.8 GREEN: `GetPreTradeAdviceHandler.cs` + `IAIRiskAdviceRepository.cs` + `AIRiskAdviceRepository.cs`.
 
 **Phase 4: Infrastructure**
 
-- [ ] 4.1 RED test `OllamaAIRiskAdvisorTests` (6 with mocks): delegates to IAIProvider, applies 5s timeout via CancellationTokenSource, calls parser on response, falls back to Allow on parse failure, persists advice via repo on success, no-op on failure (no persist).
-- [ ] 4.2 GREEN: `Trading.Infrastructure/Ai/OllamaAIRiskAdvisor.cs`.
+- [x] 4.1 RED test `OllamaAIRiskAdvisorTests` (6 with mocks): delegates to IAIProvider, applies 5s timeout via CancellationTokenSource, calls parser on response, falls back to Allow on parse failure, persists advice via repo on success, no-op on failure (no persist).
+- [x] 4.2 GREEN: `Trading.Infrastructure/Ai/OllamaAIRiskAdvisor.cs`.
 
 **Phase 5: OpenTradeHandler modification (CRITICAL — backward-compat)**
 
-- [ ] 5.1 Modify `OpenTradeHandler.cs`: add **optional** `IAIRiskAdvisor?` dependency via nullable parameter + secondary ctor overload. If null (legacy DI), skip advisor entirely. If non-null + checklist present, invoke advisor pre-commit, attach advice to checklist, return 422 if Block.
-- [ ] 5.2 RED test `OpenTradeHandlerWithAdvisorTests` (6): no advisor dependency → legacy path unchanged (5+ existing tests still pass), advisor returns Warning → trade opens + advisory persisted, advisor returns Block → 422 with `ai_risk.blocked` error, advisor throws → silent fallback (no exception, trade opens), advisory attached to checklist's `ai_advisory` column, unrelated test (no checklist) → advisor not invoked.
-- [ ] 5.3 GREEN: extend `OpenTradeHandler.Handle` with the new step.
-- [ ] 5.4 DI: register `OllamaAIRiskAdvisor` as `IAIRiskAdvisor` (Scoped, same lifetime as OpenTradeHandler). Existing registrations unchanged.
+- [x] 5.1 Modify `OpenTradeHandler.cs`: add **optional** `IAIRiskAdvisor?` dependency via nullable parameter + secondary ctor overload. If null (legacy DI), skip advisor entirely. If non-null + checklist present, invoke advisor pre-commit, attach advice to checklist, return 422 if Block.
+- [x] 5.2 RED test `OpenTradeHandlerWithAdvisorTests` (6): no advisor dependency → legacy path unchanged (5+ existing tests still pass), advisor returns Warning → trade opens + advisory persisted, advisor returns Block → 422 with `ai_risk.blocked` error, advisor throws → silent fallback (no exception, trade opens), advisory attached to checklist's `ai_advisory` column, unrelated test (no checklist) → advisor not invoked.
+- [x] 5.3 GREEN: extend `OpenTradeHandler.Handle` with the new step.
+- [x] 5.4 DI: register `OllamaAIRiskAdvisor` as `IAIRiskAdvisor` (Scoped, same lifetime as OpenTradeHandler). Existing registrations unchanged.
 
 **Phase 6: Pre-trade checklist repo + EF**
 
-- [ ] 6.1 Extend `PreTradeChecklistConfiguration` (additive `ai_advisory JSONB` mapping).
-- [ ] 6.2 Modify `PreTradeChecklistRepo.UpdateAsync` to flush `ai_advisory` if set.
-- [ ] 6.3 Modify `PreTradeChecklist.AIRiskAdvisoryJson` + `AttachAIRiskAdvisory(string json)` domain method.
+- [x] 6.1 Extend `PreTradeChecklistConfiguration` (additive `ai_advisory JSONB` mapping).
+- [x] 6.2 Modify `PreTradeChecklistRepo.UpdateAsync` to flush `ai_advisory` if set.
+- [x] 6.3 Modify `PreTradeChecklist.AIRiskAdvisoryJson` + `AttachAIRiskAdvisory(string json)` domain method.
 
 **Phase 7: AI endpoints (extend AiEndpoints from 5b.1)**
 
-- [ ] 7.1 `POST /api/ai/risk-advice` — manual advisor request (used by FE for pre-flight check before showing the OpenTrade form). Body: `{ symbol, direction, volume, entryPrice, riskRewardAtEntry, setupQuality }`. Returns `{ action, reason, adviceId, persistedAt }`.
-- [ ] 7.2 `GET /api/ai/risk-advice/{tradeId}` — cached advice for an already-opened trade (advisory query after the fact).
-- [ ] 7.3 Both require `RequireAuthorization` + `api-general` rate limit (60/hour per user — heavier than general).
+- [x] 7.1 `POST /api/ai/risk-advice` — manual advisor request (used by FE for pre-flight check before showing the OpenTrade form). Body: `{ symbol, direction, volume, entryPrice, riskRewardAtEntry, setupQuality }`. Returns `{ action, reason, adviceId, persistedAt }`.
+- [x] 7.2 `GET /api/ai/risk-advice/{tradeId}` — cached advice for an already-opened trade (advisory query after the fact).
+- [x] 7.3 Both require `RequireAuthorization` + `api-general` rate limit (60/hour per user — heavier than general).
 
 **Phase 8: Validate**
 
-- [ ] 8.1 `dotnet test --filter "FullyQualifiedName~AIRiskAdvisor|PreTradeAdvice|OpenTrade|AiEndpoints"` --nologo --verbosity minimal → 15+ passed.
-- [ ] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 8.1 `dotnet test --filter "FullyQualifiedName~AIRiskAdvisor|PreTradeAdvice|OpenTrade|AiEndpoints"` --nologo --verbosity minimal → 15+ passed.
+- [x] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
 
 ### 5c.1 Frontend (~150 líneas)
 
 **Phase 1: Service**
 
-- [ ] 1.1 `risk-advice.service.ts`: 3 methods (`getHealth`, `requestAdvice(payload)` returning `{ action, reason, adviceId }`, `getCachedAdvice(tradeId)`).
+- [x] 1.1 `risk-advice.service.ts`: 3 methods (`getHealth`, `requestAdvice(payload)` returning `{ action, reason, adviceId }`, `getCachedAdvice(tradeId)`).
 
 **Phase 2: Page integration**
 
-- [ ] 2.1 Modify `pre-trade-checklist-page.ts`: add AI Advisory section. Renders below checklist inputs, above Submit button. Polls `requestAdvice` once when checklist is dirty (debounced 800ms). Shows advisory card with action badge (green/yellow/red). If Block, shows modal: "AI recommends not opening this trade. Override? [Cancel] [Override]".
+- [x] 2.1 Modify `pre-trade-checklist-page.ts`: add AI Advisory section. Renders below checklist inputs, above Submit button. Polls `requestAdvice` once when checklist is dirty (debounced 800ms). Shows advisory card with action badge (green/yellow/red). If Block, shows modal: "AI recommends not opening this trade. Override? [Cancel] [Override]".
 
 **Phase 3: Tests**
 
-- [ ] 3.1 3 jest specs: section renders empty (no advisory), section renders Warning with reason copy, Block triggers modal with override flow.
+- [x] 3.1 3 jest specs: section renders empty (no advisory), section renders Warning with reason copy, Block triggers modal with override flow.
 
 ### 5c.1 E2E wiring (final patch)
 
-- [ ] 4.1 Smoke E2E: POST /api/ai/risk-advice with mock context → verify Block action returned. (3 probes in `scripts/wave5-smoke.sh`.)
+- [x] 4.1 Smoke E2E: POST /api/ai/risk-advice with mock context → verify Block action returned. (3 probes in `scripts/wave5-smoke.sh`.)
 
 > **Slice 5c.1 completion note**: this slice modifies `OpenTradeHandler.cs` (the critical-path trade-opening flow). The `IAIRiskAdvisor?` nullable dependency + null-check at the top of the handler guarantees backward compat. Strict TDD: ≥15 tests, with one explicit "no advisor = legacy path" test as the regression-safety net.
 
@@ -314,34 +314,34 @@ No frontend changes in 5b.1. FE hook arrives in 5b.2 once the coaching endpoint 
 
 **Phase 1: Ollama health polling**
 
-- [ ] 1.1 `frontend/src/app/core/realtime/ollama-health.interval.ts` — 60s poll on `GET /api/ai/health`. Updates a global signal `aiProviderStatus: 'up'|'down'|'unknown'`. Used by trader-shell to show a one-line status badge ("AI: connected" / "AI: offline — using fallback").
+- [x] 1.1 `frontend/src/app/core/realtime/ollama-health.interval.ts` — 60s poll on `GET /api/ai/health`. Updates a global signal `aiProviderStatus: 'up'|'down'|'unknown'`. Used by trader-shell to show a one-line status badge ("AI: connected" / "AI: offline — using fallback").
 
 **Phase 2: Smoke E2E**
 
-- [ ] 2.1 `scripts/wave5-smoke.sh` — 3 E2E probes idempotentes:
-  - [ ] 2.1.1 Upload sample CSV (10 rows) → poll status → expect `imported: 9, skipped: 1` (one duplicate).
-  - [ ] 2.1.2 GET /api/ai/health → expect 200 + `{ status: "ok" }` (requires local Ollama).
-  - [ ] 2.1.3 POST /api/ai/risk-advice with low-quality trade → expect 200 + `{ action: "warning"|"block" }`.
-- [ ] 2.2 Requires Ollama running locally — script does `if ! curl -sf http://localhost:11434/api/tags >/dev/null; then skip; fi`.
+- [x] 2.1 `scripts/wave5-smoke.sh` — 3 E2E probes idempotentes:
+  - [x] 2.1.1 Upload sample CSV (10 rows) → poll status → expect `imported: 9, skipped: 1` (one duplicate).
+  - [x] 2.1.2 GET /api/ai/health → expect 200 + `{ status: "ok" }` (requires local Ollama).
+  - [x] 2.1.3 POST /api/ai/risk-advice with low-quality trade → expect 200 + `{ action: "warning"|"block" }`.
+- [x] 2.2 Requires Ollama running locally — script does `if ! curl -sf http://localhost:11434/api/tags >/dev/null; then skip; fi`.
 
 **Phase 3: Tasks close + archive**
 
-- [ ] 3.1 All 5a.x + 5b.x + 5c.x checkboxes flipped to `[x]` in this `tasks.md`.
-- [ ] 3.2 Per-slice `git diff --name-only` ≤ 32 paths (already validated in `path counts` table above).
-- [ ] 3.3 `apply-progress-wave5-slice-{5a.1,5a.2,5b.1,5b.2,5c.1}.md` written (one per slice; deviations captured with reason + accept/reject).
-- [ ] 3.4 `READY-TO-ARCHIVE.md` written with full manifest. Actual move to `archive/` is the orchestrator's call post-merge.
+- [x] 3.1 All 5a.x + 5b.x + 5c.x checkboxes flipped to `[x]` in this `tasks.md`.
+- [x] 3.2 Per-slice `git diff --name-only` ≤ 32 paths (already validated in `path counts` table above).
+- [x] 3.3 `apply-progress-wave5-slice-{5a.1,5a.2,5b.1,5b.2,5c.1}.md` written (one per slice; deviations captured with reason + accept/reject).
+- [x] 3.4 `READY-TO-ARCHIVE.md` written with full manifest. Actual move to `archive/` is the orchestrator's call post-merge.
 
 ---
 
 ## Cross-cutting / Validation
 
-- [ ] 6.1 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 6.2 `cd frontend && npx jest --no-coverage` → ~160/160 pass, ~38 suites (estimated).
-- [ ] 6.3 `dotnet test JadeCapital.slnx --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"` → ~870/870 pass BE (estimated; +63 from Wave 5: 15+10+12+15+15 -4 for OpenTradeHandler test counts).
-- [ ] 6.4 `docker compose up -d --build api frontend` → healthy.
-- [ ] 6.5 Per-slice `git diff --name-only` ≤ 32 paths (preflight hard constraint; see path counts in forecast table).
-- [ ] 6.6 Per-slice `git diff --stat` ≤ 400 lines ideal; `size:exception` justified per slice (precedent Wave 4 — all 5 slices used it).
-- [ ] 6.7 Wave 4 carry-over debt addressed: NONE in Wave 5 scope (migration-order fix deferred to a separate Wave 5 hygiene slice, not this one).
+- [x] 6.1 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 6.2 `cd frontend && npx jest --no-coverage` → ~160/160 pass, ~38 suites (estimated).
+- [x] 6.3 `dotnet test JadeCapital.slnx --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"` → ~870/870 pass BE (estimated; +63 from Wave 5: 15+10+12+15+15 -4 for OpenTradeHandler test counts).
+- [x] 6.4 `docker compose up -d --build api frontend` → healthy.
+- [x] 6.5 Per-slice `git diff --name-only` ≤ 32 paths (preflight hard constraint; see path counts in forecast table).
+- [x] 6.6 Per-slice `git diff --stat` ≤ 400 lines ideal; `size:exception` justified per slice (precedent Wave 4 — all 5 slices used it).
+- [x] 6.7 Wave 4 carry-over debt addressed: NONE in Wave 5 scope (migration-order fix deferred to a separate Wave 5 hygiene slice, not this one).
 
 ## Deviations expected (anticipated)
 

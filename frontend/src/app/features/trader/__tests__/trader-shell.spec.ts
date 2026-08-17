@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
+import { OllamaHealthInterval, AiProviderStatus } from '@core/realtime/ollama-health.interval';
+import { signal } from '@angular/core';
 import { TraderShell } from '../trader-shell';
 import { AttachmentUsageBanner } from '../attachments/attachment-usage-banner';
 
@@ -14,6 +16,18 @@ jest.spyOn(console, 'warn').mockImplementation(() => {});
  */
 @Component({ selector: 'jcs-attachment-usage-banner', standalone: true, template: '' })
 class StubAttachmentUsageBanner {}
+
+/**
+ * Stub for the Ollama health interval — returns a writable signal the
+ * tests can flip to verify the badge label. start()/stop() are no-ops
+ * so the test does not spawn a real setInterval.
+ */
+class StubOllamaHealthInterval {
+  readonly status = signal<AiProviderStatus>('unknown');
+  start(): void {}
+  stop(): void {}
+  pollNow(): Promise<void> { return Promise.resolve(); }
+}
 
 /**
  * Slice 4e — Phase 1 navItems wiring smoke.
@@ -35,6 +49,7 @@ class StubAttachmentUsageBanner {}
  */
 describe('TraderShell — slice 4e 9-item nav', () => {
   let component: TraderShell;
+  let fixture: ReturnType<typeof TestBed.createComponent<TraderShell>>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -48,6 +63,7 @@ describe('TraderShell — slice 4e 9-item nav', () => {
             logout: () => undefined,
           },
         },
+        { provide: OllamaHealthInterval, useClass: StubOllamaHealthInterval },
       ],
     })
       .overrideComponent(TraderShell, {
@@ -56,7 +72,7 @@ describe('TraderShell — slice 4e 9-item nav', () => {
       })
       .compileComponents();
 
-    const fixture = TestBed.createComponent(TraderShell);
+    fixture = TestBed.createComponent(TraderShell);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
@@ -96,5 +112,15 @@ describe('TraderShell — slice 4e 9-item nav', () => {
     const labels = component.navItems.map(i => i.label);
     expect(labels.every(l => typeof l === 'string' && l.length > 0)).toBe(true);
     expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  // ---- Slice 5c.2 — AI provider status badge ----
+
+  it('renders the AI status badge with the initial "checking" label', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const badgeEl = el.querySelector('[data-testid="ai-status"]');
+    expect(badgeEl).toBeTruthy();
+    const text = badgeEl?.textContent?.trim() ?? '';
+    expect(text.toLowerCase()).toContain('checking');
   });
 });

@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
+import { OllamaHealthInterval } from '@core/realtime/ollama-health.interval';
 import { MobileNav, MobileNavItem } from '@shared/mobile-nav';
 import { AttachmentUsageBanner } from './attachments/attachment-usage-banner';
 
@@ -33,6 +34,17 @@ interface NavItem {
           </span>
           <span class="brand-tag jcs-badge jcs-badge--neutral">PRO</span>
         </a>
+
+        <!-- Slice 5c.2 — AI provider status badge (1 line, low-noise). -->
+        <div
+          class="ai-status jcs-badge"
+          [class.jcs-badge--ok]="aiStatus() === 'up'"
+          [class.jcs-badge--warn]="aiStatus() === 'down'"
+          [attr.aria-label]="'AI provider status: ' + aiStatusLabel()"
+          data-testid="ai-status">
+          <span class="ai-status-dot" aria-hidden="true"></span>
+          <span class="ai-status-text">{{ aiStatusLabel() }}</span>
+        </div>
 
         <!-- Nav -->
         <nav class="nav">
@@ -230,6 +242,33 @@ interface NavItem {
       letter-spacing: 0.06em;
       font-weight: 500;
     }
+    /* Slice 5c.2 — AI provider status badge (1 line, sidebar top). */
+    .ai-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 var(--sp-3) 0;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border-radius: var(--radius-sm);
+      background: var(--bg-soft, transparent);
+      color: var(--text-muted, inherit);
+      width: fit-content;
+      max-width: 100%;
+    }
+    .ai-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.7;
+    }
+    .ai-status.jcs-badge--ok   { color: var(--green, #22c55e); background: rgba(34,197,94,0.10); }
+    .ai-status.jcs-badge--warn { color: var(--amber, #f59e0b); background: rgba(245,158,11,0.10); }
+    .ai-status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
     .brand-tag {
       font-size: 0.6rem;
       padding: 2px var(--sp-2);
@@ -404,9 +443,27 @@ interface NavItem {
     }
   `],
 })
-export class TraderShell {
+export class TraderShell implements OnInit {
   readonly auth = inject(AuthState);
   private readonly router = inject(Router);
+  private readonly aiHealth = inject(OllamaHealthInterval);
+
+  /** Slice 5c.2 — AI provider status exposed for the badge. */
+  readonly aiStatus = this.aiHealth.status;
+
+  readonly aiStatusLabel = computed(() => {
+    switch (this.aiStatus()) {
+      case 'up':      return 'AI: connected';
+      case 'down':    return 'AI: offline — using fallback';
+      default:        return 'AI: checking…';
+    }
+  });
+
+  ngOnInit(): void {
+    // Start the 60s poll as soon as the trader shell mounts. DestroyRef
+    // auto-stops it on shell teardown.
+    this.aiHealth.start();
+  }
 
   readonly navItems: NavItem[] = [
     { label: 'Dashboard',  path: 'dashboard',  icon: 'dashboard' },

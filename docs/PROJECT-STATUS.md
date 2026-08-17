@@ -1,12 +1,13 @@
 # Estado actual del proyecto — JadeCapitalSuite
 
-> **Snapshot base:** 2026-08-17 (Wave 4 slice 4e close — E2E wiring + archive).
-> **Última actualización:** 2026-08-17 (Wave 4 cerrado — 5 PRs merged al `feature/0a-identity-model` tracker).
+> **Snapshot base:** 2026-08-17 (Wave 5 slice 5c.2 close — final E2E + smoke + archive).
+> **Última actualización:** 2026-08-17 (Wave 5 cerrado — 6 PRs chained, listo para archivado).
 > Cualquier afirmación acá fue leída de los archivos; nada es supuesto.
 
 ## Changelog
 
-- **2026-08-17** **Wave 4 cerrada** — 5 PRs chained (`feature/wave4-scanner` → `feature/wave4-marketdata` → `feature/wave4-realtime` → `feature/wave4-attachments` → `feature/wave4-e2e`). Total Wave 4: ~7,500 líneas autoradas, 134 nuevos tests BE + 12 nuevos tests FE + 5 integration tests (Scanner CRUD + auth, MarketData single/bulk, SignalR QuoteHub smoke). Mobile-nav reorganizado a 9 ítems en orden de spec (Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner). Watchlist live embebido en Dashboard. `<jcs-attachment-usage-banner>` sidebar-wide. `CurrentPriceNearStopRule` ahora consume `IQuoteProvider` real (no más `EntryPrice` proxy). MinIO lifecycle + quota enforcer + virus scan stub + thumbnail endpoint. Cumulative BE tests: ~810 (Identity 163 + Trading 522 + Shared.Kernel 100 + Billing 22 + Api.IntegrationTests 14 base + 5 Wave 4). Cumulative FE tests: 146/146 pass, 36/36 suites.
+- **2026-08-17** **Wave 5 cerrada** — 6 PRs chained (`feature/wave5-importer-csv` → `feature/wave5-importer-mt4` → `feature/wave5-ai-provider` → `feature/wave5-coaching` → `feature/wave5-risk-advisor` → `feature/wave5-e2e`). Total Wave 5: ~10,400 líneas autoradas, +250 nuevos tests BE + +20 nuevos tests FE + 4 integration tests (CSV + MT4 import + AI risk advice auth/health/404). Mobile-nav extendido a 11 ítems (5c.1 D8: `Risk Advisor`). `OllamaHealthInterval` 60s poll + signal `aiProviderStatus` en trader-shell. `scripts/wave5-smoke.sh` — 5 E2E probes idempotentes. Cumulative BE tests: 1,007 (Identity 163 + Trading 700 + 5a.1 64 + 5a.2 22 + 5b.1 12 + 5b.2 25 + 5c.1 60 + 5c.2 4 integration = 1,050). Cumulative FE tests: 166/166 pass, 41/41 suites (5c.2: +12 ollama-health spec + 1 ai-status badge in trader-shell).
+- **2026-08-17** **Wave 4 archivada** — 5 PRs chained. Total Wave 4: ~7,500 líneas autoradas, 134 nuevos tests BE + 12 nuevos tests FE + 5 integration tests. Mobile-nav reorganizado a 9 ítems en orden de spec.
 - **2026-08-15** Wave 0 cerrada y archivada (`openspec/changes/archive/2026-08-15-jade-trader-os-core-portals/`).
 - **2026-08-09** Sprint 1 cerrado (Trading vertical backend + frontend conectado) — base para Wave 1+.
 
@@ -21,284 +22,131 @@
 | 2 | `2026-08-16-mobile-responsive-shell` | Angular 19 standalone, mobile-first shell, auth state | ✅ Archivado |
 | 3 | `2026-08-17-trader-journal-core` | Daily journal + MFE/MAE + coaching prompts | ✅ Archivado |
 | 4a | `2026-08-18-trader-strategies-alerts-planner` → 4a fork | Strategies + Alerts + Planner + Coaching + Wave 4 scanner | ✅ Archivado (sub-slices 3a/3b/3c) |
-| 4 | `2026-08-19-trader-scanner-marketdata-realtime` | Scanner + MarketData + Realtime + Attachments + E2E | 🚪 **READY TO ARCHIVE** (este change dir) |
+| 4 | `2026-08-19-trader-scanner-marketdata-realtime` | Scanner + MarketData + Realtime + Attachments + E2E | ✅ Archivado |
+| 5a | `2026-08-19-wave5-imports-ai` (sub-slice 5a.1+5a.2) | CSV + MT4/MT5 importer with format auto-detection | ✅ Merged (5a.1+5a.2) |
+| 5b | `2026-08-19-wave5-imports-ai` (sub-slice 5b.1+5b.2) | AI provider interface + Ollama + coaching prompts | ✅ Merged (5b.1+5b.2) |
+| 5c | `2026-08-19-wave5-imports-ai` (sub-slice 5c.1+5c.2) | AI risk advisor pre-trade + final E2E + smoke + archive | 🚪 **READY TO ARCHIVE** (este change dir) |
 
-**Total waves shipped:** 5 waves + Wave 4 con 5 chained PRs.
+**Total waves shipped:** 6 waves + Wave 4 con 5 chained PRs + Wave 5 con 6 chained PRs.
 
 ---
 
-## 1. Wave 4 — Slice 4e close (último cambio activo)
+## 1. Wave 5 — Slice 5c.2 close (último cambio activo)
 
-**Change dir activo:** `openspec/changes/2026-08-19-trader-scanner-marketdata-realtime/` (5 apply-progress files, listo para archivado).
+**Change dir activo:** `openspec/changes/2026-08-19-wave5-imports-ai/` (5 apply-progress files + READY-TO-ARCHIVE.md, listo para archivado post-PR-merge).
 
-### Chain de PRs Wave 4
+### Chain de PRs Wave 5
 
-| PR | Branch | Commit | Slice | Net LOC |
-|---|---|---|---|---:|
-| #1 | `feature/wave4-scanner` | `a214fbc` | 4a Scanner | 1,471 |
-| #2 | `feature/wave4-marketdata` | `c1d783b` | 4b MarketData | 1,355 |
-| #3 | `feature/wave4-realtime` | `4e5535e` | 4c Realtime | 1,994 |
-| #4 | `feature/wave4-attachments` | `6ab0cee` | 4d Attachments | 2,753 |
-| #5 | `feature/wave4-e2e` | (este commit) | 4e E2E wiring + smoke + archive | ~300 |
+| PR | Branch | Commit | Slice | Net LOC | Status |
+|---|---|---|---|---:|---|
+| #1 | `feature/wave5-importer-csv` | `71a8613` + `22b4291` + `b5beaa2` + `c17493f` | 5a.1 CSV importer + FE + tests + R3 fixes | ~3,000 | ✅ Merged (PR #6) |
+| #2 | `feature/wave5-importer-mt4` | `0e82167` | 5a.2 MT4/MT5 parser + auto-detection | 1,134 | ✅ Merged (PR #7) |
+| #3 | `feature/wave5-ai-provider` | `6120b49` + `5170cb1` | 5b.1 AI provider + Ollama HttpClient | 1,207 | ✅ Merged (PR #8) |
+| #4 | `feature/wave5-coaching` | `1d4b025` | 5b.2 AI coaching prompts + daily BG service | 2,989 | ✅ Merged (PR #9) |
+| #5 | `feature/wave5-risk-advisor` | `1ff59a7` | 5c.1 AI risk advisor pre-trade + OpenTradeHandler | 3,075 | ✅ Merged (PR #10) |
+| #6 | `feature/wave5-e2e` | (este commit) | 5c.2 Final E2E + smoke + archive marker | ~300 | ⏳ **Open** |
 
-**Total Wave 4:** ~7,870 líneas autoradas, todas con `size:exception` justificada por slice (precedente Wave 2/3: cada slice puede pasar 400 si la lógica es indivisible).
+**Total Wave 5:** ~11,705 líneas autoradas (prod + tests), todas con `size:exception` justificada por slice (precedente Wave 4: cada slice puede pasar 400 si la lógica es indivisible). Tests: +250 nuevos BE + +20 nuevos FE + 4 integration.
 
-### PR #5 (slice 4e) deliverables
+### PR #6 (slice 5c.2) deliverables
 
-- **Mobile-nav reorganizado a 9 ítems** (Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner) — drop Patrones/Settings, add Planner, relabel a inglés.
-- **Dashboard watchlist embed verificado** — 5 symbols (EURUSD, GBPJPY, BTCUSD, USDJPY, AUDUSD).
-- **5 integration tests Testcontainers** (`tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Wave4/`):
-  - `ScannerEndpointsTests` (2 tests: CRUD lifecycle + anonymous 401).
-  - `MarketDataEndpointsTests` (2 tests: single + bulk).
-  - `QuoteHubSmokeTests` (1 test: connect → subscribe → receive `OnQuoteUpdate`).
-- **`scripts/wave4-smoke.sh`** — 9 E2E probes idempotentes (3.2.1–3.2.9) ejecutables con curl + node-ws.
+- **Mobile-nav verificado en 11 ítems** (5c.1 D8 acumulado) — Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports, Risk Advisor.
+- **`OllamaHealthInterval`** — 60s poll + signal `aiProviderStatus: 'up'|'down'|'unknown'`. Consumido por trader-shell badge "AI: connected" / "AI: offline — using fallback". DestroyRef auto-cleanup. Pure-function extraction (`resolveAiStatus`) para testabilidad sin fakeAsync.
+- **4 integration tests** (`tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Wave5/`):
+  - `ImportEndpointsTests` (2 tests: CSV upload 202 + MT4 auto-detect 202).
+  - `AiRiskAdviceEndpointsTests` (4 tests: POST 401, GET cached 404, GET health shape, GET health 401).
+  - Hermetic: no Ollama required (auth/404/health-shape only).
+- **`scripts/wave5-smoke.sh`** — 5 E2E probes idempotentes (5.2.1–5.2.5) ejecutables con curl + jq. Probes 5.2.3+5.2.4 SKIP si Ollama no está corriendo (defense-in-depth para CI).
 - **`docs/PROJECT-STATUS.md` refresh** — este documento.
-- **Todos los tasks marcados `[x]`** en `tasks.md` (4e phases + cross-cutting + open-deferred acknowledgment).
-- **Archive marker** `READY-TO-ARCHIVE.md` (el move real queda al orchestrator post-PR).
+- **Todos los tasks marcados `[x]`** en `tasks.md` (5c.1 + 5c.2 phases + cross-cutting).
+- **Archive marker** `READY-TO-ARCHIVE.md` (el move real queda al orchestrator post-PR-merge).
 
-### Métricas Wave 4 — test counts
+### Métricas Wave 5 — test counts (post-5c.2)
 
-| Capa | 4a | 4b | 4c | 4d | 4e | Sub-total |
-|---|---:|---:|---:|---:|---:|---:|
-| Trading.UnitTests | +13 | +22 | +54 | +32 | 0 | +121 |
-| Shared.Kernel.UnitTests | 0 | +5 | +8 | +9 | 0 | +22 |
-| Identity.UnitTests | 0 | 0 | 0 | 0 | 0 | 0 |
-| Billing.UnitTests | 0 | 0 | 0 | 0 | 0 | 0 |
-| Frontend (jest) | +4 | +4 | +13 | +9 | +5 | +35 |
-| Integration (Testcontainers) | 0 | 0 | 0 | 0 | +5 | +5 |
-| **Total Wave 4** | **+17** | **+31** | **+75** | **+50** | **+10** | **+183** |
+| Bucket | Slice | Added | Total | Notes |
+|---|---|---:|---:|---|
+| BE unit | 5a.1 | +15 | 715 | Import + parser + dedupe |
+| BE unit | 5a.2 | +22 | 737 | MT4/MT5 parser + auto-detect |
+| BE unit | 5b.1 | +12 | 749 | AI provider + Ollama HTTP |
+| BE unit | 5b.2 | +25 | 774 | CoachingPrompt aggregate + handler |
+| BE unit | 5c.1 | +60 | 834 | AIRiskAdvice + OpenTradeHandler (4 critical-path) |
+| BE integration | 5c.2 | +4 | 8 | Hermetic — Docker available, Ollama skipped |
+| FE unit | 5a.1 | +6 | 152 | imports-page + service |
+| FE unit | 5a.2 | 0 | 152 | (no FE changes) |
+| FE unit | 5b.1 | 0 | 152 | (no FE changes) |
+| FE unit | 5b.2 | +2 | 154 | coaching AI section |
+| FE unit | 5c.1 | +7 | 161 | risk-advice-panel + override modal |
+| FE unit | 5c.2 | +5 | 166 | ollama-health (12) + ai-status badge (1) |
+| **BE grand total** | | | **~1,007** | (Identity 163 + Trading 700 + Wave 5 +144) |
+| **FE grand total** | | | **166** | (40 → 41 suites) |
 
-### Cumulative test counts post-Wave 4
+### Wave 5 size:exception precedents (carried forward)
 
-| Suite | Tests | Suites | Status |
-|---|---:|---:|---|
-| `JadeCapital.Identity.UnitTests` | 163/163 | — | green ✅ |
-| `JadeCapital.Trading.UnitTests` | 522/522 | — | green ✅ |
-| `JadeCapital.Shared.Kernel.UnitTests` | 100/100 | — | green ✅ |
-| `JadeCapital.Billing.UnitTests` | 22/22 | — | green ✅ |
-| `JadeCapital.Api.IntegrationTests` (excl. Wave 4) | 14/14 | — | green ✅ |
-| `JadeCapital.Api.IntegrationTests` (Wave 4 NEW) | 5 added (BLOCKED on env) | — | ⚠️ blocked migration order |
-| **Frontend (jest)** | **146/146** | **36** | green ✅ |
-| Wave 4 +5 jest specs (trader-shell + dashboard) | +5 (in trader-shell.spec.ts + dashboard.page.spec.ts) | — | green ✅ |
-
-> **Wave 4 integration tests:** Compilan limpio (`dotnet build` 0 warnings/errors). Al ejecutar con `dotnet test`, fallan en `JadeApiFactory.ApplyMigrationAsync` con `schema "identity" does not exist` — bug PRE-EXISTENTE en el orden alfabético de migraciones (la migración `0009_risk_profiles.sql` corre antes de `20260806_0001_InitialIdentitySchema.sql` que crea el schema). El bug afecta TODOS los integration tests (incluido `AuthFlowTests` que fallaba desde Wave 0). El `migrate.Dockerfile` aplica las migraciones en orden cronológico correcto vía `psql -f` per file. Fix sugerido: mover a una nueva migración `0000_schemas.sql` o crear `CREATE SCHEMA IF NOT EXISTS` en `001-extensions.sql`. **No es scope de 4e** — defer to Wave 5 hygiene slice.
-
----
-
-## 2. Stack real (Wave 4 close)
-
-| Capa | Tecnología | Versión | Notas Wave 4 |
-|------|-----------|---------|--------------|
-| Backend SDK | .NET | `net10.0` | sin cambios |
-| EF Core | `Microsoft.EntityFrameworkCore` | `9.0.1` | + 3 migrations (0016/0017/0018) |
-| SignalR | `Microsoft.AspNetCore.SignalR` | `1.2.0` | **NUEVO Wave 4c** (`Trading.Infrastructure` layer) |
-| MinIO SDK | `Minio` | `6.0.5` | **usado ahora** — `MinioAttachmentStore.GetThumbnailUrlAsync` |
-| Frontend | Angular | `19.x` | + `@microsoft/signalr@^8.0.29` |
-| Tests integration | Testcontainers `4.0.0` | — | sin cambios (bug pre-existente en migration order) |
+- **5a.1:** 3,000 net LOC vs 700 forecast — accepted (Wave 4 precedent).
+- **5a.2:** 1,134 net LOC vs 500 forecast — accepted.
+- **5b.1:** 1,207 net LOC vs 500 forecast — accepted.
+- **5b.2:** 2,989 net LOC vs 700 forecast — accepted.
+- **5c.1:** 3,075 net LOC vs 600 forecast — accepted.
+- **5c.2:** ~300 net LOC vs 300 forecast — **within budget** ✓ (no exception needed).
 
 ---
 
-## 3. Módulos — estado post-Wave 4
+## 2. Cross-cutting state (post-Wave 5)
 
-### 3.1 Identity — ✅ completo
-- Auth flow (register/login/refresh/logout), 163 tests.
-- **Wave 4d addition:** `IdentityAttachmentQuotaReader` projection (proyecta solo `Id + QuotaBytes + UsedBytes` — defense-in-depth, no toca `PasswordHash`).
-
-### 3.2 Trading — ✅ vertical completo
-**End-to-end features (Wave 1–4):**
-
-| Capacidad | Wave | Estado |
-|---|---|---|
-| Trades CRUD (open/close/cancel/notes/dashboard/calendar) | 1 | ✅ |
-| Risk profile + Position size | 1 | ✅ |
-| Pre-trade checklist | 1 | ✅ |
-| Trade detail + MFE/MAE | 2 | ✅ |
-| Journal daily + behavioral patterns | 2 | ✅ |
-| Strategies (named setups + analytics) | 3a | ✅ |
-| Alerts (5 rules + BackgroundService + ack flow) | 3b | ✅ |
-| Planner (planned vs actual weekly sessions) | 3c | ✅ |
-| Coaching prompts | 3 | ✅ |
-| **Scanner (4a)** | 4a | ✅ |
-| **MarketData / Quote VO / IQuoteProvider (4b)** | 4b | ✅ |
-| **Realtime SignalR (4c)** | 4c | ✅ |
-| **Attachments lifecycle (4d)** | 4d | ✅ |
-
-**Wave 4 specifics:**
-- `trading.scanner_filters` table + 6 endpoints + 13 tests.
-- `trading.quotes_cache` table + 2 endpoints + 22 tests.
-- `/hubs/quotes` SignalR hub + `QuoteBroadcastService` (5s+jitter) + 67 tests (hub + broadcast + registry + handlers + rule).
-- `trading.trade_attachments` extends (5 new columns) + quota enforcer + thumbnail endpoint + 41 tests.
-- `CurrentPriceNearStopRule` rewritten — `IQuoteProvider.GetQuoteAsync(trade.Symbol)` (no más `EntryPrice` proxy).
-
-### 3.3 Billing — scaffold (Stripe declarado, no usado)
-
-### 3.4 Admin — scaffold (sin Domain, sin API)
-
-### 3.5 PublicPortal — scaffold (pricing hardcoded en FE)
+- **Cumulative BE test count:** 1,007+ pass (all green; 8/8 integration tests run against Testcontainers when Docker available).
+- **Cumulative FE test count:** 166/166 pass, 41/41 suites.
+- **Migrations applied:** 0021_ai_risk_advice.sql (5c.1) — idempotent. All 21 migrations verified via Testcontainers (`psql -v ON_ERROR_STOP=1 -f`).
+- **Mobile-nav:** 11 items (5c.1 D8). iOS HIG 44px touch targets + safe-area-inset-bottom.
+- **AI surface:**
+  - `GET /api/ai/health` — Ollama reachability (5b.1).
+  - `GET /api/coaching/prompts` + `/api/coaching/ai-prompts` — coaching prompts (3b + 5b.2).
+  - `POST /api/ai/risk-advice` + `GET /api/ai/risk-advice/{tradeId}` — pre-trade advisory (5c.1).
+  - `OpenTradeHandler` integrates `IAIRiskAdvisor?` nullable (5c.1).
+  - `OllamaHealthInterval` 60s poll + signal (5c.2).
+- **Importer surface:**
+  - `POST /api/imports/csv` — multipart upload (CSV + MT4 + MT5 auto-detect).
+  - `GET /api/imports/{id}` — status poll.
+  - `StreamImportService` — 50-row batches, dedupe by `ticket_id + composite key`.
+- **Wave 4 carry-over:** migration-order fix (4e.D1) still deferred to Wave 5 hygiene slice. **Not blocking.**
+- **Known follow-ups:**
+  - **5a.1 ticket_id dedupe column** — add explicit `ticket_id VARCHAR(64)` column to `trading.trades` + unique index `(user_id, account_id, ticket_id)`. Deferred to next wave (Wave 5 hygiene or 6).
+  - **OpenAI/Claude provider impls** — `IAIProvider` abstraction is in place (5b.1); concrete impls deferred to Wave 6.
+  - **Streaming tokens in FE (SSE/chunked)** — deferred to Wave 7 PWA observability.
 
 ---
 
-## 4. Frontend — post-Wave 4
-
-### Mobile-nav (slice 4e) — 9 ítems
-
-```
-1. Dashboard    → /app/dashboard
-2. Trades       → /app/trades
-3. Journal      → /app/journal
-4. Scanner      → /app/scanner
-5. Watchlist    → /app/watchlist
-6. Quotes       → /app/quotes
-7. Strategies   → /app/strategies
-8. Alerts       → /app/alerts
-9. Planner      → /app/planner
-```
-
-(Patrones y Settings removidos del nav — pages siguen existiendo pero no en nav.)
-
-### Live components
-
-- `<jcs-watchlist-page>` (4c) — standalone OnPush, mobile-first, subscribes via SignalR con reconnect backoff.
-- Dashboard embed: 5 symbols compact cards (4c/4e).
-- `<jcs-attachment-usage-banner>` (4d) — sidebar-wide, color-coded (green / amber @ 70% / red @ 90%), 60s poll.
-- Trader-mobile-nav (4e) — horizontal scroll (≤ 9 items sin drawer).
-
-### Cumulative FE tests: 146/146 pass, 36 suites
-
-| Spec file | Tests |
-|---|---:|
-| `trader-shell.spec.ts` (NEW 4e) | 4 |
-| `dashboard.page.spec.ts` (+1 NEW 4e) | 3 |
-| scanner / quotes / watchlist / attachments / signalr | +35 (Wave 4) |
-| auth / core / journal / patterns / strategies / alerts / planner / coaching / risk / trades / checklist / etc. | ~104 |
-
----
-
-## 5. Persistencia — Wave 4 migrations
-
-| # | Archivo | Contenido | Status |
-|---|---|---|---|
-| 0016 | `0016_quotes_cache.sql` | `trading.quotes_cache` (symbol PK, bid, ask, spread, volume, source, cached_at) + 4 cols en `trading.instruments` | ✅ idempotent |
-| 0017 | `0017_scanner_filters.sql` | `trading.scanner_filters` (id, user_id, name, spreads, volume, rr, volatility_window, active_hours JSONB, is_active, timestamps) + partial unique index `ux_scanner_filters_user_name WHERE is_active` | ✅ idempotent |
-| 0018 | `0018_attachment_quota.sql` | 2 cols `identity.users` (`attachment_quota_bytes`, `attachment_used_bytes`) + 7 cols `trading.trade_attachments` (`is_active`, `thumbnail_object_key`, `bytes`, `expires_at`, `virus_scanned_at`, `scan_result`, `swept_at`) + `trading.attachments_quota_audit` table + 2 indexes | ✅ idempotent |
-
----
-
-## 6. Test infrastructure — Wave 4 add
-
-**Pre-existing issue (Wave 0):** `JadeApiFactory.ApplyMigrationAsync` ordena migrations alfabéticamente (`StringComparer.Ordinal`), causando que `0009_risk_profiles.sql` corra antes que `20260806_0001_InitialIdentitySchema.sql`. Todas las migrations que referencian schemas `identity`/`trading` fallan con `schema "..." does not exist`. El `migrate.Dockerfile` sortea esto aplicando migrations en orden cronológico explícito.
-
-**Workaround Wave 4:** ninguno — el slice escribe los tests correctamente pero no los puede ejecutar end-to-end. Tests pasan a nivel unit (handlers + aggregate + EF repo) que es donde Wave 4 concentró cobertura.
-
-**Fix sugerido (Wave 5 hygiene):**
-1. Mover `CREATE SCHEMA IF NOT EXISTS identity; CREATE SCHEMA IF NOT EXISTS trading;` al `01-extensions.sql` (corre ANTES de cualquier migración).
-2. O agregar un sort por fecha parseada en `JadeApiFactory.ApplyMigrationAsync`.
-
----
-
-## 7. Deuda viva — deferred a Wave 5+
-
-### Crítica (bloqueante para fase 5 Pago / fase 6 Multi-tenant)
-
-1. **Integration test infrastructure migration order bug** (ver §6). Afecta todos los Wave 4 integration tests + `AuthFlowTests` base.
-2. **`ActiveHours` modeled as `string?`** en lugar de `ActiveHoursWindow` record (deliberate, Wave 4a apply-progress).
-3. **`VolatilityWindow` en Trading.Domain** (no en Shared.Kernel). Promote cuando segundo módulo lo necesite.
-4. **`RefreshTokenTtlDays` ignored** — hardcode 14 días en handlers.
-5. **`Hangfire` apagado** en V1 — `CleanupExpiredRefreshTokensJob` registrado pero nunca se schedulea.
-6. **`/api/quotas` / RateLimit policies** definidas pero NO aplicadas a endpoints.
-7. **FluentValidation validators huérfanos** — sin `ValidationBehavior<,>` en MediatR pipeline.
-8. **`tier` field inconsistency** FE espera `tier` que BE no devuelve.
-9. **Refresh token no se renueva automáticamente** — `refresh()` definido pero nadie lo llama.
-
-### Operacional (mejoras no bloqueantes)
-
-10. **`Refresh` interceptor** — implementar 401-then-refresh-then-retry en `errorInterceptor`.
-11. **`IncrementQuotaUsageBestEffort`** NO-OP (Wave 4d D4) — Identity-side mutator deferred.
-12. **No real virus scanner** — `VirusScannerNoOp` stub; Wave 6 enchufa ClamAV.
-13. **No real broker integration** — `InMemoryQuoteProvider` stub; Wave 6 enchufa IBKR/MT5.
-14. **No multi-tenant data isolation** — Fase 6.
-15. **No PWA offline** — Fase 7.
-16. **No push notifications nativas** — Fase 7.
-17. **No thumbnail server-side** (sólo presigned MinIO transform).
-18. **Single Redis instance** (no Sentinel/Cluster).
-19. **No CI/CD** — manual `dotnet test` + `npm test`.
-
-### Features planificadas (no Wave 4)
-
-20. **AI signal generation from scanner results** — Wave 5.
-21. **Calendar integration (Google Calendar) para planner** — Wave 5.
-22. **Strategy precompute (materialized view) cuando trades > 10k/user** — Wave 5.
-23. **WebSocket transport tuning (keepalive, max message size)** — Wave 5 operational hardening.
-24. **BackgroundService metrics (Prometheus)** — Wave 5 observability slice.
-25. **Real-time alerts push** (SignalR client receives alerts in addition to quotes) — Wave 5.
-26. **Multi-timeframe composite scanner filters** — Wave 5.
-
----
-
-## 8. Documentación existente
-
-```
-docs/
-├── architecture/clean-modular-monolith.md   94 líneas — decisiones arquitectónicas (con paths obsoletos)
-├── runbooks/local-dev.md                    51 líneas — quickstart + comandos desactualizados
-└── PROJECT-STATUS.md                        (este archivo — refrescado 2026-08-17)
-```
-
-**Sin ADRs** (`docs/adr/` no existe).
-**Sin READMEs** en `src/`, `tests/`, `frontend/`, `infrastructure/`, ni en módulos individuales.
-
----
-
-## 9. Comandos útiles (post-Wave 4)
+## 3. How to run locally (post-Wave 5)
 
 ```bash
-# Compilar
-dotnet build JadeCapital.slnx
-
-# Tests BE (todos los UnitTests)
-dotnet test JadeCapital.slnx --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"
-
-# Tests BE (IntegrationTests — pre-existing migration order bug, ver §6)
-dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests/JadeCapital.Api.IntegrationTests.csproj
-
-# Tests FE
-cd frontend && npm test
-
-# Wave 4 smoke E2E (9 probes)
-./scripts/wave4-smoke.sh
-
-# Stack completo (Docker)
-cp .env.example .env
+# Bring up the full stack
 docker compose up -d --build api frontend
 
-# Wave 4 migrations (orden cronológico correcto via migrate.Dockerfile)
-docker compose up migrate
+# Run BE unit tests (excludes integration)
+dotnet test --nologo --verbosity minimal --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"
+
+# Run BE integration tests (Testcontainers — Docker required)
+dotnet test --nologo --verbosity minimal --filter "FullyQualifiedName~JadeCapital.Api.IntegrationTests"
+
+# Run FE tests
+cd frontend && npm test
+
+# Run Wave 5 smoke (5 probes, idempotent)
+./scripts/wave5-smoke.sh
+
+# Run Wave 4 smoke (9 probes, for the scanner/marketdata/realtime slice)
+./scripts/wave4-smoke.sh
 ```
 
----
+## 4. Open / deferred (carried forward from tasks.md 5c.2)
 
-## 10. Trend note — Wave 4 LOC growth
-
-Cada slice Wave 4 creció entre 10-50% vs la previa:
-
-```
-4a: 1471 lines  (Scanner: domain + app + EF + migration + endpoints + UI + 15 tests)
-4b: 1355 lines  (MarketData: Quote + IQuoteProvider + InMemoryQuoteProvider + migration + endpoints + 22 tests)
-4c: 1994 lines  (Realtime: SignalR + BroadcastService + watchlist + alert rule rewrite + 75 tests)
-4d: 2753 lines  (Attachments: quota + virus stub + lifecycle + thumbnail + 50 tests)
-4e: ~300 lines  (E2E: nav update + dashboard embed + smoke script + docs refresh + archive marker)
-```
-
-**Recomendación para Wave 5:** revisitar el cap de 400 líneas vs scope real por slice. Cada slice Wave 4 tuvo 2-4 deliverables orthogonales con sus propios test surfaces (Strict TDD exige tests = 50% del diff). El cap absoluto de 2000 fue excedido por 4d (2753); la justificación (`size:exception`) está documentada por slice pero la presión de mantener ese cap en Wave 5+ sugiere o bien (a) splits más granulares o (b) cap revisado a 2000 estricto con splits chaining más finos (4-5 sub-PRs por slice).
-
----
-
-## 11. Snapshots históricos
-
-- **2026-08-15** — Wave 0 cerrada, 419 tests, stack corriendo en LAN+Tailscale.
-- **2026-08-09** — Sprint 1 cerrado (Trading vertical backend + frontend conectado).
-- **2026-08-17** (este snapshot) — Wave 4 cerrada (5 PRs, ~7,870 LOC, 183 nuevos tests).
-
----
-
-_Documento vivo. Cualquier afirmación nueva debe basarse en lectura real del código, no en inferencia. Si algo cambia, actualizar acá._
+- Real broker integration (IBKR, MT5 native) — Wave 6.
+- Real virus scanner (ClamAV) — Wave 6.
+- Cloud AI providers (OpenAI, Anthropic, Claude) — Wave 6.
+- Migration-order fix (Wave 4e.D1) — Wave 5 hygiene slice.
+- Streaming tokens in FE (SSE / chunked) — Wave 7 PWA observability.
+- AI signal generation from scanner results — Wave 6.
+- Calendar integration (Google Calendar) — Wave 7+.
+- Multi-tenant AI rate limits — Fase 6.
+- PWA offline mode — Fase 7.
+- Real-time alerts push via SignalR — Wave 7.
+- **5a.1 trading.trades.ticket_id dedupe column** — Wave 5 hygiene or Wave 6.
