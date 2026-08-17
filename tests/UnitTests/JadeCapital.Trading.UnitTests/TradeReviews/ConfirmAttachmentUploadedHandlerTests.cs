@@ -1,4 +1,5 @@
 using FluentAssertions;
+using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Storage;
 using JadeCapital.Shared.Kernel.Time;
@@ -28,6 +29,8 @@ public class ConfirmAttachmentUploadedHandlerTests
 {
     private readonly ITradeReviewRepository _reviews = Substitute.For<ITradeReviewRepository>();
     private readonly IAttachmentStorage _storage = Substitute.For<IAttachmentStorage>();
+    private readonly IVirusScanner _scanner = Substitute.For<IVirusScanner>();
+    private readonly IAttachmentQuotaReader _quotaReader = Substitute.For<IAttachmentQuotaReader>();
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly ILogger<ConfirmAttachmentUploadedHandler> _logger
@@ -41,10 +44,16 @@ public class ConfirmAttachmentUploadedHandlerTests
         _clock.UtcNow.Returns(FixedNow);
         _uow.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Result<int>.Success(1));
+        // Slice 4d — scanner returns Clean by default.
+        _scanner.ScanAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(VirusScanResult.Clean);
+        // Slice 4d — quota reader returns null (sweep will reconcile).
+        _quotaReader.GetQuotaAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((UserAttachmentQuota?)null);
     }
 
     private ConfirmAttachmentUploadedHandler CreateSut()
-        => new(_reviews, _storage, _uow, _clock, _logger);
+        => new(_reviews, _storage, _scanner, _quotaReader, _uow, _clock, _logger);
 
     private static TradeAttachment PendingAttachment(Guid attachmentId)
     {

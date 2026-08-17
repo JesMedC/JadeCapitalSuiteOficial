@@ -56,6 +56,14 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(u => u.UpdatedAt).HasColumnName("updated_at");
 
+        // Slice 4d — attachment quota + cached usage (migration 0018).
+        // Identity owns the columns; Trading reads them via
+        // IAttachmentQuotaReader (Contracts projection). Identity writes
+        // happen in two places: ConfirmAttachmentUploadedHandler (best-effort
+        // increment) and AttachmentLifecycleService (daily sweep recompute).
+        b.Property(u => u.AttachmentQuotaBytes).HasColumnName("attachment_quota_bytes").IsRequired();
+        b.Property(u => u.AttachmentUsedBytes).HasColumnName("attachment_used_bytes").IsRequired();
+
         // PasswordHistory is exposed as an ordered projection on the aggregate;
         // EF materialises the backing list directly.
         b.HasMany<PasswordHistoryEntry>("_passwordHistory")

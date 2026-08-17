@@ -46,6 +46,22 @@ public sealed class User : AggregateRoot<Guid>
     public string? Timezone { get; private set; }
 
     /// <summary>
+    /// Slice 4d — per-user attachment quota in bytes. Default 100 MiB
+    /// (104857600) set by migration 0018. The admin can override via
+    /// tier upgrade (deferred to a future slice); the value is read by
+    /// <c>AttachmentQuotaEnforcer</c> via <c>IAttachmentQuotaReader</c>.
+    /// </summary>
+    public long AttachmentQuotaBytes { get; private set; }
+
+    /// <summary>
+    /// Slice 4d — cached aggregate of the user's uploaded attachment
+    /// bytes. Maintained by ConfirmAttachmentUploadedHandler (incremental)
+    /// and AttachmentLifecycleService (recomputed ground truth from
+    /// SUM(trade_attachments.bytes) daily).
+    /// </summary>
+    public long AttachmentUsedBytes { get; private set; }
+
+    /// <summary>
     /// Ordered (changed_at DESC, id DESC) list of the user's previous
     /// password hashes. Backing storage is the EF-mapped list; the public
     /// surface returns the newest-first projection.

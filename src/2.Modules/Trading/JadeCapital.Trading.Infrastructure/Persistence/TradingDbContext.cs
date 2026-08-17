@@ -1,4 +1,5 @@
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.AttachmentAudits;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
 using JadeCapital.Trading.Domain.Planner;
@@ -47,6 +48,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 4b — market data quote cache (per-symbol snapshot of Quote).
     public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry> QuoteCacheEntries
         => Set<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry>();
+    // Slice 4d — attachment quota audit (daily lifecycle sweep log).
+    public Microsoft.EntityFrameworkCore.DbSet<AttachmentQuotaAudit> AttachmentQuotaAudits
+        => Set<AttachmentQuotaAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,6 +67,7 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
         modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
         modelBuilder.ApplyConfiguration(new QuoteCacheConfiguration());
+        modelBuilder.ApplyConfiguration(new AttachmentQuotaAuditConfiguration());
     }
 }
 

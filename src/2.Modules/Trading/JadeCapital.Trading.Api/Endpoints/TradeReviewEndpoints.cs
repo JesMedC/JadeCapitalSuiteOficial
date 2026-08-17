@@ -1,4 +1,5 @@
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Application.Features.TradeReviews.ConfirmAttachmentUpload;
 using JadeCapital.Trading.Application.Features.TradeReviews.CreateOrUpdate;
 using JadeCapital.Trading.Application.Features.TradeReviews.DeleteAttachment;
@@ -90,6 +91,33 @@ public static class TradeReviewEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .RequireRateLimiting("api-general");
 
+        // ===== Slice 4d — Attachment thumbnail + usage =====
+        // Both endpoints live on a separate /api/attachments group (NOT
+        // under /api/trades/{tradeId}/review) because they operate on the
+        // attachment as a first-class resource, not on a review sub-path.
+        // Per Wave 4 chain convention, the slice extends the existing
+        // TradeReviewEndpoints class — no new MapAttachmentEndpoints group.
+        var attachments = app.MapGroup("/api/attachments")
+            .WithTags("Trading")
+            .RequireAuthorization();
+
+        // GET /api/attachments/{attachmentId}/thumbnail?width=N&height=N
+        // Returns a presigned GET URL pointing to the resized image.
+        attachments.MapGet("/{attachmentId:guid}/thumbnail", GetThumbnailAsync)
+            .WithName("GetAttachmentThumbnail")
+            .WithSummary("Devuelve un presigned GET URL para el thumbnail 256x256 (default) del attachment. Solo aplica a image/png|jpeg|webp.")
+            .Produces<ThumbnailUrlDto>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType)
+            .RequireRateLimiting("api-general");
+
+        // GET /api/attachments/usage
+        attachments.MapGet("/usage", GetUsageAsync)
+            .WithName("GetAttachmentUsage")
+            .WithSummary("Snapshot del uso de attachments del usuario autenticado (totalBytes, attachmentCount, quotaBytes, percentFull).")
+            .Produces<AttachmentUsageDto>(StatusCodes.Status200OK)
+            .RequireRateLimiting("api-general");
+
         return app;
     }
 
@@ -112,6 +140,12 @@ public static class TradeReviewEndpoints
             var c when c.StartsWith("conflict", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status409Conflict,
             var c when c.StartsWith("unauthorized", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status401Unauthorized,
             var c when c.StartsWith("forbidden", StringComparison.OrdinalIgnoreCase) => StatusCodes.Status403Forbidden,
+            // Slice 4d — quota exceeded → 413 Payload Too Large (per spec).
+            "failure.attachment.quota_exceeded" => StatusCodes.Status413PayloadTooLarge,
+            // Slice 4d — non-image thumbnail → 415 Unsupported Media Type.
+            "failure.attachment.thumbnail_not_supported" => StatusCodes.Status415UnsupportedMediaType,
+            // Slice 4d — virus scanner down → 503 Service Unavailable.
+            "failure.attachment.scanner_unavailable" => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status422UnprocessableEntity
         };
 
@@ -227,6 +261,47 @@ public static class TradeReviewEndpoints
         var result = await sender.Send(new DeleteAttachmentCommand(attachmentId, userId), ct);
         return result.IsSuccess
             ? Results.NoContent()
+            : ProblemFromResult(result.Error);
+    }
+
+    // ===== Slice 4d — attachment thumbnail + usage =====
+
+    private static async Task<IResult> GetThumbnailAsync(
+        Guid attachmentId,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? width,
+        [Microsoft.AspNetCore.Mvc.FromQuery] int? height,
+        [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        Guid userId;
+        try { userId = GetUserId(http); }
+        catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+
+        // Defaults: 256x256 (per spec — also matches the values used by
+        // the MinIO transform params). The handler clamps to [16, 1024].
+        var w = width ?? 256;
+        var h = height ?? 256;
+
+        var result = await sender.Send(
+            new GetAttachmentThumbnailQuery(attachmentId, userId, w, h), ct);
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : ProblemFromResult(result.Error);
+    }
+
+    private static async Task<IResult> GetUsageAsync(
+        [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        Guid userId;
+        try { userId = GetUserId(http); }
+        catch (UnauthorizedAccessException) { return Results.Unauthorized(); }
+
+        var result = await sender.Send(new GetAttachmentUsageQuery(userId), ct);
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
             : ProblemFromResult(result.Error);
     }
 }
