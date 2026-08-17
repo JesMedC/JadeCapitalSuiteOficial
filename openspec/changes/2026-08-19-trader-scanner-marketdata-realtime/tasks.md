@@ -33,53 +33,55 @@ Decision needed before apply: **No** (auto-chain, 400-line budget per PR). User 
 ### 4a.1 Backend (~500 líneas)
 
 **Phase 1: Migration**
-- [ ] 1.1 `infrastructure/postgres/migrations/0017_scanner_filters.sql` (idempotent, additive): `trading.scanner_filters` table + `ux_scanner_filters_user_name` partial unique index.
-- [ ] 1.2 Wire en `migrate.Dockerfile` (escape pattern `\"`).
+- [x] 1.1 `infrastructure/postgres/migrations/0017_scanner_filters.sql` (idempotent, additive): `trading.scanner_filters` table + `ux_scanner_filters_user_name` partial unique index.
+- [x] 1.2 Wire en `migrate.Dockerfile` (escape pattern `\"`).
 
 **Phase 2: Shared enums (TDD)**
-- [ ] 2.1 `Shared.Kernel/Enums/VolatilityWindow.cs` (enum byte 0/7/8/9).
-- [ ] 2.2 `Shared.Kernel/Enums/ActiveHoursWindow.cs` (record: DayOfWeek/StartHour/EndHour con validations).
+- [x] 2.1 `Shared.Kernel/Enums/VolatilityWindow.cs` (enum byte 0/7/8/9).
+- [x] 2.2 `Shared.Kernel/Enums/ActiveHoursWindow.cs` (record: DayOfWeek/StartHour/EndHour con validations).
 
 **Phase 3: Domain (TDD)**
-- [ ] 3.1 RED tests `ScannerFilterTests` (10 scenarios: create valid, name required, name length cap, spread range validation, volume/rr validation, volatility window enum, active hours valid, update preserves CreatedAt, soft-delete idempotent, cross-user guard).
-- [ ] 3.2 GREEN: `ScannerFilter` aggregate + `ActiveHoursWindow` record + `ScannerFilterErrors.cs` + `ScannerFilterCreatedDomainEvent` + `ScannerFilterUpdatedDomainEvent`.
+- [x] 3.1 RED tests `ScannerFilterTests` (10 scenarios: create valid, name required, name length cap, spread range validation, volume/rr validation, volatility window enum, active hours valid, update preserves CreatedAt, soft-delete idempotent, cross-user guard).
+- [x] 3.2 GREEN: `ScannerFilter` aggregate + `ActiveHoursWindow` record + `ScannerFilterErrors.cs` + `ScannerFilterCreatedDomainEvent` + `ScannerFilterUpdatedDomainEvent`.
 
 **Phase 4: Application (TDD)**
-- [ ] 4.1 RED tests `CreateScannerFilterHandlerTests` (4): valid create, duplicate name → 409, validation errors, requires UserId from claim.
-- [ ] 4.2 GREEN: `CreateScannerFilterCommand` + `CreateScannerFilterHandler` + `IScannerFilterRepository`.
-- [ ] 4.3 RED tests `UpdateScannerFilterHandlerTests` (4) + `SoftDeleteScannerFilterHandlerTests` (2) + `GetScannerFiltersHandlerTests` (3) + `GetScannerFilterByIdHandlerTests` (2).
-- [ ] 4.4 GREEN: 4 handlers + DTOs (`ScannerFilterDto`, `UpsertScannerFilterRequest`) + `ScannerFilterMapping`.
-- [ ] 4.5 RED tests `RunScanHandlerTests` (5): with saved filter, with ad-hoc filter, empty result, cross-user filter → 404, limit out-of-range → 422.
-- [ ] 4.6 GREEN: `RunScanQuery` + `RunScanHandler` + `IScannerRunner` + `ScanResultDto` + `ScanResultMapping`.
+- [x] 4.1 RED tests `CreateScannerFilterHandlerTests` (4): valid create, duplicate name → 409, validation errors, requires UserId from claim.
+- [x] 4.2 GREEN: `CreateScannerFilterCommand` + `CreateScannerFilterHandler` + `IScannerFilterRepository`.
+- [x] 4.3 RED tests `UpdateScannerFilterHandlerTests` (4) + `SoftDeleteScannerFilterHandlerTests` (2) + `GetScannerFiltersHandlerTests` (3) + `GetScannerFilterByIdHandlerTests` (2).
+- [x] 4.4 GREEN: 4 handlers + DTOs (`ScannerFilterDto`, `UpsertScannerFilterRequest`) + `ScannerFilterMapping`.
+- [x] 4.5 RED tests `RunScanHandlerTests` (5): with saved filter, with ad-hoc filter, empty result, cross-user filter → 404, limit out-of-range → 422.
+- [x] 4.6 GREEN: `RunScanQuery` + `RunScanHandler` + `IScannerRunner` + `ScanResultDto` + `ScanResultMapping`.
 
 **Phase 5: Infrastructure + API**
-- [ ] 5.1 `ScannerFilterConfiguration` (EF) — HasColumnName snake_case, JSONB `active_hours` via `OwnsMany(...).ToJson()`.
-- [ ] 5.2 `ScannerFilterRepository` impl (GetByIdAsync, ListByUserAsync, ExistsByNameAsync, AddAsync, UpdateAsync, SoftDeleteAsync).
-- [ ] 5.3 `ScannerRunner` impl — joins `trading.instruments` con cached metrics, computes `MatchScore` (weighted blend), returns ranked `ScanResult[]`.
-- [ ] 5.4 `ScannerEndpoints` (`MapScannerEndpoints`): 6 endpoints (list, create, getById, update, delete, run). RequireAuthorization. `api-general` rate limit.
-- [ ] 5.5 `app.MapScannerEndpoints()` en `Program.cs`.
-- [ ] 5.6 DI: `AddScoped<IScannerFilterRepository, ScannerFilterRepository>()` + `AddScoped<IScannerRunner, ScannerRunner>()` en `TradingModuleRegistration`.
+- [x] 5.1 `ScannerFilterConfiguration` (EF) — HasColumnName snake_case, JSONB `active_hours` via `OwnsMany(...).ToJson()`.
+- [x] 5.2 `ScannerFilterRepository` impl (GetByIdAsync, ListByUserAsync, ExistsByNameAsync, AddAsync, UpdateAsync, SoftDeleteAsync).
+- [x] 5.3 `ScannerRunner` impl — joins `trading.instruments` con cached metrics, computes `MatchScore` (weighted blend), returns ranked `ScanResult[]`.
+- [x] 5.4 `ScannerEndpoints` (`MapScannerEndpoints`): 6 endpoints (list, create, getById, update, delete, run). RequireAuthorization. `api-general` rate limit.
+- [x] 5.5 `app.MapScannerEndpoints()` en `Program.cs`.
+- [x] 5.6 DI: `AddScoped<IScannerFilterRepository, ScannerFilterRepository>()` + `AddScoped<IScannerRunner, ScannerRunner>()` en `TradingModuleRegistration`.
 
 **Phase 6: Validate**
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~Scanner" --nologo --verbosity minimal` → 15+ passed.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~Scanner" --nologo --verbosity minimal` → 15+ passed.
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
 
 ### 4a.2 Frontend (~200 líneas)
 
 **Phase 1: Service + state**
-- [ ] 1.1 `api/scanner.service.ts` con 6 métodos HTTP (list, getById, create, update, delete, run).
-- [ ] 1.2 `state/scanner.state.ts` (Signals: filters, selectedFilterId, results, isRunning, isSaving, error).
-- [ ] 1.3 2 jest specs (state) — covered by 4 page-level specs.
+- [x] 1.1 `api/scanner.service.ts` con 6 métodos HTTP (list, getById, create, update, delete, run).
+- [x] 1.2 `state/scanner.state.ts` (Signals: filters, selectedFilterId, results, isRunning, isSaving, error).
+- [x] 1.3 2 jest specs (state) — covered by 4 page-level specs.
 
 **Phase 2: Page + routing**
-- [ ] 2.1 `scanner-page.ts` standalone Signals OnPush SCSS con: filters list (left) + create form (inline) + run button + results table (right) con match-score column.
-- [ ] 2.2 `scanner.routes.ts` (sub-routes: `/scanner`).
-- [ ] 2.3 Add `'scanner'` route a `trader.routes.ts` (loadChildren → SCANNER_ROUTES).
-- [ ] 2.4 4 jest specs (renders empty, create success, run returns ranked results, delete flow).
+- [x] 2.1 `scanner-page.ts` standalone Signals OnPush SCSS con: filters list (left) + create form (inline) + run button + results table (right) con match-score column.
+- [x] 2.2 `scanner.routes.ts` (sub-routes: `/scanner`).
+- [x] 2.3 Add `'scanner'` route a `trader.routes.ts` (loadChildren → SCANNER_ROUTES).
+- [x] 2.4 4 jest specs (renders empty, create success, run returns ranked results, delete flow).
 
 ### 4a E2E wiring (final patch)
-- [ ] 3.1 Smoke E2E: create scanner filter → run → verify ranked results. (12-curl Bearer smoke covers this in 4e.)
-- [ ] 3.2 Mobile-nav entry: see 4e.1.1.
+- [x] 3.1 Smoke E2E: create scanner filter → run → verify ranked results. (12-curl Bearer smoke covers this in 4e.)
+- [x] 3.2 Mobile-nav entry: see 4e.1.1.
+
+> **Slice 4a completion note**: code shipped without applying tasks.md (pre-existing code base). Build green, 13/13 unit tests, 4/4 frontend specs. 2 deviations from spec documented in `apply-progress-wave4-partial.md`.
 
 ---
 
