@@ -59,7 +59,6 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AlertConfiguration());
         modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
         modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
-        modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
     }
 }
 
