@@ -129,10 +129,26 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.BeginImport.
 services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportStatus.GetImportStatusHandler>();
 
 // Infrastructure-layer repositories + dedupe service.
-services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
+        services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportJobRepository>();
-services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
+        services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
+
+// ===== Slice 5b.2 — AI Coaching (background service + repository + EF provider) =====
+//
+// Provider (IUserTradingContextProvider) — Scoped: resolves per-tick scoped deps
+// (ITradeRepository, IClock, etc.) inside the BackgroundService's scope.
+        services.AddScoped<JadeCapital.Trading.Application.Ai.IUserTradingContextProvider,
+                  JadeCapital.Trading.Infrastructure.Ai.EfUserTradingContextProvider>();
+
+// AI coaching prompt repository (Scoped — same lifetime as DbContext).
+        services.AddScoped<JadeCapital.Trading.Application.Abstractions.ICoachingPromptRepository,
+                  JadeCapital.Trading.Infrastructure.Persistence.CoachingPromptRepository>();
+
+// BackgroundService — daily tick at 03:00 UTC ± 30min jitter. Resolves
+// GenerateCoachingPromptHandler + IUserTradingContextProvider from a per-tick
+// scope via IServiceScopeFactory.
+        services.AddHostedService<JadeCapital.Trading.Infrastructure.BackgroundServices.CoachingPromptService>();
 
 return services;
 }

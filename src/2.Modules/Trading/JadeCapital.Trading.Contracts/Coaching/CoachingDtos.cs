@@ -54,3 +54,39 @@ public sealed record CoachingPromptDto(
 public sealed record CoachingCtaDto(
     string Route,
     string Label);
+
+// ============================================================================
+//  AI coaching prompt DTOs — slice 5b.2 (Wave 5).
+//
+//  Wire-shape for <c>GET /api/coaching/ai-prompts?period=7d|30d|90d|all</c>.
+//  Lives in the same Contracts.Coaching namespace as the rule-based DTOs
+//  (the merge happens FE-side per design D5).
+//
+//  Severity renders as lowercase string ("low" | "medium" | "high") to match
+//  the rule-based CoachingPromptDto convention.
+// ============================================================================
+
+/// <summary>
+/// Top-level response body for <c>GET /api/coaching/ai-prompts</c>.
+/// <c>prompts</c> is sorted by <c>createdAt DESC</c> (newest first).
+/// </summary>
+public sealed record AiCoachingPromptsDto(
+    string Period,
+    IReadOnlyList<AiCoachingPromptDto> Prompts);
+
+/// <summary>
+/// One AI coaching prompt. Mirrors
+/// <see cref="JadeCapital.Trading.Domain.Ai.CoachingPrompt"/>.
+/// </summary>
+public sealed record AiCoachingPromptDto(
+    Guid Id,
+    string Kind,                  // always "ai" in this slice
+    string Severity,              // "low" | "medium" | "high"
+    string Model,                 // e.g. "llama3.1:8b"
+    int LatencyMs,
+    string Text,                  // the narrative copy the trader reads
+    string ProviderResponse,      // raw provider response (JSON-serialized)
+    string PromptText,            // the rendered prompt template (debug)
+    string ContextJson,           // the user trading context that fed the prompt
+    DateTimeOffset CreatedAt,
+    CoachingCtaDto Cta);

@@ -1,5 +1,6 @@
 using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.AttachmentAudits;
+using JadeCapital.Trading.Domain.Ai;
 using JadeCapital.Trading.Domain.Imports;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Journal;
@@ -55,6 +56,9 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     // Slice 5a.1 — trader import jobs (CSV uploads).
     public Microsoft.EntityFrameworkCore.DbSet<ImportJob> ImportJobs
         => Set<ImportJob>();
+    // Slice 5b.2 — AI coaching prompts (daily BG service + manual triggers).
+    public Microsoft.EntityFrameworkCore.DbSet<CoachingPrompt> CoachingPrompts
+        => Set<CoachingPrompt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,9 +76,11 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
         modelBuilder.ApplyConfiguration(new QuoteCacheConfiguration());
         modelBuilder.ApplyConfiguration(new AttachmentQuotaAuditConfiguration());
-        // Slice 5a.1 — import jobs. Registered ONCE here (Wave 4 lesson:
-        // do NOT also register via DI; ApplyConfiguration is the single source).
+// Slice 5a.1 — import jobs. Registered ONCE here (Wave 4 lesson:
+// do NOT also register via DI; ApplyConfiguration is the single source).
         modelBuilder.ApplyConfiguration(new ImportJobConfiguration());
+        // Slice 5b.2 — AI coaching prompts. Same single-source pattern.
+        modelBuilder.ApplyConfiguration(new CoachingPromptConfiguration());
     }
 }
 
