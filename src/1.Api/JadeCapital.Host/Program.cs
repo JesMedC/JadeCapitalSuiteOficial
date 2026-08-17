@@ -377,6 +377,8 @@ app.MapAlertEndpoints();
 app.MapPlannerEndpoints();
 // Slice 4a — scanner filters (CRUD + run against instrument universe).
 app.MapScannerEndpoints();
+// Slice 5a.1 — CSV importer (upload + status).
+app.MapImportEndpoints();
 // Slice 4b — market data quotes (single + bulk, cache-backed).
 // NOTE: QuoteEndpoints handles the `api-quotes` rate limit internally via
 // RequireRateLimiting on the endpoints group (added in QuoteEndpoints.cs).

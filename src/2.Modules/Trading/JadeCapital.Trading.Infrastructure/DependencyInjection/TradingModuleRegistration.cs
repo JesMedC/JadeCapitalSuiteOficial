@@ -112,6 +112,24 @@ services.AddScoped<GetAttachmentThumbnailHandler>();
 // Daily lifecycle sweep (BackgroundService) + per-user quota gate (RequestAttachmentUploadHandler).
 services.AddHostedService<JadeCapital.Trading.Infrastructure.BackgroundServices.AttachmentLifecycleService>();
 
+// ===== Slice 5a.1 — Imports (CSV importer + ImportJob tracking) =====
+// Parsers: registered as IImportRowParser so the streaming pipeline can
+// pick the right one via CanParse score. CSV is the only parser registered
+// in 5a.1; MT4/MT5 land in 5a.2.
+services.AddScoped<JadeCapital.Shared.Kernel.Imports.IImportRowParser,
+                  JadeCapital.Trading.Infrastructure.Imports.CsvImportRowParser>();
+
+// Application-layer streaming pipeline + handlers.
+services.AddScoped<JadeCapital.Trading.Application.Features.Imports.StreamImportService>();
+services.AddScoped<JadeCapital.Trading.Application.Features.Imports.BeginImport.BeginImportHandler>();
+services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportStatus.GetImportStatusHandler>();
+
+// Infrastructure-layer repositories + dedupe service.
+services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
+                  JadeCapital.Trading.Infrastructure.Persistence.ImportJobRepository>();
+services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
+                  JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
+
 return services;
 }
 }
