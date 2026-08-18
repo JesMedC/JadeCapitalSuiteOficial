@@ -363,4 +363,70 @@ public sealed class User : AggregateRoot<Guid>
         Touch();
         return Result.Success();
     }
+
+    /// <summary>
+    /// Slice 6c.3 — unassigns the user from their current tenant. Used by
+    /// <c>RemoveTenantUserHandler</c> for the "remove from workspace"
+    /// semantics; the user account itself is NOT deleted. Sets
+    /// <see cref="TenantId"/> back to <c>null</c> and bumps
+    /// <see cref="Entity{T}.UpdatedAt"/>.
+    ///
+    /// <para>
+    /// <b>Note</b>: this conflicts with the 6c.3 NOT NULL constraint on
+    /// <c>identity.users.tenant_id</c>. The slice is safe ONLY because
+    /// <c>RemoveTenantUserHandler</c> runs this from the tenant context
+    /// after a re-assignment to a Personal default — i.e. the user is
+    /// never left with <c>NULL</c>; they fall back to the Personal
+    /// tenant assigned by the 6c.2 backfill. The 6c.3 handler
+    /// implementation is responsible for that fallback. This method is
+    /// the "explicit unassign" primitive; the handler decides whether
+    /// it's safe to call.
+    /// </para>
+    /// </summary>
+    public Result UnassignFromTenant()
+    {
+        if (TenantId is null)
+            return Result.Success();   // already unassigned → idempotent no-op
+
+        TenantId = null;
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 6c.3 — admin-orchestrated reassignment of the user to a new
+    /// tenant. Used by <c>RemoveTenantUserHandler</c> to remove a user
+    /// from a workspace WITHOUT violating the NOT NULL constraint on
+    /// <c>identity.users.tenant_id</c>: the user is reassigned to the
+    /// Personal default tenant instead of leaving the column NULL.
+    ///
+    /// <para>
+    /// <b>Why this is NOT <see cref="AssignToTenant"/></b>: that method
+    /// guards against self-initiated cross-tenant reassignment
+    /// (<c>Role != Admin → failure</c>). The remove-from-workspace flow
+    /// is initiated by the TENANT OWNER on behalf of a target member —
+    /// the target is not the actor. The actor-vs-subject split means we
+    /// need a separate primitive that does NOT enforce the self-init
+    /// guard. The handler (not the aggregate) is responsible for the
+    /// authorization check (caller is tenant-owner or SuperAdmin).
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotent on no-op: assigning to the current tenant returns
+    /// <c>Success</c> without bumping <see cref="Entity{T}.UpdatedAt"/>.
+    /// </para>
+    /// </summary>
+    public Result ReassignToTenantByAdmin(TenantId newTenantId)
+    {
+        if (newTenantId.Value == Guid.Empty)
+            return Result.Failure(IdentityDomainErrors.User.TenantIdInvalid);
+
+        // No-op when already in the target tenant — avoids spurious UpdatedAt bumps.
+        if (TenantId is not null && TenantId.Value == newTenantId.Value)
+            return Result.Success();
+
+        TenantId = newTenantId;
+        Touch();
+        return Result.Success();
+    }
 }

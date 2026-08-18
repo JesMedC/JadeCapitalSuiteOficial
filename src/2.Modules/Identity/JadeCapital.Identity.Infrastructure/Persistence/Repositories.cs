@@ -1,6 +1,7 @@
 using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace JadeCapital.Identity.Infrastructure.Persistence;
@@ -30,6 +31,26 @@ public sealed class UserRepository : IUserRepository
         }
         await Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Slice 6c.3 — list users in the tenant. The query materializes a
+    /// stable projection (id + email + display_name + role + status +
+    /// created_at) so the handler can map straight to <c>TenantUserDto</c>
+    /// without loading password hashes / session-version etc. Ordered by
+    /// created_at ASC for stable iteration in the API response.
+    /// </summary>
+    public async Task<IReadOnlyList<User>> ListByTenantIdAsync(TenantId tenantId, CancellationToken ct)
+        => await _db.Users
+            .Where(u => u.TenantId == tenantId)
+            .OrderBy(u => u.CreatedAt)
+            .ToListAsync(ct);
+
+    /// <summary>
+    /// Slice 6c.3 — count users in the tenant. Single SQL
+    /// <c>SELECT COUNT(*) FROM identity.users WHERE tenant_id = $1</c>.
+    /// </summary>
+    public Task<int> CountByTenantIdAsync(TenantId tenantId, CancellationToken ct)
+        => _db.Users.CountAsync(u => u.TenantId == tenantId, ct);
 }
 
 public sealed class RefreshTokenRepository : IRefreshTokenRepository

@@ -281,4 +281,32 @@ public class Tenant : AggregateRoot<Guid>
         Status = status;
         return Result.Success();
     }
+
+    // ============================================
+    // Wave 6c.3 — Plan capacity + suspended-mutation guard
+    // ============================================
+
+    /// <summary>
+    /// Maximum users allowed per plan tier (slice 6c.3). Personal=10,
+    /// Pro=100, Enterprise=1000. The InviteTenantUserHandler enforces
+    /// this BEFORE creating the invite so a saturated tenant never sends
+    /// a misleading email.
+    /// </summary>
+    public static int MaxUsersForPlan(TenantPlan plan) => plan switch
+    {
+        TenantPlan.Personal => 10,
+        TenantPlan.Pro => 100,
+        TenantPlan.Enterprise => 1000,
+        _ => 0,
+    };
+
+    /// <summary>
+    /// Returns the domain failure for a suspended tenant mutation
+    /// (rename, plan change, invite, remove). Used by every 6c.3 handler
+    /// to short-circuit before reaching the aggregate.
+    /// </summary>
+    public static Result GuardNotSuspendedForMutation(TenantStatus status)
+        => status == TenantStatus.Suspended
+            ? Result.Failure(TenantErrors.Capacity.CannotModifySuspended)
+            : Result.Success();
 }

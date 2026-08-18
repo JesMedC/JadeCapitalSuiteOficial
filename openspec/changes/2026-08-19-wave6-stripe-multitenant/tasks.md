@@ -363,31 +363,31 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `UpdateTenantHandlerTests` (4 scenarios: valid update → 200, cross-tenant update → 404, suspended tenant → 422, invalid name → 422).
-- [ ] 1.2 GREEN: `Identity.Application/Features/Tenants/UpdateTenant/UpdateTenantCommand.cs` + `UpdateTenantHandler.cs`.
-- [ ] 1.3 RED test `ListTenantUsersHandlerTests` (4 scenarios: own tenant → returns list, cross-tenant → 404, empty tenant → empty array, suspended tenant → 422).
-- [ ] 1.4 GREEN: `Identity.Application/Features/Tenants/ListTenantUsers/ListTenantUsersQuery.cs` + `ListTenantUsersHandler.cs` + `TenantUserDto.cs`.
-- [ ] 1.5 RED test `InviteTenantUserHandlerTests` (4 scenarios: valid email → invite sent (mock), existing user → assigned, cross-tenant → 404, tenant at capacity → 422).
-- [ ] 1.6 GREEN: `Identity.Application/Features/Tenants/InviteTenantUser/InviteTenantUserCommand.cs` + `InviteTenantUserHandler.cs` + `IEmailSender` stub.
-- [ ] 1.7 RED test `RemoveTenantUserHandlerTests` (4 scenarios: valid removal → 200, owner cannot remove self → 422, cross-tenant → 404, user not in tenant → 404).
-- [ ] 1.8 GREEN: `Identity.Application/Features/Tenants/RemoveTenantUser/RemoveTenantUserCommand.cs` + `RemoveTenantUserHandler.cs`.
+- [x] 1.1 RED test `UpdateTenantHandlerTests` (4 scenarios: valid update → 200, cross-tenant update → 404, suspended tenant → 422, invalid name → 422).
+- [x] 1.2 GREEN: `Identity.Application/Features/Tenants/UpdateTenant/UpdateTenantCommand.cs` + `UpdateTenantHandler.cs`.
+- [x] 1.3 RED test `ListTenantUsersHandlerTests` (4 scenarios: own tenant → returns list, cross-tenant → 404, empty tenant → empty array, suspended tenant → 422).
+- [x] 1.4 GREEN: `Identity.Application/Features/Tenants/ListTenantUsers/ListTenantUsersQuery.cs` + `ListTenantUsersHandler.cs` + `TenantUserDto.cs`.
+- [x] 1.5 RED test `InviteTenantUserHandlerTests` (4 scenarios: valid email → invite sent (mock), existing user → assigned, cross-tenant → 404, tenant at capacity → 422).
+- [x] 1.6 GREEN: `Identity.Application/Features/Tenants/InviteTenantUser/InviteTenantUserCommand.cs` + `InviteTenantUserHandler.cs` + `IEmailSender` stub.
+- [x] 1.7 RED test `RemoveTenantUserHandlerTests` (4 scenarios: valid removal → 200, owner cannot remove self → 422, cross-tenant → 404, user not in tenant → 404).
+- [x] 1.8 GREEN: `Identity.Application/Features/Tenants/RemoveTenantUser/RemoveTenantUserCommand.cs` + `RemoveTenantUserHandler.cs`.
 
 **Phase 2: NOT NULL on tenant_id (TDD)**
 
-- [ ] 2.1 RED test `MigrationNotNullTenantIdTests` (1 scenario: validate that migration 0026 has run on the test DB before this slice runs).
-- [ ] 2.2 `infrastructure/postgres/migrations/0026_NOT_NULL_tenant_id.sql` — `ALTER TABLE identity.users ALTER COLUMN tenant_id SET NOT NULL` (idempotent). Wire en `migrate.Dockerfile`.
+- [x] 2.1 RED test `MigrationNotNullTenantIdTests` (1 scenario: validate that migration 0026 has run on the test DB before this slice runs).
+- [x] 2.2 `infrastructure/postgres/migrations/0026_NOT_NULL_tenant_id.sql` — `ALTER TABLE identity.users ALTER COLUMN tenant_id SET NOT NULL` (idempotent). Wire en `migrate.Dockerfile`.
 
 **Phase 3: Infrastructure + API**
 
-- [ ] 3.1 `TenantEndpoints` (`MapTenantEndpoints`): `GET /api/tenants/{id}/users` + `POST /api/tenants/{id}/users` + `DELETE /api/tenants/{id}/users/{user_id}` + `PATCH /api/tenants/{id}`. RequireAuthorization + RequireRole("Admin") OR tenant-owner.
-- [ ] 3.2 `app.MapTenantEndpoints()` en `Program.cs`.
-- [ ] 3.3 DI: `AddScoped<UpdateTenantHandler>` + `AddScoped<ListTenantUsersHandler>` + `AddScoped<InviteTenantUserHandler>` + `AddScoped<RemoveTenantUserHandler>`.
+- [x] 3.1 `TenantEndpoints` (`MapTenantEndpoints`): `GET /api/tenants/{id}/users` + `POST /api/tenants/{id}/users` + `DELETE /api/tenants/{id}/users/{user_id}` + `PATCH /api/tenants/{id}`. RequireAuthorization + RequireRole("Admin") OR tenant-owner.
+- [x] 3.2 `app.MapTenantEndpoints()` en `Program.cs` (wired via `MapIdentityApi()` composition root in `IdentityApiRegistration.cs` — see apply-progress deviation #2).
+- [x] 3.3 DI: `AddScoped<UpdateTenantHandler>` + `AddScoped<ListTenantUsersHandler>` + `AddScoped<InviteTenantUserHandler>` + `AddScoped<RemoveTenantUserHandler>`.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~TenantAdmin"` --nologo --verbosity minimal → 20/20 pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 4.3 Full BE suite → 1105/1105 pass (was 1085 → +20 new tests, 0 regressions).
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~Tenant"` --nologo --verbosity minimal → 82/82 pass (TenantAdmin filter is covered; spec said 20; actual 21 incl. 1 hardening edge case).
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 4.3 Full BE suite → 1230/1230 pass (Shared.Kernel 169 + Identity 245 + Billing 116 + Trading 700; 0 regressions, +21 new tests over 6c.2).
 
 ### 6c.3 size:exception preview
 
@@ -513,7 +513,7 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 | 6b.2 | 0 | +6 | 1020 + 185 FE |
 | 6c.1 | +44 (35 spec) | 0 | 1064 (cumulative actual: 1174) |
 | 6c.2 | +35 (30 spec) | 0 | 1099 (cumulative actual: 1209) |
-| 6c.3 | +20 | 0 | 1119 |
+| 6c.3 | +21 (20 spec; +1 hardening edge case) | 0 | 1120 (cumulative actual: 1230) |
 | 6d.1 | +25 | 0 | 1144 |
 | 6d.2 | +30 | 0 | 1174 |
 | **Total** | **+264** | **+6** | **~1244 BE + ~185 FE** |

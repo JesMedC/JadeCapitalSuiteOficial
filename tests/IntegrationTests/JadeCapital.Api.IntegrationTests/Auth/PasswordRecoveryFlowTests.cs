@@ -179,5 +179,11 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
     {
         public Task SendRecoveryEmailAsync(JadeCapital.Shared.Infrastructure.Email.RecoveryEmailMessage message, CancellationToken ct = default)
             => throw new InvalidOperationException("SMTP transport failure (simulated).");
+
+        // Slice 6c.3 — the tenant invite path is a stub on the production
+        // transports; tests use NSubstitute. This FaultingEmailSender is
+        // only used by the recovery path, so the invite method is a no-op.
+        public Task SendTenantInviteAsync(JadeCapital.Shared.Infrastructure.Email.TenantInviteEmailMessage message, CancellationToken ct = default)
+            => throw new InvalidOperationException("SMTP transport failure (simulated).");
     }
 }

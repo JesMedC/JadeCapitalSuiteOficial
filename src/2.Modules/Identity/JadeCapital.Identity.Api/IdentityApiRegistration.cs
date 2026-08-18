@@ -26,12 +26,14 @@ public static class IdentityApiRegistration
     /// <summary>
     /// Map all Identity-module endpoints. Combines <c>MapAuthEndpoints</c> (auth,
     /// recovery, refresh) + <c>MapRiskProfileEndpoints</c> (slice 1a.1b —
-    /// GET/PUT /api/risk-profile).
+    /// GET/PUT /api/risk-profile) + <c>MapTenantEndpoints</c> (slice 6c.3 —
+    /// tenant admin: list / invite / remove users + update).
     /// </summary>
     public static IEndpointRouteBuilder MapIdentityApi(this IEndpointRouteBuilder app)
     {
         app.MapAuthEndpoints();
         app.MapRiskProfileEndpoints();
+        app.MapTenantEndpoints();
         return app;
     }
 
