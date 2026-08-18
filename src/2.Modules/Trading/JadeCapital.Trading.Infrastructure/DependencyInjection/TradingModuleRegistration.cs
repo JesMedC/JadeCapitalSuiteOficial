@@ -165,6 +165,23 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // production handler is responsible for cross-user validation).
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IJournalEntryRepository,
                   JadeCapital.Trading.Infrastructure.Audit.JournalEntryAuditDecorator>();
+        // Wave 8 slice 8a.1 — typed audit decorator over IAccountRepository.
+        // STANDARD (uses DecoratedRepository<Account> after the slice 8a.1
+        // RemoveAsync → DeleteAsync rename + IRepository<Account> extension).
+        // Cross-tenant IsOwner check on Account.UserId for UpdateAsync.
+        // DeleteAsync is a STUB-free canonical hard-delete surface — the
+        // production DeleteAccountHandler is responsible for cross-user
+        // validation + trade pre-check (FK RESTRICT).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IAccountRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.AccountAuditDecorator>();
+        // Wave 8 slice 8a.1 — typed audit decorator over IInstrumentRepository.
+        // STANDARD (uses DecoratedRepository<Instrument> after the slice 8a.1
+        // RemoveAsync → DeleteAsync rename + IRepository<Instrument> extension).
+        // NO IsOwner check: Instrument is a catalog entity shared across all
+        // users (TenantAuditDecorator precedent). Admin mutations on the
+        // catalog are legitimate.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IInstrumentRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.InstrumentAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
