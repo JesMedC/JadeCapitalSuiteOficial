@@ -1,3 +1,4 @@
+using JadeCapital.Billing.Application.Abstractions;
 using JadeCapital.Billing.Application.Features.Subscriptions;
 using JadeCapital.Billing.Application.Stripe;
 using JadeCapital.Billing.Infrastructure.Persistence;
@@ -40,6 +41,16 @@ public static class BillingModuleRegistration
         services.AddScoped<ISubscriptionAdminRepository, Persistence.SubscriptionAdminRepository>();
         services.AddScoped<ISubscriptionAdminUnitOfWork, Persistence.BillingAdminUnitOfWork>();
         services.AddScoped<IPlanLookup, Persistence.PlanLookup>();
+        // Slice 6d.2 — typed audit decorator over ISubscriptionRepository.
+        // Co-located with the AddScoped above because Scrutor's Decorate
+        // requires the underlying service to be registered first. The
+        // decorator lives in Billing.Infrastructure/Audit/ (Billing →
+        // Billing) to avoid an Identity.Infrastructure → Billing →
+        // Identity circular dep. Same pattern as
+        // ImportJobAuditDecorator (Phases 3.3-3.4).
+        services.AddScoped<ISubscriptionRepository, Persistence.SubscriptionRepository>();
+        services.Decorate<ISubscriptionRepository,
+                  JadeCapital.Billing.Infrastructure.Audit.SubscriptionAuditDecorator>();
         // Scoped (not Singleton) — the implementation consumes BillingDbContext (Scoped).
         // Singleton lifetime would trigger ASP.NET Core's captive-dependency validation
         // and reject host construction. The implementation is stateless; Scoped is correct.

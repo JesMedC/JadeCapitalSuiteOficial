@@ -52,6 +52,19 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
             .HasColumnName("occurred_at")
             .IsRequired();
 
+        // Slice 6d.2: the audit log has a dedicated <c>occurred_at</c>
+        // column (pinned from IClock.UtcNow at AuditEvent.Create). The
+        // inherited <see cref="Entity{TId}.CreatedAt"/> +
+        // <see cref="Entity{TId}.UpdatedAt"/> properties are NOT mapped
+        // here — the <c>audit.events</c> table doesn't carry them
+        // (see migration 0027). Without this Ignore, EF's default
+        // convention would map them to PascalCase columns that don't
+        // exist in the DB, causing SaveChanges to fail in production
+        // AND making the SQLite integration tests throw
+        // 'no such column: e.CreatedAt' on the first SELECT.
+        b.Ignore(e => e.CreatedAt);
+        b.Ignore(e => e.UpdatedAt);
+
         // DomainEvents not persisted (audit events don't raise domain events).
         b.Ignore(e => e.DomainEvents);
 

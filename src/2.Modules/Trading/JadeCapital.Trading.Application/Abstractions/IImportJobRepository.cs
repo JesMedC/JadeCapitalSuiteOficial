@@ -1,4 +1,5 @@
 using JadeCapital.Shared.Kernel.Imports;
+using JadeCapital.Shared.Kernel.Repository;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Domain.Imports;
 
@@ -10,11 +11,8 @@ namespace JadeCapital.Trading.Application.Abstractions;
 /// filters by <c>UserId</c> from the JWT claim; a row owned by another user
 /// collapses to <c>NotFound</c> to avoid existence leaks).
 /// </summary>
-public interface IImportJobRepository
+public interface IImportJobRepository : IRepository<ImportJob>
 {
-    /// <summary>Single-fetch by id. Returns null if the row doesn't exist.</summary>
-    Task<ImportJob?> GetByIdAsync(Guid id, CancellationToken ct);
-
     /// <summary>
     /// SHA-256 idempotency lookup. Returns the most recent active job
     /// (<see cref="ImportJobStatus.Pending"/>, <see cref="ImportJobStatus.InProgress"/>,
@@ -25,12 +23,6 @@ public interface IImportJobRepository
     /// can re-upload after a failure.
     /// </summary>
     Task<ImportJob?> FindActiveBySha256Async(Guid userId, string sha256, CancellationToken ct);
-
-    /// <summary>Append. The aggregate owns the id; do NOT pre-assign.</summary>
-    Task AddAsync(ImportJob job, CancellationToken ct);
-
-    /// <summary>Mark for update. The caller is responsible for SaveChanges.</summary>
-    Task UpdateAsync(ImportJob job, CancellationToken ct);
 }
 
 /// <summary>

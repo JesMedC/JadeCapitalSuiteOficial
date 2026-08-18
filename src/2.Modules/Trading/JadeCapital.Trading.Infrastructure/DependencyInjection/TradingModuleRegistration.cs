@@ -132,6 +132,14 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
 // Infrastructure-layer repositories + dedupe service.
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportJobRepository>();
+        // Slice 6d.2 — typed audit decorator over IImportJobRepository.
+        // Co-located with the AddScoped above because Scrutor's Decorate
+        // requires the underlying service to be registered first. The
+        // decorator lives in Trading.Infrastructure/Audit/ (Trading → Trading)
+        // to avoid an Identity.Infrastructure → Trading.Infrastructure →
+        // Identity.Infrastructure circular dep.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.ImportJobAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 

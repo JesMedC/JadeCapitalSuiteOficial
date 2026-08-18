@@ -79,6 +79,13 @@ public static class IdentityModuleRegistration
         // DI seam minimal — see MultiTenancy/TenantContext.cs).
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ITenantRepository, TenantRepository>();
+        // ===== Slice 6d.2 — Audit decorator (Typed) =====
+        // TenantAuditDecorator wraps TenantRepository via Scrutor's
+        // services.Decorate<>(). Every Add/Update/Delete writes an
+        // audit.events row via IAuditLogger (enriched with
+        // ITenantContext.Current + ICurrentUserId). Reads (GetByIdAsync,
+        // FindBySlugAsync, ListByOwnerAsync) bypass the audit surface.
+        services.Decorate<ITenantRepository, TenantAuditDecorator>();
         // MediatR resolves handlers by interface; register the concrete
         // types so DI has an entry. (MediatR also scans the Application
         // assembly, so the runtime binding happens twice — that's fine.)
@@ -105,12 +112,14 @@ public static class IdentityModuleRegistration
         services.AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>();
         services.AddHostedService<BackfillTenantsHostedService>();
 
-        // ===== Slice 6d.1 — Soft-delete + Audit =====
-        // IAuditLogger: 6d.1 ships the NoOp placeholder (accepts the call,
-        // doesn't persist). The real AuditLogger impl lands in 6d.2 alongside
-        // the DecoratedRepository pattern — the single DI line below is the
-        // switch-over point.
-        services.AddScoped<IAuditLogger, NoOpAuditLogger>();
+        // ===== Slice 6d.1 + 6d.2 — Soft-delete + Audit =====
+        // IAuditLogger: 6d.1 shipped the NoOp placeholder; 6d.2 swaps in the
+        // real AuditLogger impl that writes to the dedicated AuditDbContext
+        // (separate schema, separate migration history). The placeholder
+        // pattern matches the 6c.1 ITenantContext precedent — the interface
+        // was wired end-to-end, the real persistence impl landed in the
+        // slice that owns the persistence concern.
+        services.AddScoped<IAuditLogger, AuditLogger>();
         // ISoftDeleteProviderRegistry: aggregates every ISoftDeleteProvider
         // registered across all modules (DI auto-collects IEnumerable).
         services.AddScoped<ISoftDeleteProviderRegistry>(sp =>

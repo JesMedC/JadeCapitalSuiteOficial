@@ -20,5 +20,15 @@
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Domain\JadeCapital.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
+    <!-- Slice 6d.2 deviation: test project needs Trading.Infrastructure +
+         Billing.Infrastructure references for the per-module DbContexts
+         (TradingDbContext, BillingDbContext) used in the per-aggregate
+         integration tests (ImportJobRepositoryIntegrationTests +
+         SubscriptionRepositoryIntegrationTests). The cross-module test
+         access is documented in apply-progress-wave6-slice-6d-2.md. -->
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Application\JadeCapital.Trading.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Infrastructure\JadeCapital.Trading.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Infrastructure\JadeCapital.Billing.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

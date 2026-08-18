@@ -4,17 +4,34 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Slice 6d.1: tests exercise the EF Core configuration in
+<!-- Slice 6d.1: tests exercise the EF Core configuration in
          IsolationImportJobOnlyDbContext (ImportJobSoftDeleteQueryFilterTests);
-         InternalsVisibleTo is the cleanest seam (matches the Billing.UnitTests
-         precedent) rather than widening ImportJobConfiguration to public. -->
-    <InternalsVisibleTo Include="JadeCapital.Trading.UnitTests" />
+         InternalsVisibleTo is the cleanest seam (matches the Billing.Infrastructure precedent)
+         rather than widening ImportJobConfiguration to public. -->
+  <InternalsVisibleTo Include="JadeCapital.Trading.UnitTests" />
+  <!-- Slice 6d.2: ImportJobRepositoryIntegrationTests needs access to the
+       internal ImportJobConfiguration to wire a SQLite-compatible
+       TradingDbContext subclass (the full TradingDbContext applies
+       Npgsql-specific array converters for JournalEntry.Tags that fail
+       to compose on SQLite). -->
+  <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Slice 6d.2 deviation: Trading.Infrastructure → Identity.Infrastructure
+         so TradingModuleRegistration can wire
+         Decorate<IImportJobRepository, ImportJobAuditDecorator>() using the
+         typed decorator class. Scrutor's Decorate requires the underlying
+         AddScoped to run first, so the Decorate MUST live next to the
+         AddScoped — i.e., in TradingModuleRegistration, not in
+         IdentityModuleRegistration. Layering cost documented in
+         apply-progress-wave6-slice-6d-2.md. -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
