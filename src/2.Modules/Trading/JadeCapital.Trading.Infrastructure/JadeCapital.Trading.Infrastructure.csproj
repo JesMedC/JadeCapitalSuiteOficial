@@ -4,6 +4,13 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Slice 6d.1: tests exercise the EF Core configuration in
+         IsolationImportJobOnlyDbContext (ImportJobSoftDeleteQueryFilterTests);
+         InternalsVisibleTo is the cleanest seam (matches the Billing.UnitTests
+         precedent) rather than widening ImportJobConfiguration to public. -->
+    <InternalsVisibleTo Include="JadeCapital.Trading.UnitTests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />

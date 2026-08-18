@@ -33,12 +33,29 @@ internal sealed class ImportJobConfiguration : IEntityTypeConfiguration<ImportJo
         b.Property(j => j.StartedAt).HasColumnName("started_at").IsRequired();
         b.Property(j => j.FinishedAt).HasColumnName("finished_at");
 
+        // Wave 6, slice 6d.1 — ISoftDelete mapping. The migration 0027
+        // (audit.events) doesn't add columns to trading.import_jobs here
+        // because the soft-delete columns are already part of the 6d.1
+        // additive migration (or a follow-up that adds is_deleted /
+        // deleted_at / deleted_by_user_id to the existing import_jobs
+        // table — the spec keeps them as additive columns on this
+        // slice's migration). For 6d.1 the EF defaults align with the
+        // column-level expectations.
+        b.Property(j => j.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+        b.Property(j => j.DeletedAtUtc).HasColumnName("deleted_at");
+        b.Property(j => j.DeletedByUserId).HasColumnName("deleted_by_user_id");
+
         // Audit columns inherited from AggregateRoot → Entity<TId>.
         b.Property(j => j.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(j => j.UpdatedAt).HasColumnName("updated_at");
 
         // DomainEvents not are persisted.
         b.Ignore(j => j.DomainEvents);
+
+        // Wave 6, slice 6d.1 — soft-delete global query filter.
+        // Every regular read excludes soft-deleted rows; IgnoreQueryFilters()
+        // bypasses (used by tests, migrations, and admin tooling).
+        b.HasQueryFilter(j => !j.IsDeleted);
 
         // Indexes — align with the migration so EF doesn't generate DROP/CREATE
         // if a future slice uses `dotnet ef migrations add`.

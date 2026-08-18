@@ -1,11 +1,15 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Application.Features.SoftDelete;
 using JadeCapital.Identity.Contracts.Projections;
+using JadeCapital.Identity.Infrastructure.Audit;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
 using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Identity.Infrastructure.Projections;
 using JadeCapital.Identity.Infrastructure.Security;
+using JadeCapital.Shared.Kernel.Audit;
 using JadeCapital.Shared.Kernel.MultiTenancy;
+using JadeCapital.Shared.Kernel.SoftDelete;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +32,21 @@ public static class IdentityModuleRegistration
                 ?? throw new InvalidOperationException("ConnectionStrings:Postgres required.");
             opts.UseNpgsql(pgConn, npg =>
                 npg.MigrationsHistoryTable("__ef_migrations", "identity"));
+        });
+
+        // ===== Slice 6d.1 — AuditDbContext (separate, write-only) =====
+        // Lives alongside IdentityDbContext in the same Postgres instance,
+        // but uses its own schema (`audit`) and its own __ef_migrations
+        // history table (`audit.__ef_migrations`). Defense-in-depth: a
+        // bug in IdentityDbContext cannot accidentally UPDATE/DELETE on
+        // audit.events — they're structurally separate DbContexts.
+        services.AddDbContext<AuditDbContext>((sp, opts) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var pgConn = cfg.GetConnectionString("Postgres")
+                ?? throw new InvalidOperationException("ConnectionStrings:Postgres required.");
+            opts.UseNpgsql(pgConn, npg =>
+                npg.MigrationsHistoryTable("__ef_migrations", "audit"));
         });
 
         // ===== Repos =====
@@ -85,6 +104,24 @@ public static class IdentityModuleRegistration
         // other (independent surfaces, same slug).
         services.AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>();
         services.AddHostedService<BackfillTenantsHostedService>();
+
+        // ===== Slice 6d.1 — Soft-delete + Audit =====
+        // IAuditLogger: 6d.1 ships the NoOp placeholder (accepts the call,
+        // doesn't persist). The real AuditLogger impl lands in 6d.2 alongside
+        // the DecoratedRepository pattern — the single DI line below is the
+        // switch-over point.
+        services.AddScoped<IAuditLogger, NoOpAuditLogger>();
+        // ISoftDeleteProviderRegistry: aggregates every ISoftDeleteProvider
+        // registered across all modules (DI auto-collects IEnumerable).
+        services.AddScoped<ISoftDeleteProviderRegistry>(sp =>
+        {
+            var providers = sp.GetRequiredService<IEnumerable<ISoftDeleteProvider>>();
+            return new SoftDeleteProviderRegistry(providers);
+        });
+        // SoftDeleteHandler: MediatR-resolved; register explicitly so DI
+        // has an entry (MediatR also scans the Application assembly, so
+        // the runtime binding happens twice — that's fine).
+        services.AddScoped<SoftDeleteHandler>();
 
         // ===== Security =====
         services.AddSingleton<IPasswordHasher>(_ =>

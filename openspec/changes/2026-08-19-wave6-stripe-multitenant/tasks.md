@@ -409,38 +409,41 @@ Forecast ~500 lines, Wave 5 precedent (5b.1=1207) → `size:exception` possible.
 
 **Phase 1: Shared kernel (TDD)**
 
-- [ ] 1.1 RED test `ISoftDeleteContractTests` (3 scenarios: interface shape, IsDeleted default false, DeletedAtUtc nullable).
-- [ ] 1.2 GREEN: `Shared.Kernel/SoftDelete/ISoftDelete.cs`.
-- [ ] 1.3 RED test `IAuditLoggerContractTests` (3 scenarios: interface shape, LogAsync(AuditEventEntry, CancellationToken), no-throw guarantee).
-- [ ] 1.4 GREEN: `Shared.Kernel/Audit/IAuditLogger.cs` + `AuditEventEntry.cs` + `AuditAction.cs` enum.
+- [x] 1.1 RED test `ISoftDeleteContractTests` (3 scenarios: interface shape, IsDeleted default false, DeletedAtUtc nullable).
+- [x] 1.2 GREEN: `Shared.Kernel/SoftDelete/ISoftDelete.cs`.
+- [x] 1.3 RED test `IAuditLoggerContractTests` (3 scenarios: interface shape, LogAsync(AuditEventEntry, CancellationToken), no-throw guarantee).
+- [x] 1.4 GREEN: `Shared.Kernel/Audit/IAuditLogger.cs` + `AuditEventEntry.cs` + `AuditAction.cs` enum.
 
 **Phase 2: Domain (TDD)**
 
-- [ ] 2.1 RED test `AuditEventTests` (8 scenarios: create valid, entity_type length 1..80, entity_id required, action enum range, tenant_id nullable, user_id nullable, occurred_at set on create, immutable after create (no mutators)).
-- [ ] 2.2 GREEN: `Identity.Domain/Audit/AuditEvent.cs` (aggregate root + `AuditEventErrors.cs`).
-- [ ] 2.3 RED test `SoftDeleteCommandTests` (4 scenarios: existing entity → marks IsDeleted+DeletedAt+DeletedBy, already deleted → 404 not_found, non-soft-deleteable entity → 422, audit event written).
-- [ ] 2.4 GREEN: `Identity.Application/Features/SoftDelete/SoftDeleteCommand.cs` + `SoftDeleteHandler.cs` (generic `ISoftDelete`).
+- [x] 2.1 RED test `AuditEventTests` (8 scenarios: create valid, entity_type length 1..80, entity_id required, action enum range, tenant_id nullable, user_id nullable, occurred_at set on create, immutable after create (no mutators)).
+- [x] 2.2 GREEN: `Identity.Domain/Audit/AuditEvent.cs` (aggregate root + `AuditEventErrors.cs`).
+- [x] 2.3 RED test `SoftDeleteCommandTests` (4 scenarios: existing entity → marks IsDeleted+DeletedAt+DeletedBy, already deleted → 404 not_found, non-soft-deleteable entity → 422, audit event written).
+- [x] 2.4 GREEN: `Identity.Application/Features/SoftDelete/SoftDeleteCommand.cs` + `SoftDeleteHandler.cs` (generic `ISoftDelete`).
 
 **Phase 3: Migration**
 
-- [ ] 3.1 `infrastructure/postgres/migrations/0027_audit_events.sql` — `audit.events` table (8 columns + 3 indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.1 `infrastructure/postgres/migrations/0027_audit_events.sql` — `audit.events` table (8 columns + 3 indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.2 `infrastructure/postgres/migrations/0028_import_job_soft_delete.sql` — 3 additive columns on `trading.import_jobs` (`is_deleted`, `deleted_at`, `deleted_by_user_id`). Idempotent. Wired into `migrate.Dockerfile` happy + retry path. (Documented deviation: spec mentioned 1 migration; 6d.1 needs 2 because the ImportJob columns are on a separate table from `audit.events`.)
 
 **Phase 4: EF global query filter (TDD)**
 
-- [ ] 4.1 RED test `ImportJobSoftDeleteQueryFilterTests` (5 scenarios: query returns only non-deleted, soft-deleted entity excluded, IgnoreQueryFilters() returns all, count returns non-deleted count, async enumeration excludes soft-deleted).
-- [ ] 4.2 GREEN: extend `ImportJobConfiguration` with `b.HasQueryFilter(j => !j.IsDeleted)` + `IsDeleted` property mapping.
+- [x] 4.1 RED test `ImportJobSoftDeleteQueryFilterTests` (5 scenarios: query returns only non-deleted, soft-deleted entity excluded, IgnoreQueryFilters() returns all, count returns non-deleted count, async enumeration excludes soft-deleted).
+- [x] 4.2 GREEN: extend `ImportJobConfiguration` with `b.HasQueryFilter(j => !j.IsDeleted)` + `IsDeleted` property mapping.
 
 **Phase 5: Infrastructure + API**
 
-- [ ] 5.1 `AuditEventConfiguration` (EF) — `b.ToTable("events")` + 3 indexes + 1 CHECK constraint.
-- [ ] 5.2 `AuditDbContext` (separate, write-only) — isolated from `IdentityDbContext` to prevent accidental UPDATE/DELETE.
-- [ ] 5.3 `app.UseMiddleware<TenantContextMiddleware>()` (already present).
+- [x] 5.1 `AuditEventConfiguration` (EF) — `b.ToTable("events")` + 3 indexes + 1 CHECK constraint.
+- [x] 5.2 `AuditDbContext` (separate, write-only) — isolated from `IdentityDbContext` to prevent accidental UPDATE/DELETE.
+- [x] 5.3 `app.UseMiddleware<TenantContextMiddleware>()` (already present).
+- [x] 5.4 `NoOpAuditLogger` placeholder — accepts the call without persisting; replaced by the real `AuditLogger` impl in slice 6d.2 (single DI line swap).
+- [x] 5.5 `ImportJobSoftDeleteProvider` (Trading.Infrastructure) — bridges `IImportJobRepository` to the cross-cutting `ISoftDeleteProvider`; registered in `TradingModuleRegistration`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~SoftDelete|ISoftDelete|AuditEvent|ImportJobSoftDelete"` --nologo --verbosity minimal → 25/25 pass.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 6.3 Full BE suite → 1130/1130 pass (was 1105 → +25 new tests, 0 regressions).
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~SoftDelete|ISoftDelete|AuditEvent|ImportJobSoftDelete"` --nologo --verbosity minimal → 26/26 pass (15 Identity + 7 Trading + 4 Shared.Kernel). Spec forecast 25; +1 over (the 2 Trading matches are pre-existing `AttachmentLifecycleServiceTests` that contain "SoftDelete" in their test names; the 5 new `ImportJobSoftDeleteQueryFilterTests` are the slice's contribution).
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings (baseline = 3 CA2263 on pre-existing tests; this slice adds 0).
+- [x] 6.3 Full BE suite → 1258/1258 pass (was 1230 → +28 new tests from this slice, 0 regressions). Cumulative breakdown: Identity 260 (+15) + Trading 705 (+5) + Shared.Kernel 177 (+8) + Billing 116 (unchanged). Spec forecast 1130; actual cumulative has been over-forecast since 6c.1 (per the 6c.3 apply-progress note — the actual 1230 baseline already exceeded the spec's 1105 forecast).
 
 ### 6d.1 size:exception preview
 

@@ -50,5 +50,27 @@ public static class ImportJobErrors
 
         public static readonly Error NotFound =
             Error.NotFound("import_job.not_found", "Import job not found.");
+
+        // ===== Wave 6, slice 6d.1 — Soft-delete (ISoftDelete) =====
+
+        /// <summary>
+        /// MarkDeleted requires a non-empty userId (the actor who
+        /// performed the soft-delete). Mirrors the
+        /// <see cref="UserIdRequired"/> invariant at the soft-delete
+        /// path — every deletion has an accountable actor for the
+        /// audit log.
+        /// </summary>
+        public static readonly Error MarkDeletedUserIdRequired =
+            Error.Validation("import_job.mark_deleted_user_id_required",
+                "Soft-delete requires a non-empty user id.");
+
+        /// <summary>
+        /// The import job is already soft-deleted. Idempotent guard —
+        /// second-delete attempts return this rather than silently
+        /// re-stamping the deleted-at timestamp.
+        /// </summary>
+        public static readonly Error AlreadyDeleted =
+            Error.Conflict("import_job.already_deleted",
+                "Import job is already soft-deleted.");
     }
 }
