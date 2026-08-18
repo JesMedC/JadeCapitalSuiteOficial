@@ -182,6 +182,53 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // catalog are legitimate.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IInstrumentRepository,
                   JadeCapital.Trading.Infrastructure.Audit.InstrumentAuditDecorator>();
+        // Wave 8 slice 8a.2 — typed audit decorator over IAlertRepository.
+        // BESPOKE (does NOT use DecoratedRepository<Alert> because IAlertRepository
+        // is bespoke with ListByUserAsync(userId, activeOnly, now, ct) — a
+        // userId-scoped read that doesn't fit the generic IRepository<T> shape).
+        // CRITICAL deviation: AddAsync returns bool (true = inserted, false =
+        // deduped by the partial UNIQUE INDEX ux_alerts_user_rule_day). The
+        // decorator MUST inspect the return value: only emit AuditAction.Created
+        // when true; silently skip when false (per orchestrator preflight
+        // decision 6). Cross-tenant IsOwner check on Alert.UserId for
+        // UpdateAsync.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IAlertRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.AlertAuditDecorator>();
+        // Wave 8 slice 8a.2 — typed audit decorator over ITradeReviewRepository.
+        // BESPOKE (does NOT use DecoratedRepository<TradeReview> because the
+        // interface has first-class attachment ops
+        // [AddAttachmentAsync|UpdateAttachmentAsync|RemoveAttachmentAsync]
+        // for TradeAttachment — a child entity — that don't fit the generic
+        // IRepository<T> shape). Cross-tenant IsOwner check on
+        // TradeReview.UserId for UpdateAsync. CRITICAL deviation: attachment
+        // ops are forwarded to the inner WITHOUT emitting audit rows
+        // (per orchestrator preflight decision 7 — TradeAttachment is a
+        // child entity of the review, not a separately-audited aggregate).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeReviewRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.TradeReviewAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPlannerSessionRepository.
+        // BESPOKE (does NOT use DecoratedRepository<PlannerSession> because
+        // IPlannerSessionRepository is bespoke with ListByUserAndWeekAsync +
+        // ExistsForDateAsync + GetWeekComparisonAsync — cross-user-scoped read
+        // methods that don't fit the generic IRepository<T> shape).
+        // CRITICAL deviation: UpdateAsync emits AuditAction.Updated by default
+        // but is upgraded to AuditAction.Deleted when the session's Status ==
+        // PlannerStatus.Cancelled via the bespoke IsTerminated reflection
+        // check (re-implemented locally for the single terminated value in
+        // PlannerStatus — mirrors the Wave 7 7b.1 TradeAuditDecorator pattern
+        // for bespoke-shape decorators). Cross-tenant IsOwner check on
+        // PlannerSession.UserId for UpdateAsync.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPlannerSessionRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PlannerSessionAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPreTradeChecklistRepository.
+        // BESPOKE WRITE-ONCE — only AddAsync wraps (no UpdateAsync or DeleteAsync
+        // on the interface — the checklist is write-once per the entity
+        // docstring; cleanup cascades via FK to trading.trades with ON DELETE
+        // CASCADE). Mirrors a simplified TenantAuditDecorator shape (Wave 6
+        // 6d.2). ListByUserIdAsync forwarded without audit (matches Wave 6 +
+        // 7 + 8a.1 + 8a.2 + 8a.3 PlannerSession precedent).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPreTradeChecklistRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PreTradeChecklistAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 

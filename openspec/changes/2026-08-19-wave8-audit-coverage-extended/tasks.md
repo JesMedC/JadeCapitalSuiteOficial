@@ -37,10 +37,10 @@ Cumulative target: **1328 (Wave 7) + 35 (Wave 8) = 1363** BE tests pass zero reg
 
 **Phase 0: Sanity confirmation** (executed inside slice 8a.1 Phase 0, not as a separate PR)
 
-- [ ] 0.1 Confirm `Trading.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 25-29).
-- [ ] 0.2 Confirm `Billing.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 19-21).
-- [ ] 0.3 Confirm `Identity.Infrastructure.csproj` reference pattern is unchanged from Wave 7 (Scrutor was never explicitly added there because Identity has no `services.Decorate` calls — only typed decorators wired manually).
-- [ ] 0.4 `git diff --stat 21430aa..HEAD -- src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/JadeCapital.Identity.Infrastructure.csproj` → zero expected.
+- [x] 0.1 Confirm `Trading.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 25-29).
+- [x] 0.2 Confirm `Billing.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 19-21).
+- [x] 0.3 Confirm `Identity.Infrastructure.csproj` reference pattern is unchanged from Wave 7 (Scrutor was never explicitly added there because Identity has no `services.Decorate` calls — only typed decorators wired manually).
+- [x] 0.4 `git diff --stat 21430aa..HEAD -- src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/JadeCapital.Identity.Infrastructure.csproj` → zero expected.
 
 **Verdict**: If all 4 checks pass with zero changes, **8a.0 collapses to a verified-no-op** and the slice is omitted from the PR chain.
 
@@ -134,28 +134,28 @@ Forecast ~600 lines, Wave 5/6/7 precedent (7a.1=1412, 7b.1=1699) → `size:excep
 
 **Phase 1: `AlertAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `AlertRepositoryIntegrationTests` (5 scenarios: `AddAsync` returning `true` emits Created; `AddAsync` returning `false` (dedup) emits NO event; `UpdateAsync` after `Acknowledge()` emits Updated with `AcknowledgedAt: null → now` diff; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AlertAuditDecorator.cs` (~200 LOC; bespoke — mirrors `TradeAuditDecorator` shape; critical detail: `AddAsync` returns `bool` audit semantics; `IsOwner` cross-tenant check on `UpdateAsync`).
+- [x] 1.1 RED test `AlertRepositoryIntegrationTests` (5 scenarios: `AddAsync` returning `true` emits Created; `AddAsync` returning `false` (dedup) emits NO event; `UpdateAsync` after `Acknowledge()` emits Updated with `AcknowledgedAt: null → now` diff; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AlertAuditDecorator.cs` (~200 LOC; bespoke — mirrors `TradeAuditDecorator` shape; critical detail: `AddAsync` returns `bool` audit semantics; `IsOwner` cross-tenant check on `UpdateAsync`).
 
 **Phase 2: `TradeReviewAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `TradeReviewRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created with `entity_type = "TradeReview"`; `UpdateAsync` with `Title` + `Rating` change emits Updated with diff; `AddAttachmentAsync` + `UpdateAttachmentAsync` + `RemoveAttachmentAsync` are forwarded WITHOUT emitting audit rows; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeReviewAuditDecorator.cs` (~250 LOC; bespoke — mirrors `JournalEntryAuditDecorator` shape; forward attachment ops without audit; `IsOwner` cross-tenant check on `UpdateAsync`).
+- [x] 2.1 RED test `TradeReviewRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created with `entity_type = "TradeReview"`; `UpdateAsync` with `Title` + `Rating` change emits Updated with diff; `AddAttachmentAsync` + `UpdateAttachmentAsync` + `RemoveAttachmentAsync` are forwarded WITHOUT emitting audit rows; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeReviewAuditDecorator.cs` (~250 LOC; bespoke — mirrors `JournalEntryAuditDecorator` shape; forward attachment ops without audit; `IsOwner` cross-tenant check on `UpdateAsync`).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IAlertRepository, AlertAuditDecorator>()` in `TradingModuleRegistration.cs`.
-- [ ] 3.2 `services.Decorate<ITradeReviewRepository, TradeReviewAuditDecorator>()` in the same file.
+- [x] 3.1 `services.Decorate<IAlertRepository, AlertAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.2 `services.Decorate<ITradeReviewRepository, TradeReviewAuditDecorator>()` in the same file.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~AlertAudit|TradeReviewAudit|AlertRepositoryIntegration|TradeReviewRepositoryIntegration"` → 10 new tests pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1342 + 10 = **1352**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~AlertAudit|TradeReviewAudit|AlertRepositoryIntegration|TradeReviewRepositoryIntegration"` → **10/10 new tests pass**.
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings (3 pre-existing CA2263 unchanged from Wave 6 baseline).
+- [x] 4.3 Full BE suite (1342 + 10 = **1352**) → zero regression. Per-project actual: Shared.Kernel 180 + Identity 353 (was 343) + Billing 116 + Trading 705 = **1354** cumulative green.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-2.md`.
+- [x] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-2.md`.
 
 **Dependencies**: 8a.1 must be merged (shares `TestTradingDbContext` fixture).
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `Alert` / `TradeReview`.
@@ -180,28 +180,28 @@ Forecast ~600 lines, Wave 5/6/7 precedent → `size:exception` likely. Justifica
 
 **Phase 1: `PlannerSessionAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `PlannerSessionRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created; `UpdateAsync` with `Notes` + `Status = Completed` change emits Updated (NOT Deleted); `UpdateAsync` with `Status = PlannerStatus.Cancelled` upgrades to Deleted via `IsTerminated` reflection; `GetByIdAsync` / `ListByUserAndWeekAsync` / `GetWeekComparisonAsync` / `ExistsForDateAsync` emit NO events; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PlannerSessionAuditDecorator.cs` (~200 LOC; bespoke — reimplement `IsTerminated` reflection locally for `PlannerStatus.Cancelled`; mirrors `TradeAuditDecorator` shape).
+- [x] 1.1 RED test `PlannerSessionRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created; `UpdateAsync` with `Notes` + `Status = Completed` change emits Updated (NOT Deleted); `UpdateAsync` with `Status = PlannerStatus.Cancelled` upgrades to Deleted via `IsTerminated` reflection; `GetByIdAsync` / `ListByUserAndWeekAsync` / `GetWeekComparisonAsync` / `ExistsForDateAsync` emit NO events; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PlannerSessionAuditDecorator.cs` (~250 LOC; bespoke — reimplement `IsTerminated` reflection locally for `PlannerStatus.Cancelled`; mirrors `TradeAuditDecorator` shape).
 
 **Phase 2: `PreTradeChecklistAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `PreTradeChecklistRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "PreTradeChecklist"`; `ListByUserIdAsync` emits NO event; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PreTradeChecklistAuditDecorator.cs` (~100 LOC; bespoke write-once — only `AddAsync` wraps; reads forwarded without audit).
+- [x] 2.1 RED test `PreTradeChecklistRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "PreTradeChecklist"`; `ListByUserIdAsync` emits NO event; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PreTradeChecklistAuditDecorator.cs` (~110 LOC; bespoke write-once — only `AddAsync` wraps; reads forwarded without audit).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IPlannerSessionRepository, PlannerSessionAuditDecorator>()` in `TradingModuleRegistration.cs`.
-- [ ] 3.2 `services.Decorate<IPreTradeChecklistRepository, PreTradeChecklistAuditDecorator>()` in the same file.
+- [x] 3.1 `services.Decorate<IPlannerSessionRepository, PlannerSessionAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.2 `services.Decorate<IPreTradeChecklistRepository, PreTradeChecklistAuditDecorator>()` in the same file.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~PlannerSessionAudit|PreTradeChecklistAudit|PlannerSessionRepositoryIntegration|PreTradeChecklistRepositoryIntegration"` → 8 new tests pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1352 + 8 = **1360**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~PlannerSessionAudit|PreTradeChecklistAudit|PlannerSessionRepositoryIntegration|PreTradeChecklistRepositoryIntegration"` → 8 new tests pass.
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 4.3 Full BE suite (1354 + 8 = **1362**) → zero regression.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-3.md`.
+- [x] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-3.md`.
 
 **Dependencies**: 8a.2 must be merged.
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `PlannerSession` / `PreTradeChecklist`.
@@ -226,22 +226,22 @@ Forecast ~700 lines, Wave 5/6/7 precedent → `size:exception` likely. Justifica
 
 **Phase 1: `StripeCustomerAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `StripeCustomerRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "StripeCustomer"` + `IsOwner` cross-tenant check on `customer.UserId`; `GetByUserIdAsync` + `GetByStripeCustomerIdAsync` emit NO events; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
-- [ ] 1.2 GREEN: `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Audit/StripeCustomerAuditDecorator.cs` (~120 LOC; bespoke — mirrors simplified `TenantAuditDecorator` shape; only `AddAsync` wrapped).
+- [x] 1.1 RED test `StripeCustomerRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "StripeCustomer"` + `IsOwner` cross-tenant check on `customer.UserId`; `GetByUserIdAsync` + `GetByStripeCustomerIdAsync` emit NO events; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
+- [x] 1.2 GREEN: `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Audit/StripeCustomerAuditDecorator.cs` (~170 LOC; bespoke — mirrors simplified `TenantAuditDecorator` shape; only `AddAsync` wrapped with `IsOwner` cross-tenant check + 2 reads forwarded without audit).
 
 **Phase 2: DI wiring**
 
-- [ ] 2.1 `services.Decorate<IStripeCustomerRepository, StripeCustomerAuditDecorator>()` in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs`.
+- [x] 2.1 `services.Decorate<IStripeCustomerRepository, StripeCustomerAuditDecorator>()` in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~StripeCustomerAudit|StripeCustomerRepositoryIntegration"` → 3 new tests pass.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 3.3 Full BE suite (1360 + 3 = **1363**) → zero regression.
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~StripeCustomerAudit|StripeCustomerRepositoryIntegration"` → 3 new tests pass.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 3.3 Full BE suite (1362 + 3 = **1365**) → zero regression.
 
 **Phase 4: Apply-progress doc**
 
-- [ ] 4.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8b-1.md`.
+- [x] 4.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8b-1.md`.
 
 **Dependencies**: 8a.3 must be merged.
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `StripeCustomer`.
@@ -268,22 +268,22 @@ Doc-only slice. NO code changes; NO new tests; just the rationale baked into `ta
 
 **Phase 1: Verification (4 commands)**
 
-- [ ] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ISubscriptionAdminRepository.cs` → no matches (proves SKIP #1: no mutations to audit).
-- [ ] 1.2 `git grep "class SubscriptionAuditDecorator" src/` → single file (proves Wave 6 still covers Subscription mutations).
-- [ ] 1.3 `grep -n "append-only" src/2.Modules/Billing/JadeCapital.Billing.Domain/Stripe/StripeWebhookEvent.cs` → matches (proves SKIP #2: entity docstring still says append-only).
-- [ ] 1.4 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave8-audit-coverage-extended/specs/soft-delete-audit/spec.md` with `Reason:` blocks for both SKIPs (`ISubscriptionAdminRepository` and `IStripeWebhookEventRepository`).
+- [x] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ISubscriptionAdminRepository.cs` → no matches (proves SKIP #1: no mutations to audit).
+- [x] 1.2 `git grep "class SubscriptionAuditDecorator" src/` → single file (proves Wave 6 still covers Subscription mutations).
+- [x] 1.3 `grep -n "append-only" src/2.Modules/Billing/JadeCapital.Billing.Domain/Stripe/StripeWebhookEvent.cs` → matches (proves SKIP #2: entity docstring still says append-only).
+- [x] 1.4 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave8-audit-coverage-extended/specs/soft-delete-audit/spec.md` with `Reason:` blocks for both SKIPs (`ISubscriptionAdminRepository` and `IStripeWebhookEventRepository`).
 
 **Phase 2: Inline rationale comments (1 LOC per skipped interface)**
 
-- [ ] 2.1 Add XML doc comment block to `ISubscriptionAdminRepository` interface pointing to the spec REMOVED Requirements entry (rationale: no mutations; `Subscription` aggregate already audited by Wave 6).
-- [ ] 2.2 Add XML doc comment block to `IStripeWebhookEventRepository` interface pointing to the spec REMOVED Requirements entry (rationale: append-only; entity IS the audit log).
+- [x] 2.1 Add XML doc comment block to `ISubscriptionAdminRepository` interface pointing to the spec REMOVED Requirements entry (rationale: no mutations; `Subscription` aggregate already audited by Wave 6).
+- [x] 2.2 Add XML doc comment block to `IStripeWebhookEventRepository` interface pointing to the spec REMOVED Requirements entry (rationale: append-only; entity IS the audit log).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 4 verification commands pass.
-- [ ] 3.2 2 inline XML doc comment blocks added.
-- [ ] 3.3 Spec REMOVED Requirements section present.
-- [ ] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 2 XML doc additions; no logic changes).
+- [x] 3.1 4 verification commands pass.
+- [x] 3.2 2 inline XML doc comment blocks added.
+- [x] 3.3 Spec REMOVED Requirements section present.
+- [x] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 2 XML doc additions; no logic changes).
 
 **Dependencies**: 8b.1 must be merged.
 **Rollback**: `git revert` the slice. Doc-only changes revert. Zero behavior change.
@@ -309,10 +309,10 @@ Forecast ~50 lines (2 XML doc comment blocks + spec REMOVED Requirements section
 | Wave 7 (baseline) | — | **1328** |
 | 8a.1 | +14 | 1342 |
 | 8a.2 | +10 | 1352 |
-| 8a.3 | +8 | 1360 |
-| 8b.1 | +3 | 1363 |
-| 8b.2 | 0 | 1363 |
-| **Total** | **+35** | **1363** |
+| 8a.3 | +8 | 1362 |
+| 8b.1 | +3 | **1365** |
+| 8b.2 | 0 | 1365 |
+| **Total** | **+35** | **1365** |
 
 ## Definition of Done (per Wave 5/6/7 precedent)
 
