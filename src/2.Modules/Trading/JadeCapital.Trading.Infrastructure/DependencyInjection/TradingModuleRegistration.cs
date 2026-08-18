@@ -242,12 +242,31 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // AI coaching prompt repository (Scoped — same lifetime as DbContext).
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.ICoachingPromptRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.CoachingPromptRepository>();
+        // Wave 9 slice 9a.1 — typed audit decorator over ICoachingPromptRepository.
+        // Sub-scope A: BESPOKE WRITE-ONCE — only AddAsync wraps (the entity is
+        // immutable after Create per the docstring; no UpdateAsync or DeleteAsync
+        // on the interface). Cross-tenant IsOwner check on CoachingPrompt.UserId;
+        // the surface mirrors the Wave 8 8b.1 StripeCustomer + 9a.1
+        // AIRiskAdviceAuditDecorator precedent. The 2 reads (FindByUserAndDateAsync
+        // + ListByUserAndWindowAsync) are forwarded without audit.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.ICoachingPromptRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.CoachingPromptAuditDecorator>();
 
         // Slice 5c.1 — AI risk advisor (Scoped — uses IAIProvider + DbContext).
         services.AddScoped<JadeCapital.Trading.Application.Ai.IAIRiskAdvisor,
                   JadeCapital.Trading.Infrastructure.Ai.OllamaAIRiskAdvisor>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IAIRiskAdviceRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.AIRiskAdviceRepository>();
+        // Wave 9 slice 9a.1 — typed audit decorator over IAIRiskAdviceRepository.
+        // Sub-scope A: BESPOKE WRITE-ONCE — only AddAsync wraps (the entity is
+        // immutable after Create per the docstring; no UpdateAsync or DeleteAsync
+        // on the interface). Cross-tenant IsOwner check on AIRiskAdvice.UserId;
+        // the surface mirrors the Wave 8 8b.1 StripeCustomer precedent (the
+        // OllamaAIRiskAdvisor + GetPreTradeAdviceHandler accept userId as a
+        // command parameter, so handler-side consistency is not guaranteed).
+        // The 1 read (FindByUserAndTradeAsync) is forwarded without audit.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IAIRiskAdviceRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.AIRiskAdviceAuditDecorator>();
 
         // BackgroundService — daily tick at 03:00 UTC ± 30min jitter. Resolves
         // GenerateCoachingPromptHandler + IUserTradingContextProvider from a per-tick
