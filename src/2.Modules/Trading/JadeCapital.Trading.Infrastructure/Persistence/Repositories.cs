@@ -115,7 +115,7 @@ public sealed class TradeRepository : ITradeRepository
         await Task.CompletedTask;
     }
 
-    public Task RemoveAsync(Trade trade, CancellationToken ct)
+    public Task DeleteAsync(Trade trade, CancellationToken ct)
     {
         _db.Trades.Remove(trade);
         return Task.CompletedTask;
