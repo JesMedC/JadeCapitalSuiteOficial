@@ -81,6 +81,19 @@ public static class BillingModuleRegistration
 
         // Repository for StripeCustomer — Scoped (depends on BillingDbContext).
         services.AddScoped<IStripeCustomerRepository, Persistence.StripeCustomerRepository>();
+        // Wave 8 slice 8b.1 — typed audit decorator over IStripeCustomerRepository.
+        // Bespoke + immutable-aggregate shape: only AddAsync is wrapped (the
+        // StripeCustomer aggregate is immutable after Create per the entity
+        // docstring; the interface exposes no UpdateAsync or DeleteAsync).
+        // Forwards the 2 reads (GetByUserIdAsync + GetByStripeCustomerIdAsync)
+        // without audit. IsOwner cross-tenant check on AddAsync emits Denied
+        // + UnauthorizedAccessException on mismatch. Mirrors the
+        // SubscriptionAuditDecorator (Wave 6 6d.2) cross-tenant shape,
+        // condensed to a single mutation path. Co-located in Billing
+        // (Billing → Billing) to avoid an Identity → Billing → Identity
+        // circular dep pattern.
+        services.Decorate<IStripeCustomerRepository,
+                  JadeCapital.Billing.Infrastructure.Audit.StripeCustomerAuditDecorator>();
 
         // Wave 6a.2 — Append-only webhook event repository.
         services.AddScoped<IStripeWebhookEventRepository, Persistence.StripeWebhookEventRepository>();

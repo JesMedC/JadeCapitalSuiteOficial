@@ -226,18 +226,18 @@ Forecast ~700 lines, Wave 5/6/7 precedent → `size:exception` likely. Justifica
 
 **Phase 1: `StripeCustomerAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `StripeCustomerRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "StripeCustomer"` + `IsOwner` cross-tenant check on `customer.UserId`; `GetByUserIdAsync` + `GetByStripeCustomerIdAsync` emit NO events; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
-- [ ] 1.2 GREEN: `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Audit/StripeCustomerAuditDecorator.cs` (~120 LOC; bespoke — mirrors simplified `TenantAuditDecorator` shape; only `AddAsync` wrapped).
+- [x] 1.1 RED test `StripeCustomerRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "StripeCustomer"` + `IsOwner` cross-tenant check on `customer.UserId`; `GetByUserIdAsync` + `GetByStripeCustomerIdAsync` emit NO events; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
+- [x] 1.2 GREEN: `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/Audit/StripeCustomerAuditDecorator.cs` (~170 LOC; bespoke — mirrors simplified `TenantAuditDecorator` shape; only `AddAsync` wrapped with `IsOwner` cross-tenant check + 2 reads forwarded without audit).
 
 **Phase 2: DI wiring**
 
-- [ ] 2.1 `services.Decorate<IStripeCustomerRepository, StripeCustomerAuditDecorator>()` in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs`.
+- [x] 2.1 `services.Decorate<IStripeCustomerRepository, StripeCustomerAuditDecorator>()` in `src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/DependencyInjection/BillingModuleRegistration.cs`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~StripeCustomerAudit|StripeCustomerRepositoryIntegration"` → 3 new tests pass.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 3.3 Full BE suite (1360 + 3 = **1363**) → zero regression.
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~StripeCustomerAudit|StripeCustomerRepositoryIntegration"` → 3 new tests pass.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 3.3 Full BE suite (1362 + 3 = **1365**) → zero regression.
 
 **Phase 4: Apply-progress doc**
 
@@ -309,10 +309,10 @@ Forecast ~50 lines (2 XML doc comment blocks + spec REMOVED Requirements section
 | Wave 7 (baseline) | — | **1328** |
 | 8a.1 | +14 | 1342 |
 | 8a.2 | +10 | 1352 |
-| 8a.3 | +8 | 1360 |
-| 8b.1 | +3 | 1363 |
-| 8b.2 | 0 | 1363 |
-| **Total** | **+35** | **1363** |
+| 8a.3 | +8 | 1362 |
+| 8b.1 | +3 | **1365** |
+| 8b.2 | 0 | 1365 |
+| **Total** | **+35** | **1365** |
 
 ## Definition of Done (per Wave 5/6/7 precedent)
 
