@@ -101,7 +101,7 @@ public sealed class DecoratedRepository<T> where T : class
         T? before = await ResolveBeforeAsync(entity, ct);
         await _inner.UpdateAsync(entity, ct);
         var changesJson = SafeDiff(before, entity);
-        var action = IsSoftDeleted(entity) ? AuditAction.Deleted : AuditAction.Updated;
+        var action = IsTerminated(entity) ? AuditAction.Deleted : AuditAction.Updated;
         await TryAuditAsync(BuildEntry(entity, action, changesJson), ct);
     }
 
@@ -224,14 +224,26 @@ public sealed class DecoratedRepository<T> where T : class
     }
 
     /// <summary>
-    /// Soft-delete detection — if the entity implements <c>ISoftDelete</c>
-    /// and <c>IsDeleted = true</c>, return true. Otherwise false.
-    /// Generic via reflection so the decorator stays aggregate-agnostic.
+    /// Termination detection — if the entity is soft-deleted
+    /// (<c>ISoftDelete.IsDeleted = true</c>) OR the entity's
+    /// <c>Status</c> property is one of the lifecycle-terminated
+    /// values (<c>Cancelled</c>, <c>Terminated</c>, <c>Expired</c>),
+    /// return true. Otherwise false. The latter check covers aggregates
+    /// that don't implement <c>ISoftDelete</c> (e.g. <c>Subscription</c>)
+    /// but use a <c>Status</c> enum to model lifecycle termination.
     /// </summary>
-    private static bool IsSoftDeleted(T entity)
+    private static bool IsTerminated(T entity)
     {
-        var prop = typeof(T).GetProperty("IsDeleted");
-        return prop?.GetValue(entity) is true;
+        var softDeleteProp = typeof(T).GetProperty("IsDeleted");
+        if (softDeleteProp?.GetValue(entity) is true)
+            return true;
+
+        var statusProp = typeof(T).GetProperty("Status");
+        if (statusProp?.GetValue(entity) is Enum value)
+        {
+            return value.ToString() is "Cancelled" or "Terminated" or "Expired";
+        }
+        return false;
     }
 }
 
