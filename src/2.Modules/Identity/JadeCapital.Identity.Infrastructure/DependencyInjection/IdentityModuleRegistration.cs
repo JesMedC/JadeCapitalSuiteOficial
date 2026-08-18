@@ -95,6 +95,14 @@ public static class IdentityModuleRegistration
         // NotSupportedException on DeleteAsync (User deletion is
         // contractually invalid — use Cancel() or Tenant reassignment).
         services.Decorate<IUserRepository, UserAuditDecorator>();
+        // ===== Slice 7a.1, phase 5 — RiskProfileAuditDecorator =====
+        // BESPOKE shape: RiskProfile has no UpdateAsync in its canonical
+        // mutation surface (the supersede IS the termination). The
+        // decorator wraps MarkSupersededAsync directly + emits
+        // AuditAction.Deleted with a supersession diff (IsActive true→false
+        // + SupersededAt null→now). DeleteAsync short-circuits to
+        // AuditAction.Failed + re-throws NotSupportedException.
+        services.Decorate<IRiskProfileRepository, RiskProfileAuditDecorator>();
         // MediatR resolves handlers by interface; register the concrete
         // types so DI has an entry. (MediatR also scans the Application
         // assembly, so the runtime binding happens twice — that's fine.)
