@@ -180,28 +180,28 @@ Forecast ~600 lines, Wave 5/6/7 precedent → `size:exception` likely. Justifica
 
 **Phase 1: `PlannerSessionAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `PlannerSessionRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created; `UpdateAsync` with `Notes` + `Status = Completed` change emits Updated (NOT Deleted); `UpdateAsync` with `Status = PlannerStatus.Cancelled` upgrades to Deleted via `IsTerminated` reflection; `GetByIdAsync` / `ListByUserAndWeekAsync` / `GetWeekComparisonAsync` / `ExistsForDateAsync` emit NO events; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PlannerSessionAuditDecorator.cs` (~200 LOC; bespoke — reimplement `IsTerminated` reflection locally for `PlannerStatus.Cancelled`; mirrors `TradeAuditDecorator` shape).
+- [x] 1.1 RED test `PlannerSessionRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created; `UpdateAsync` with `Notes` + `Status = Completed` change emits Updated (NOT Deleted); `UpdateAsync` with `Status = PlannerStatus.Cancelled` upgrades to Deleted via `IsTerminated` reflection; `GetByIdAsync` / `ListByUserAndWeekAsync` / `GetWeekComparisonAsync` / `ExistsForDateAsync` emit NO events; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PlannerSessionAuditDecorator.cs` (~250 LOC; bespoke — reimplement `IsTerminated` reflection locally for `PlannerStatus.Cancelled`; mirrors `TradeAuditDecorator` shape).
 
 **Phase 2: `PreTradeChecklistAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `PreTradeChecklistRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "PreTradeChecklist"`; `ListByUserIdAsync` emits NO event; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PreTradeChecklistAuditDecorator.cs` (~100 LOC; bespoke write-once — only `AddAsync` wraps; reads forwarded without audit).
+- [x] 2.1 RED test `PreTradeChecklistRepositoryIntegrationTests` (3 scenarios: `AddAsync` emits Created with `entity_type = "PreTradeChecklist"`; `ListByUserIdAsync` emits NO event; contract pin — interface has no `UpdateAsync` or `DeleteAsync` methods).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/PreTradeChecklistAuditDecorator.cs` (~110 LOC; bespoke write-once — only `AddAsync` wraps; reads forwarded without audit).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IPlannerSessionRepository, PlannerSessionAuditDecorator>()` in `TradingModuleRegistration.cs`.
-- [ ] 3.2 `services.Decorate<IPreTradeChecklistRepository, PreTradeChecklistAuditDecorator>()` in the same file.
+- [x] 3.1 `services.Decorate<IPlannerSessionRepository, PlannerSessionAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.2 `services.Decorate<IPreTradeChecklistRepository, PreTradeChecklistAuditDecorator>()` in the same file.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~PlannerSessionAudit|PreTradeChecklistAudit|PlannerSessionRepositoryIntegration|PreTradeChecklistRepositoryIntegration"` → 8 new tests pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1352 + 8 = **1360**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~PlannerSessionAudit|PreTradeChecklistAudit|PlannerSessionRepositoryIntegration|PreTradeChecklistRepositoryIntegration"` → 8 new tests pass.
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 4.3 Full BE suite (1354 + 8 = **1362**) → zero regression.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-3.md`.
+- [x] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-3.md`.
 
 **Dependencies**: 8a.2 must be merged.
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `PlannerSession` / `PreTradeChecklist`.
