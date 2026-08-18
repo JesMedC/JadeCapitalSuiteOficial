@@ -194,6 +194,18 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // UpdateAsync.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IAlertRepository,
                   JadeCapital.Trading.Infrastructure.Audit.AlertAuditDecorator>();
+        // Wave 8 slice 8a.2 — typed audit decorator over ITradeReviewRepository.
+        // BESPOKE (does NOT use DecoratedRepository<TradeReview> because the
+        // interface has first-class attachment ops
+        // [AddAttachmentAsync|UpdateAttachmentAsync|RemoveAttachmentAsync]
+        // for TradeAttachment — a child entity — that don't fit the generic
+        // IRepository<T> shape). Cross-tenant IsOwner check on
+        // TradeReview.UserId for UpdateAsync. CRITICAL deviation: attachment
+        // ops are forwarded to the inner WITHOUT emitting audit rows
+        // (per orchestrator preflight decision 7 — TradeAttachment is a
+        // child entity of the review, not a separately-audited aggregate).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeReviewRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.TradeReviewAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
