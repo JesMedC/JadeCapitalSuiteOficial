@@ -146,6 +146,15 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // AuditAction.Failed before re-throwing NotSupportedException.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IStrategyRepository,
                   JadeCapital.Trading.Infrastructure.Audit.StrategyAuditDecorator>();
+        // Wave 7 slice 7b.1 — typed audit decorator over ITradeRepository.
+        // BESPOKE (does NOT use DecoratedRepository<T> because ITradeRepository
+        // is bespoke with FindByIdAsync + 6 read methods). Mirrors the
+        // ImportJobAuditDecorator shape with cross-tenant IsOwner check
+        // on Trade.UserId. The slice 7b.1 BREAKING rename from
+        // RemoveAsync → DeleteAsync makes the canonical hard-delete
+        // surface emit AuditAction.Deleted with before/after diff.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.TradeAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
