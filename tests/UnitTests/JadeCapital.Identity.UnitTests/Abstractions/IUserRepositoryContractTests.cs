@@ -43,18 +43,38 @@ public class IUserRepositoryContractTests
     [Fact]
     public void IUserRepository_Exposes_DeleteAsyncMethod()
     {
-        // Phase 2 #1: DeleteAsync(User, CancellationToken) exists on the interface.
-        // Reflection is the right tool here — the interface contract is what
-        // production code binds to at runtime; the method must be present.
-        var method = typeof(IUserRepository).GetMethod(
+        // Phase 2 #1: DeleteAsync(User, CancellationToken) exists on the
+        // interface (or its inherited IRepository<User> base). Reflection
+        // walks the interface chain because the slice 7a.1 surgery moved
+        // the DeleteAsync stub to the IRepository<User> base — the
+        // IUserRepository inherits it rather than redeclaring it.
+        var method = FindMethodOnInterfaceOrBases(
+            typeof(IUserRepository),
             "DeleteAsync",
-            new[] { typeof(User), typeof(CancellationToken) });
+            typeof(User), typeof(CancellationToken));
 
         method.Should().NotBeNull(
-            "IUserRepository must expose DeleteAsync(User, CancellationToken) " +
-            "as part of the Slice 7a.1 surface surgery.");
+            "IUserRepository (or its IRepository<User> base) must expose " +
+            "DeleteAsync(User, CancellationToken) — the slice 7a.1 surgery " +
+            "satisfies the interface contract via inheritance.");
         method!.ReturnType.Should().Be<Task>(
             "DeleteAsync is a Task-returning async method (no result payload).");
+    }
+
+    private static System.Reflection.MethodInfo? FindMethodOnInterfaceOrBases(
+        Type iface, string name, params Type[] parameterTypes)
+    {
+        // Walk the interface hierarchy because Type.GetMethod with explicit
+        // parameter types does NOT flatten inherited interface members.
+        var current = iface;
+        while (current is not null)
+        {
+            var m = current.GetMethod(name, parameterTypes);
+            if (m is not null) return m;
+            current = current.GetInterfaces()
+                .FirstOrDefault(i => i.Name == "IRepository`1");
+        }
+        return null;
     }
 
     [Fact]

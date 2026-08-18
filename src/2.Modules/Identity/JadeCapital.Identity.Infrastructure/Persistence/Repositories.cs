@@ -18,6 +18,15 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> FindByIdAsync(Guid id, CancellationToken ct)
         => _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    /// <summary>
+    /// Slice 7a.1 — satisfies <see cref="IRepository{T}.GetByIdAsync"/>
+    /// so the <c>UserAuditDecorator</c> can fetch the pre-mutation
+    /// snapshot via the generic <c>DecoratedRepository&lt;T&gt;</c> helper.
+    /// Delegates to the same EF query as <c>FindByIdAsync</c>.
+    /// </summary>
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct)
+        => _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+
     public async Task AddAsync(User user, CancellationToken ct)
         => await _db.Users.AddAsync(user, ct);
 
