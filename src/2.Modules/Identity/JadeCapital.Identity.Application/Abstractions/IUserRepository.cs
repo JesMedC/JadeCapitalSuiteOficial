@@ -27,6 +27,30 @@ public interface IUserRepository
     /// (cheap, single SQL <c>COUNT(*)</c>).
     /// </summary>
     Task<int> CountByTenantIdAsync(TenantId tenantId, CancellationToken ct);
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — User deletion is NOT a valid operation.
+    /// The canonical mutation surface is
+    /// <see cref="JadeCapital.Identity.Domain.Users.User.Cancel(string)"/>
+    /// (flips <c>Status</c> to <c>Cancelled</c>) or
+    /// <see cref="JadeCapital.Identity.Domain.Users.User.AssignToTenant"/>
+    /// (Tenant reassignment for multi-tenant onboarding/offboarding).
+    ///
+    /// <para>
+    /// The <c>UserAuditDecorator</c> emits an <c>AuditAction.Failed</c>
+    /// audit row BEFORE re-throwing this exception so the misuse is recorded
+    /// for the compliance trail. This method is part of the
+    /// <see cref="IRepository{T}"/>-shaped surface that the typed decorator
+    /// pattern in Wave 6 requires; the inner is a defensive STUB that throws
+    /// immediately so a misconfigured DI container cannot accidentally hard-delete
+    /// a user.
+    /// </para>
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// Always thrown. The audit decorator surfaces the failure mode to callers
+    /// before this inner method is reached.
+    /// </exception>
+    Task DeleteAsync(User user, CancellationToken ct);
 }
 
 public interface IRefreshTokenRepository

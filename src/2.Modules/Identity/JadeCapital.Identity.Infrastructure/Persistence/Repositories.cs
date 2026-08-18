@@ -51,6 +51,21 @@ public sealed class UserRepository : IUserRepository
     /// </summary>
     public Task<int> CountByTenantIdAsync(TenantId tenantId, CancellationToken ct)
         => _db.Users.CountAsync(u => u.TenantId == tenantId, ct);
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — defensive STUB. The canonical User mutation
+    /// surface is <c>User.Cancel(reason)</c> + Tenant reassignment via
+    /// <c>User.AssignToTenant</c> / <c>User.ReassignToTenantByAdmin</c>;
+    /// there is no domain op that hard-deletes a User. The
+    /// <c>UserAuditDecorator</c> short-circuits to an
+    /// <see cref="Audit.AuditAction.Failed"/> audit row + re-throws this
+    /// exception BEFORE the inner is reached. The inner is kept as a
+    /// defensive second-line check so a misconfigured DI container
+    /// cannot accidentally hard-delete a user.
+    /// </summary>
+    public Task DeleteAsync(User user, CancellationToken ct)
+        => throw new NotSupportedException(
+            "User deletion happens via Tenant reassignment, not direct delete.");
 }
 
 public sealed class RefreshTokenRepository : IRefreshTokenRepository
