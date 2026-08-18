@@ -37,10 +37,10 @@ Cumulative target: **1328 (Wave 7) + 35 (Wave 8) = 1363** BE tests pass zero reg
 
 **Phase 0: Sanity confirmation** (executed inside slice 8a.1 Phase 0, not as a separate PR)
 
-- [ ] 0.1 Confirm `Trading.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 25-29).
-- [ ] 0.2 Confirm `Billing.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 19-21).
-- [ ] 0.3 Confirm `Identity.Infrastructure.csproj` reference pattern is unchanged from Wave 7 (Scrutor was never explicitly added there because Identity has no `services.Decorate` calls — only typed decorators wired manually).
-- [ ] 0.4 `git diff --stat 21430aa..HEAD -- src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/JadeCapital.Identity.Infrastructure.csproj` → zero expected.
+- [x] 0.1 Confirm `Trading.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 25-29).
+- [x] 0.2 Confirm `Billing.Infrastructure.csproj` has explicit Scrutor 4.2.2 reference (lines 19-21).
+- [x] 0.3 Confirm `Identity.Infrastructure.csproj` reference pattern is unchanged from Wave 7 (Scrutor was never explicitly added there because Identity has no `services.Decorate` calls — only typed decorators wired manually).
+- [x] 0.4 `git diff --stat 21430aa..HEAD -- src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/JadeCapital.Identity.Infrastructure.csproj` → zero expected.
 
 **Verdict**: If all 4 checks pass with zero changes, **8a.0 collapses to a verified-no-op** and the slice is omitted from the PR chain.
 
@@ -241,7 +241,7 @@ Forecast ~700 lines, Wave 5/6/7 precedent → `size:exception` likely. Justifica
 
 **Phase 4: Apply-progress doc**
 
-- [ ] 4.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8b-1.md`.
+- [x] 4.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8b-1.md`.
 
 **Dependencies**: 8a.3 must be merged.
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `StripeCustomer`.
@@ -268,22 +268,22 @@ Doc-only slice. NO code changes; NO new tests; just the rationale baked into `ta
 
 **Phase 1: Verification (4 commands)**
 
-- [ ] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ISubscriptionAdminRepository.cs` → no matches (proves SKIP #1: no mutations to audit).
-- [ ] 1.2 `git grep "class SubscriptionAuditDecorator" src/` → single file (proves Wave 6 still covers Subscription mutations).
-- [ ] 1.3 `grep -n "append-only" src/2.Modules/Billing/JadeCapital.Billing.Domain/Stripe/StripeWebhookEvent.cs` → matches (proves SKIP #2: entity docstring still says append-only).
-- [ ] 1.4 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave8-audit-coverage-extended/specs/soft-delete-audit/spec.md` with `Reason:` blocks for both SKIPs (`ISubscriptionAdminRepository` and `IStripeWebhookEventRepository`).
+- [x] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Billing/JadeCapital.Billing.Application/Features/Subscriptions/ISubscriptionAdminRepository.cs` → no matches (proves SKIP #1: no mutations to audit).
+- [x] 1.2 `git grep "class SubscriptionAuditDecorator" src/` → single file (proves Wave 6 still covers Subscription mutations).
+- [x] 1.3 `grep -n "append-only" src/2.Modules/Billing/JadeCapital.Billing.Domain/Stripe/StripeWebhookEvent.cs` → matches (proves SKIP #2: entity docstring still says append-only).
+- [x] 1.4 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave8-audit-coverage-extended/specs/soft-delete-audit/spec.md` with `Reason:` blocks for both SKIPs (`ISubscriptionAdminRepository` and `IStripeWebhookEventRepository`).
 
 **Phase 2: Inline rationale comments (1 LOC per skipped interface)**
 
-- [ ] 2.1 Add XML doc comment block to `ISubscriptionAdminRepository` interface pointing to the spec REMOVED Requirements entry (rationale: no mutations; `Subscription` aggregate already audited by Wave 6).
-- [ ] 2.2 Add XML doc comment block to `IStripeWebhookEventRepository` interface pointing to the spec REMOVED Requirements entry (rationale: append-only; entity IS the audit log).
+- [x] 2.1 Add XML doc comment block to `ISubscriptionAdminRepository` interface pointing to the spec REMOVED Requirements entry (rationale: no mutations; `Subscription` aggregate already audited by Wave 6).
+- [x] 2.2 Add XML doc comment block to `IStripeWebhookEventRepository` interface pointing to the spec REMOVED Requirements entry (rationale: append-only; entity IS the audit log).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 4 verification commands pass.
-- [ ] 3.2 2 inline XML doc comment blocks added.
-- [ ] 3.3 Spec REMOVED Requirements section present.
-- [ ] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 2 XML doc additions; no logic changes).
+- [x] 3.1 4 verification commands pass.
+- [x] 3.2 2 inline XML doc comment blocks added.
+- [x] 3.3 Spec REMOVED Requirements section present.
+- [x] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 2 XML doc additions; no logic changes).
 
 **Dependencies**: 8b.1 must be merged.
 **Rollback**: `git revert` the slice. Doc-only changes revert. Zero behavior change.

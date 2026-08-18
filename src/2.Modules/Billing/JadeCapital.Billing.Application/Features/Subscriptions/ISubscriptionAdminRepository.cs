@@ -9,6 +9,9 @@ namespace JadeCapital.Billing.Application.Features.Subscriptions;
 /// subscriptions with their history for the mutator write path. Implementation
 /// lives in JadeCapital.Billing.Infrastructure.Persistence.
 /// </summary>
+/// <remarks>
+/// SKIPPED from Wave 8 audit coverage (2026-08-19-wave8-audit-coverage-extended) — no mutation methods on this interface; the Subscription aggregate is already audited by Wave 6's <c>SubscriptionAuditDecorator</c>.
+/// </remarks>
 public interface ISubscriptionAdminRepository
 {
     /// <summary>Returns a paged slice filtered by the lowercase status name

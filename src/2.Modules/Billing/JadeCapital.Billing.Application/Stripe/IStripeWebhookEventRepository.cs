@@ -11,6 +11,9 @@ namespace JadeCapital.Billing.Application.Stripe;
 /// <c>JadeCapital.Billing.Infrastructure.Persistence.StripeWebhookEventRepository</c>.
 /// </para>
 /// </summary>
+/// <remarks>
+/// SKIPPED from Wave 8 audit coverage (2026-08-19-wave8-audit-coverage-extended) — APPEND-ONLY entity per Wave 6 design (the row IS the audit equivalent of the webhook event); never mutated, never deleted.
+/// </remarks>
 public interface IStripeWebhookEventRepository
 {
     /// <summary>
