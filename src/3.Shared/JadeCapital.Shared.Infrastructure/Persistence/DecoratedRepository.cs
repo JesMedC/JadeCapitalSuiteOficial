@@ -1,6 +1,4 @@
 using System.Text.Json;
-using JadeCapital.Identity.Application.Abstractions;
-using JadeCapital.Identity.Domain.Tenants;
 using JadeCapital.Shared.Kernel.Audit;
 using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Repository;
@@ -8,7 +6,7 @@ using JadeCapital.Shared.Kernel.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
-namespace JadeCapital.Identity.Infrastructure.Persistence;
+namespace JadeCapital.Shared.Infrastructure.Persistence;
 
 /// <summary>
 /// Generic audit-logging decorator over <see cref="IRepository{T}"/>

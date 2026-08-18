@@ -21,17 +21,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Slice 6d.2 deviation: Trading.Infrastructure → Identity.Infrastructure
-         so TradingModuleRegistration can wire
-         Decorate<IImportJobRepository, ImportJobAuditDecorator>() using the
-         typed decorator class. Scrutor's Decorate requires the underlying
-         AddScoped to run first, so the Decorate MUST live next to the
-         AddScoped — i.e., in TradingModuleRegistration, not in
-         IdentityModuleRegistration. Layering cost documented in
-         apply-progress-wave6-slice-6d-2.md. -->
-    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
+    <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
+         so the Identity.Infrastructure ProjectReference is no longer needed.
+         Scrutor's Decorate<> is now an explicit PackageReference (was transitive
+         via Identity.Infrastructure before). -->
+    <PackageReference Include="Scrutor" Version="4.2.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
