@@ -182,6 +182,18 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // catalog are legitimate.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IInstrumentRepository,
                   JadeCapital.Trading.Infrastructure.Audit.InstrumentAuditDecorator>();
+        // Wave 8 slice 8a.2 — typed audit decorator over IAlertRepository.
+        // BESPOKE (does NOT use DecoratedRepository<Alert> because IAlertRepository
+        // is bespoke with ListByUserAsync(userId, activeOnly, now, ct) — a
+        // userId-scoped read that doesn't fit the generic IRepository<T> shape).
+        // CRITICAL deviation: AddAsync returns bool (true = inserted, false =
+        // deduped by the partial UNIQUE INDEX ux_alerts_user_rule_day). The
+        // decorator MUST inspect the return value: only emit AuditAction.Created
+        // when true; silently skip when false (per orchestrator preflight
+        // decision 6). Cross-tenant IsOwner check on Alert.UserId for
+        // UpdateAsync.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IAlertRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.AlertAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
