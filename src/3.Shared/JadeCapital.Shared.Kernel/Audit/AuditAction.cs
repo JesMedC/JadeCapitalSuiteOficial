@@ -37,4 +37,27 @@ public enum AuditAction : byte
 
     /// <summary>A previously soft-deleted entity was restored. (Reserved for future restore API.)</summary>
     Restored = 3,
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — a cross-tenant access attempt was rejected.
+    /// Emitted by typed audit decorators (e.g. <c>UserAuditDecorator</c>,
+    /// <c>RiskProfileAuditDecorator</c>) when the calling user does not own
+    /// the entity they tried to mutate. The audit row preserves the attempt
+    /// for the compliance trail; the decorator then throws
+    /// <see cref="System.UnauthorizedAccessException"/>.
+    /// </summary>
+    Denied = 4,
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — a contractually invalid mutation was attempted.
+    /// Emitted by typed audit decorators when a handler calls
+    /// <c>DeleteAsync</c> on an aggregate whose canonical mutation surface
+    /// is different (e.g. <c>User</c> uses Tenant reassignment or
+    /// <c>User.Cancel()</c>, <c>RiskProfile</c> uses
+    /// <c>MarkSupersededAsync</c>, <c>Strategy</c> uses
+    /// <c>Strategy.Deactivate(clock)</c>). The decorator emits the audit
+    /// row before re-throwing <see cref="System.NotSupportedException"/> so
+    /// the misuse is recorded.
+    /// </summary>
+    Failed = 5,
 }
