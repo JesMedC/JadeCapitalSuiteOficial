@@ -32,9 +32,11 @@ class StubOllamaHealthInterval {
 /**
  * Slice 4e — Phase 1 navItems wiring smoke.
  *
- * Per design.md 4e.1.1 the trader-shell must expose exactly 9 nav items in
- * a fixed order. Mobile-nav has horizontal scroll so this is the precedent
- * the rest of the slice builds on.
+ * Per design.md 4e.1.1 the trader-shell must expose a fixed set of nav
+ * items in a fixed order. Mobile-nav has horizontal scroll so this is
+ * the precedent the rest of the slice builds on.
+ *
+ * Wave 6 slice 6b.2 adds the 12th entry: Billing.
  *
  * Order (per spec):
  *   1. Dashboard
@@ -46,8 +48,11 @@ class StubOllamaHealthInterval {
  *   7. Strategies
  *   8. Alerts
  *   9. Planner
+ *  10. Imports
+ *  11. Risk Advisor
+ *  12. Billing
  */
-describe('TraderShell — slice 4e 9-item nav', () => {
+describe('TraderShell — slice 4e 12-item nav (Wave 6 6b.2 adds Billing)', () => {
   let component: TraderShell;
   let fixture: ReturnType<typeof TestBed.createComponent<TraderShell>>;
 
@@ -89,13 +94,14 @@ describe('TraderShell — slice 4e 9-item nav', () => {
     { label: 'Planner',    path: 'planner' },
     { label: 'Imports',    path: 'imports' },
     { label: 'Risk Advisor', path: 'risk-advice' },
+    { label: 'Billing',    path: 'billing' },
   ];
 
-  it('exposes exactly 11 nav items', () => {
-    expect(component.navItems.length).toBe(11);
+  it('exposes exactly 12 nav items', () => {
+    expect(component.navItems.length).toBe(12);
   });
 
-  it('matches the spec order (... Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports, Risk Advisor)', () => {
+  it('matches the spec order (... Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports, Risk Advisor, Billing)', () => {
     expect(component.navItems.map(i => ({ label: i.label, path: i.path }))).toEqual(
       expectedOrder
     );
