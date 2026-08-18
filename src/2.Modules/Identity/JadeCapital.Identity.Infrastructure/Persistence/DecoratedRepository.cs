@@ -90,14 +90,19 @@ public sealed class DecoratedRepository<T> where T : class
     /// <see cref="EntityEntry.OriginalValues"/> (when the inner repository
     /// is EF-backed), stages the modified entity via the inner repository,
     /// then logs an <see cref="AuditAction.Updated"/> event with the JSON
-    /// diff between the snapshot and the post-mutation entity.
+    /// diff between the snapshot and the post-mutation entity. If the
+    /// entity carries an <c>IsDeleted = true</c> flag (the
+    /// <c>ISoftDelete</c> contract from slice 6d.1), the action is upgraded
+    /// to <see cref="AuditAction.Deleted"/> so the audit log reflects
+    /// the soft-delete semantics rather than a generic state change.
     /// </summary>
     public async Task UpdateAsync(T entity, CancellationToken ct)
     {
         T? before = await ResolveBeforeAsync(entity, ct);
         await _inner.UpdateAsync(entity, ct);
         var changesJson = SafeDiff(before, entity);
-        await TryAuditAsync(BuildEntry(entity, AuditAction.Updated, changesJson), ct);
+        var action = IsSoftDeleted(entity) ? AuditAction.Deleted : AuditAction.Updated;
+        await TryAuditAsync(BuildEntry(entity, action, changesJson), ct);
     }
 
     /// <summary>
@@ -194,8 +199,8 @@ public sealed class DecoratedRepository<T> where T : class
         return Guid.Empty;
     }
 
-    /// <summary>
-    /// Captures the pre-mutation snapshot. When the decorator is wired
+/// <summary>
+    /// Resolves the pre-mutation snapshot. When the decorator is wired
     /// with the inner repository's <see cref="DbContext"/> (the
     /// production path), we use EF's <see cref="EntityEntry.OriginalValues"/>
     /// — the change tracker holds the pre-modification values even after
@@ -216,6 +221,17 @@ public sealed class DecoratedRepository<T> where T : class
             }
         }
         return await _inner.GetByIdAsync(GetId(entity), ct);
+    }
+
+    /// <summary>
+    /// Soft-delete detection — if the entity implements <c>ISoftDelete</c>
+    /// and <c>IsDeleted = true</c>, return true. Otherwise false.
+    /// Generic via reflection so the decorator stays aggregate-agnostic.
+    /// </summary>
+    private static bool IsSoftDeleted(T entity)
+    {
+        var prop = typeof(T).GetProperty("IsDeleted");
+        return prop?.GetValue(entity) is true;
     }
 }
 
