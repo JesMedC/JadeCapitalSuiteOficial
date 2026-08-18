@@ -155,6 +155,16 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // surface emit AuditAction.Deleted with before/after diff.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeRepository,
                   JadeCapital.Trading.Infrastructure.Audit.TradeAuditDecorator>();
+        // Wave 7 slice 7b.2 — typed audit decorator over IJournalEntryRepository.
+        // BESPOKE (does NOT use DecoratedRepository<T> because IJournalEntryRepository
+        // is bespoke with cross-user-scoped read methods — FindByIdAsync takes an
+        // explicit userId parameter). The decorator wraps the slice 7b.2 Phase 1
+        // additive DeleteAsync(JournalEntry, ct) overload + emits AuditAction.Deleted
+        // with a before/after content snapshot. Cross-tenant IsOwner check on
+        // entry.UserId. DeleteAsync(Guid, ct) is forwarded without audit (the
+        // production handler is responsible for cross-user validation).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IJournalEntryRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.JournalEntryAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
