@@ -1,6 +1,7 @@
 using JadeCapital.Shared.Kernel.Imports;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.SoftDelete;
 using JadeCapital.Shared.Kernel.Time;
 
 namespace JadeCapital.Trading.Domain.Imports;
@@ -23,7 +24,7 @@ namespace JadeCapital.Trading.Domain.Imports;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class ImportJob : AggregateRoot<Guid>
+public sealed class ImportJob : AggregateRoot<Guid>, ISoftDelete
 {
     public const int MaxFileSizeBytes = 10 * 1024 * 1024;  // 10 MiB
     public const int Sha256HexLength = 64;
@@ -43,6 +44,14 @@ public sealed class ImportJob : AggregateRoot<Guid>
     public string? ErrorMessage { get; private set; }
     public DateTimeOffset StartedAt { get; private set; }
     public DateTimeOffset? FinishedAt { get; private set; }
+
+    // Wave 6, slice 6d.1 — ISoftDelete (append-only soft-delete with audit log).
+    // The default value is false (newly created rows are live). EF Core materializes
+    // these from the DB; private setters let EF hydrate without exposing mutators
+    // to callers — the only public mutator is MarkDeleted.
+    public bool IsDeleted { get; private set; }
+    public DateTimeOffset? DeletedAtUtc { get; private set; }
+    public Guid? DeletedByUserId { get; private set; }
 
     // EF Core.
     private ImportJob() { }
@@ -176,6 +185,43 @@ public sealed class ImportJob : AggregateRoot<Guid>
         Status = ImportJobStatus.Failed;
         ErrorMessage = string.IsNullOrWhiteSpace(errorMessage) ? null : errorMessage;
         FinishedAt = clock.UtcNow;
+        Touch();
+        return Result.Success();
+    }
+
+    // ============================================
+    // Wave 6, slice 6d.1 — Soft-delete (ISoftDelete)
+    // ============================================
+
+    /// <summary>
+    /// Marks the import job as soft-deleted (Wave 6, slice 6d.1).
+    ///
+    /// <para>
+    /// Sets <see cref="IsDeleted"/> = true, <see cref="DeletedAtUtc"/> = clock.UtcNow,
+    /// <see cref="DeletedByUserId"/> = <paramref name="userId"/>. The row is NOT
+    /// removed from the DB — subsequent queries with the EF global filter
+    /// (<c>!j.IsDeleted</c>) exclude it; queries with
+    /// <c>IgnoreQueryFilters()</c> still see it.
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotent: calling twice is a no-op (already-deleted guard). The
+    /// <c>SoftDeleteHandler</c> in Identity.Application checks
+    /// <see cref="IsDeleted"/> BEFORE calling this and returns 404 on the
+    /// second attempt, so the idempotency here is defense-in-depth.
+    /// </para>
+    /// </summary>
+    public Result MarkDeleted(Guid userId, IClock clock)
+    {
+        if (userId == Guid.Empty)
+            return Result.Failure(ImportJobErrors.Errors.MarkDeletedUserIdRequired);
+
+        if (IsDeleted)
+            return Result.Failure(ImportJobErrors.Errors.AlreadyDeleted);
+
+        IsDeleted = true;
+        DeletedAtUtc = clock.UtcNow;
+        DeletedByUserId = userId;
         Touch();
         return Result.Success();
     }

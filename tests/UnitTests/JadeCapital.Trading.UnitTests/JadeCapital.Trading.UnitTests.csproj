@@ -22,5 +22,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+    <!-- Slice 6d.1: SQLite in-memory for ImportJobSoftDeleteQueryFilterTests.
+         Mirrors the Identity.UnitTests SQLite setup (BackfillTenantsRunnerTests).
+         Lets the EF HasQueryFilter behavior be exercised without a real
+         Postgres or Testcontainers dependency. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
   </ItemGroup>
 </Project>
