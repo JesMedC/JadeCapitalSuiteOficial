@@ -211,28 +211,28 @@ Forecast ~700 lines, Wave 5/6a/6b/6c/6d.1/6d.2 precedent → `size:exception` li
 
 **Phase 1: Surface surgery — add `DeleteAsync(JournalEntry, ct)` overload**
 
-- [ ] 1.1 RED test `IJournalEntryRepositoryContractTests` (2 scenarios: interface now exposes `DeleteAsync(JournalEntry, ct)` overload that internally calls `DeleteAsync(Guid, ct)`; original `DeleteAsync(Guid, ct)` remains the production path; both signatures are part of the public API).
-- [ ] 1.2 GREEN: extend `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Abstractions/Repositories/IJournalEntryRepository.cs` with `DeleteAsync(JournalEntry, ct)` overload. Implementation: `await DeleteAsync(entry.Id, ct);` (1-line delegate). Add XML doc explaining it's a "decorator-friendly" overload.
+- [x] 1.1 RED test `IJournalEntryRepositoryContractTests` (2 scenarios: interface now exposes `DeleteAsync(JournalEntry, ct)` overload that internally calls `DeleteAsync(Guid, ct)`; original `DeleteAsync(Guid, ct)` remains the production path; both signatures are part of the public API).
+- [x] 1.2 GREEN: extend `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Abstractions/Repositories/IJournalEntryRepository.cs` with `DeleteAsync(JournalEntry, ct)` overload. Implementation: `await DeleteAsync(entry.Id, ct);` (1-line delegate). Add XML doc explaining it's a "decorator-friendly" overload.
 
 **Phase 2: JournalEntryAuditDecorator (TDD)**
 
-- [ ] 2.1 RED test `JournalEntryAuditDecoratorTests` (5 scenarios: AddAsync emits `Created` with `entity_type = "JournalEntry"`, `tenant_id` + `user_id` from `ITenantContext`; UpdateAsync with `premarket_plan` change emits `Updated` with diff; `DeleteAsync(JournalEntry, ct)` emits `Deleted` (decorator calls `_decorated.DeleteAsync(entry, ct)` which delegates to `DeleteAsync(Guid, ct)`); cross-tenant delete emits `Denied` + `UnauthorizedAccessException`; FindByIdAsync emits NO event).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/JournalEntryAuditDecorator.cs` (bespoke — wraps `DeleteAsync(JournalEntry, ct)` and emits `AuditAction.Deleted`; cross-tenant `IsOwner` check on `entry.UserId`).
+- [x] 2.1 RED test `JournalEntryAuditDecoratorTests` (5 scenarios: AddAsync emits `Created` with `entity_type = "JournalEntry"`, `tenant_id` + `user_id` from `ITenantContext`; UpdateAsync with `premarket_plan` change emits `Updated` with diff; `DeleteAsync(JournalEntry, ct)` emits `Deleted` (decorator calls `_decorated.DeleteAsync(entry, ct)` which delegates to `DeleteAsync(Guid, ct)`); cross-tenant delete emits `Denied` + `UnauthorizedAccessException`; FindByIdAsync emits NO event). **Actual**: folded into `JournalEntryRepositoryIntegrationTests` per the 7a.1/7b.1 precedent (the orchestrator's "5 scenarios" description matches the integration test scenarios verbatim).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/JournalEntryAuditDecorator.cs` (bespoke — wraps `DeleteAsync(JournalEntry, ct)` and emits `AuditAction.Deleted`; cross-tenant `IsOwner` check on `entry.UserId`).
 
 **Phase 3: JournalEntryRepositoryIntegrationTests (TDD with SQLite in-memory + focused TestTradingDbContext)**
 
-- [ ] 3.1 RED test `JournalEntryRepositoryIntegrationTests` (5 scenarios: create entry → audit event with `EntityType = "JournalEntry"`, `Action = Created`; update `premarket_plan` → `Updated` event with diff; `DeleteAsync(JournalEntry, ct)` → `Deleted` event; cross-tenant delete → `Denied` + `UnauthorizedAccessException`; FindByIdAsync → no audit event).
-- [ ] 3.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/JournalEntryRepositoryIntegrationTests.cs` (uses a focused `TestTradingDbContext` helper that omits the Npgsql-specific `JournalEntry.Tags` array column — copy the pattern from `ImportJobRepositoryIntegrationTests.cs`).
+- [x] 3.1 RED test `JournalEntryRepositoryIntegrationTests` (5 scenarios: create entry → audit event with `EntityType = "JournalEntry"`, `Action = Created`; update `premarket_plan` → `Updated` event with diff; `DeleteAsync(JournalEntry, ct)` → `Deleted` event; cross-tenant delete → `Denied` + `UnauthorizedAccessException`; FindByIdAsync → no audit event).
+- [x] 3.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/JournalEntryRepositoryIntegrationTests.cs` (uses a focused `TestJournalDbContext` helper that omits the Npgsql-specific `JournalEntry.Tags` array column — copy the pattern from `ImportJobRepositoryIntegrationTests.cs`).
 
 **Phase 4: DI wiring**
 
-- [ ] 4.1 DI: `services.Decorate<IJournalEntryRepository, JournalEntryAuditDecorator>()` in `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/DependencyInjection/TradingModuleRegistration.cs`.
+- [x] 4.1 DI: `services.Decorate<IJournalEntryRepository, JournalEntryAuditDecorator>()` in `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/DependencyInjection/TradingModuleRegistration.cs`.
 
 **Phase 5: Validate**
 
-- [ ] 5.1 `dotnet test --filter "FullyQualifiedName~JournalEntryAudit|JournalEntryRepositoryIntegration"` --nologo --verbosity minimal → 5 new tests pass.
-- [ ] 5.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 5.3 Full BE suite (1308 + 5 = 1313) → zero regression.
+- [x] 5.1 `dotnet test --filter "FullyQualifiedName~JournalEntryAudit|JournalEntryRepositoryIntegration|IJournalEntryRepository"` --nologo --verbosity minimal → 7 new tests pass (2 contract + 5 integration).
+- [x] 5.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 5.3 Full BE suite (1321 + 7 = **1328**) → zero regression. (Orchestrator's forecast was 1313 with 5 new tests; actual is 1328 with 7 new tests because the contract test file adds 2 scenarios the orchestrator didn't enumerate — same Deviation #5 pattern as 7b.1.)
 
 ### 7b.2 size:exception preview
 
