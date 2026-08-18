@@ -134,28 +134,28 @@ Forecast ~600 lines, Wave 5/6/7 precedent (7a.1=1412, 7b.1=1699) → `size:excep
 
 **Phase 1: `AlertAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `AlertRepositoryIntegrationTests` (5 scenarios: `AddAsync` returning `true` emits Created; `AddAsync` returning `false` (dedup) emits NO event; `UpdateAsync` after `Acknowledge()` emits Updated with `AcknowledgedAt: null → now` diff; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AlertAuditDecorator.cs` (~200 LOC; bespoke — mirrors `TradeAuditDecorator` shape; critical detail: `AddAsync` returns `bool` audit semantics; `IsOwner` cross-tenant check on `UpdateAsync`).
+- [x] 1.1 RED test `AlertRepositoryIntegrationTests` (5 scenarios: `AddAsync` returning `true` emits Created; `AddAsync` returning `false` (dedup) emits NO event; `UpdateAsync` after `Acknowledge()` emits Updated with `AcknowledgedAt: null → now` diff; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AlertAuditDecorator.cs` (~200 LOC; bespoke — mirrors `TradeAuditDecorator` shape; critical detail: `AddAsync` returns `bool` audit semantics; `IsOwner` cross-tenant check on `UpdateAsync`).
 
 **Phase 2: `TradeReviewAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `TradeReviewRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created with `entity_type = "TradeReview"`; `UpdateAsync` with `Title` + `Rating` change emits Updated with diff; `AddAttachmentAsync` + `UpdateAttachmentAsync` + `RemoveAttachmentAsync` are forwarded WITHOUT emitting audit rows; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeReviewAuditDecorator.cs` (~250 LOC; bespoke — mirrors `JournalEntryAuditDecorator` shape; forward attachment ops without audit; `IsOwner` cross-tenant check on `UpdateAsync`).
+- [x] 2.1 RED test `TradeReviewRepositoryIntegrationTests` (5 scenarios: `AddAsync` emits Created with `entity_type = "TradeReview"`; `UpdateAsync` with `Title` + `Rating` change emits Updated with diff; `AddAttachmentAsync` + `UpdateAttachmentAsync` + `RemoveAttachmentAsync` are forwarded WITHOUT emitting audit rows; `FindByIdAsync` emits NO event; cross-tenant update emits Denied + throws `UnauthorizedAccessException`).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeReviewAuditDecorator.cs` (~250 LOC; bespoke — mirrors `JournalEntryAuditDecorator` shape; forward attachment ops without audit; `IsOwner` cross-tenant check on `UpdateAsync`).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IAlertRepository, AlertAuditDecorator>()` in `TradingModuleRegistration.cs`.
-- [ ] 3.2 `services.Decorate<ITradeReviewRepository, TradeReviewAuditDecorator>()` in the same file.
+- [x] 3.1 `services.Decorate<IAlertRepository, AlertAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.2 `services.Decorate<ITradeReviewRepository, TradeReviewAuditDecorator>()` in the same file.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~AlertAudit|TradeReviewAudit|AlertRepositoryIntegration|TradeReviewRepositoryIntegration"` → 10 new tests pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1342 + 10 = **1352**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~AlertAudit|TradeReviewAudit|AlertRepositoryIntegration|TradeReviewRepositoryIntegration"` → **10/10 new tests pass**.
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings (3 pre-existing CA2263 unchanged from Wave 6 baseline).
+- [x] 4.3 Full BE suite (1342 + 10 = **1352**) → zero regression. Per-project actual: Shared.Kernel 180 + Identity 353 (was 343) + Billing 116 + Trading 705 = **1354** cumulative green.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-2.md`.
+- [x] 5.1 Append slice completion note to `apply-progress-2026-08-19-wave8-audit-coverage-extended-slice-8a-2.md`.
 
 **Dependencies**: 8a.1 must be merged (shares `TestTradingDbContext` fixture).
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for `Alert` / `TradeReview`.
