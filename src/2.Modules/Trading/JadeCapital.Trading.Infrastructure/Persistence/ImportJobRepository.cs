@@ -36,4 +36,18 @@ public sealed class ImportJobRepository : IImportJobRepository
             _db.ImportJobs.Update(job);
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Slice 6d.2: hard-delete from the change tracker. The aggregate has
+    /// <c>MarkDeleted</c> for the soft-delete path (slice 6d.1); the
+    /// decorator logs <c>AuditAction.Deleted</c> on the soft-delete path
+    /// too because the handler still calls <see cref="UpdateAsync"/> after
+    /// <c>MarkDeleted</c>. Hard-delete is rare in this codebase — admin
+    /// tooling uses <c>UpdateAsync</c> + soft-delete.
+    /// </summary>
+    public Task DeleteAsync(ImportJob job, CancellationToken ct)
+    {
+        _db.ImportJobs.Remove(job);
+        return Task.CompletedTask;
+    }
 }

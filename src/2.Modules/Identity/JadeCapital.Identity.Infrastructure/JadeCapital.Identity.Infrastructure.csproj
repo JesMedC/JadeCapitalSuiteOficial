@@ -12,6 +12,11 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Cryptography.KeyDerivation" Version="9.0.0" />
+    <!-- Slice 6d.2: Scrutor adds services.Decorate<TInterface, TDecorator>().
+         Required by DecoratedRepository wiring in IdentityModuleRegistration
+         (TenantAuditDecorator + ImportJobAuditDecorator + SubscriptionAuditDecorator).
+         Scrutor is open-source (Krzysztof Koźmic, MIT) and ships via NuGet. -->
+    <PackageReference Include="Scrutor" Version="4.2.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
