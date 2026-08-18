@@ -445,6 +445,10 @@ app.MapBillingPublicEndpoints();
 // webhook receiver). 4 endpoints total; 6a.1 ships customers + webhooks,
 // 6a.2 adds checkout + portal.
 app.MapBillingStripeEndpoints();
+// Wave 6b.1 — Self-service billing portal read endpoints (subscription +
+// payment-methods + invoices). All require the JWT-derived userId; cross-user
+// access returns 404. The portal read DTOs are in Billing.Contracts/Portal.
+app.MapBillingPortalEndpoints();
 
 app.Run();
 

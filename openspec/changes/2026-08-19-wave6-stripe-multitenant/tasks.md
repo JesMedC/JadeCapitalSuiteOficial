@@ -6,7 +6,7 @@
 |---|---|---:|---:|---|:---:|
 | 6a.1 | Stripe SDK + Customer + webhook stub (IStripeGateway + StripeGateway + StubStripeGateway + StripeCustomer + migration 0022 + 2 endpoints + 15 tests) | ~600 | 15 | likely (Wave 5/5a.1=2108 precedent) | OK |
 | 6a.2 | Checkout + Portal + subscription sync (CheckoutSession + 2 endpoints + webhook handler for subscription events + migration 0023 + 15 tests) | ~800 | 14 | likely (5b.2=2989 precedent) | OK |
-| 6b.1 | Billing portal read API (3 endpoints + 3 query handlers + 10 tests) | ~500 | 10 | possible (5b.1=1207 precedent) | OK |
+| 6b.1 | Billing portal read API (3 endpoints + 3 query handlers + 3 DTOs + 25 tests) | ~500 | 10 | possible (5b.1=1207 precedent) | OK |
 | 6b.2 | Billing portal FE (1 page + service + state + types + 6 jest specs) | ~400 | 9 | unlikely (within budget) | OK |
 | 6c.1 | Tenant aggregate + tenant_id migration (Tenant + TenantId + ITenantContext + CreateTenant + migration 0024 + migration 0025 + 12 tests) | ~700 | 17 | likely (5a.1=2108 precedent) | OK |
 | 6c.2 | Tenant middleware + query filter + backfill (TenantContextMiddleware + Repository filter + BackfillTenantsHostedService + migration 0026 + JWT mint fix + 12 tests) | ~900 | 14 | likely (5c.1=3075 precedent) | OK |
@@ -166,24 +166,24 @@ Forecast ~800 lines, Wave 5 precedent (5b.2=2989, 5c.1=3075) → `size:exception
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `GetSubscriptionHandlerTests` (5 scenarios: own subscription → returns DTO, no subscription → 404, cross-user lookup → 404, Stripe API down → 503, cancellation token propagates).
-- [ ] 1.2 GREEN: `Billing.Application/Features/Stripe/GetSubscription/GetSubscriptionQuery.cs` + `GetSubscriptionHandler.cs` + `BillingPortalSubscriptionDto.cs`.
-- [ ] 1.3 RED test `GetPaymentMethodsHandlerTests` (4 scenarios: own payment methods → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
-- [ ] 1.4 GREEN: `Billing.Application/Features/Stripe/GetPaymentMethods/GetPaymentMethodsQuery.cs` + `GetPaymentMethodsHandler.cs` + `BillingPortalPaymentMethodDto.cs`.
-- [ ] 1.5 RED test `GetInvoicesHandlerTests` (4 scenarios: own invoices → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
-- [ ] 1.6 GREEN: `Billing.Application/Features/Stripe/GetInvoices/GetInvoicesQuery.cs` + `GetInvoicesHandler.cs` + `BillingPortalInvoiceDto.cs`.
+- [x] 1.1 RED test `GetSubscriptionHandlerTests` (5 scenarios: own subscription → returns DTO, no subscription → 404, cross-user lookup → 404, Stripe API down → 503, cancellation token propagates).
+- [x] 1.2 GREEN: `Billing.Application/Features/Stripe/GetSubscription/GetSubscriptionQuery.cs` + `GetSubscriptionHandler.cs` + `BillingPortalSubscriptionDto.cs`.
+- [x] 1.3 RED test `GetPaymentMethodsHandlerTests` (4 scenarios: own payment methods → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
+- [x] 1.4 GREEN: `Billing.Application/Features/Stripe/GetPaymentMethods/GetPaymentMethodsQuery.cs` + `GetPaymentMethodsHandler.cs` + `BillingPortalPaymentMethodDto.cs`.
+- [x] 1.5 RED test `GetInvoicesHandlerTests` (4 scenarios: own invoices → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
+- [x] 1.6 GREEN: `Billing.Application/Features/Stripe/GetInvoices/GetInvoicesQuery.cs` + `GetInvoicesHandler.cs` + `BillingPortalInvoiceDto.cs`.
 
 **Phase 2: Infrastructure + API**
 
-- [ ] 2.1 `BillingPortalEndpoints` (`MapBillingPortalEndpoints`): `GET /api/billing/portal/subscription` + `GET /api/billing/portal/payment-methods` + `GET /api/billing/portal/invoices`. RequireAuthorization.
-- [ ] 2.2 `app.MapBillingPortalEndpoints()` en `Program.cs`.
-- [ ] 2.3 DI: `AddScoped<GetSubscriptionHandler>` + `AddScoped<GetPaymentMethodsHandler>` + `AddScoped<GetInvoicesHandler>`.
+- [x] 2.1 `BillingPortalEndpoints` (`MapBillingPortalEndpoints`): `GET /api/billing/portal/subscription` + `GET /api/billing/portal/payment-methods` + `GET /api/billing/portal/invoices`. RequireAuthorization.
+- [x] 2.2 `app.MapBillingPortalEndpoints()` en `Program.cs`.
+- [x] 2.3 DI: `AddScoped<GetSubscriptionHandler>` + `AddScoped<GetPaymentMethodsHandler>` + `AddScoped<GetInvoicesHandler>`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~BillingPortal"` --nologo --verbosity minimal → 25/25 pass.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 3.3 Full BE suite → 1020/1020 pass (was 995 → +25 new tests, 0 regressions).
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~BillingPortal"` --nologo --verbosity minimal → 25/25 pass.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 3.3 Full BE suite → 1065/1065 pass (was 1040 in 6a.2 → +25 new tests, 0 regressions).
 
 ### 6b.1 size:exception preview
 

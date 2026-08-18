@@ -28,6 +28,18 @@ public interface ISubscriptionAdminRepository
     /// </summary>
     Task<Subscription?> FindByStripeSubscriptionIdAsync(
         string stripeSubscriptionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Wave 6b.1: looks up a subscription by the owning user's id. Used by
+    /// the billing portal read API (slice 6b.1) to resolve the caller's
+    /// local subscription from the JWT-derived userId without exposing any
+    /// caller-supplied id. Returns null if the user has no local subscription
+    /// (e.g. they completed Stripe customer setup but never finished
+    /// checkout, or admin created the subscription without going through the
+    /// standard flow).
+    /// </summary>
+    Task<Subscription?> FindByUserIdAsync(
+        Guid userId, CancellationToken ct = default);
 }
 
 /// <summary>Unit-of-work boundary for the Admin write paths. Persists the
