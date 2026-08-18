@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Common;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
 
@@ -60,6 +61,14 @@ public sealed class User : AggregateRoot<Guid>
     /// SUM(trade_attachments.bytes) daily).
     /// </summary>
     public long AttachmentUsedBytes { get; private set; }
+
+    /// <summary>
+    /// Wave 6c — tenant membership. NULL pre-Wave-6 (slice 6c.1); NOT NULL
+    /// after backfill (slice 6c.3). Stored in <c>identity.users.tenant_id</c>
+    /// (migration 0025); the FK to <c>identity.tenants.id</c> is enforced at
+    /// the DB level.
+    /// </summary>
+    public TenantId? TenantId { get; private set; }
 
     /// <summary>
     /// Ordered (changed_at DESC, id DESC) list of the user's previous
@@ -320,4 +329,38 @@ public sealed class User : AggregateRoot<Guid>
     public bool CanAuthenticate()
         => Status == UserStatus.Active
            && (LockedUntil is null || LockedUntil <= DateTimeOffset.UtcNow);
+
+    // ============================================
+    // Wave 6c.1 — Tenant membership
+    // ============================================
+
+    /// <summary>
+    /// Assigns the user to a tenant. Idempotent on the same
+    /// <see cref="TenantId"/>; cross-tenant re-assignment requires the
+    /// Admin role.
+    ///
+    /// <para>
+    /// <b>Slice 6c.1 contract</b>: the column is nullable (per the
+    /// "ONE migration atómica" user decision — 6c.1=nullable,
+    /// 6c.2=backfill, 6c.3=NOT NULL). Until 6c.2 runs, every user has
+    /// <see cref="TenantId"/> = <c>null</c> and the first call sets it.
+    /// </para>
+    /// </summary>
+    public Result AssignToTenant(TenantId tenantId)
+    {
+        if (tenantId.Value == Guid.Empty)
+            return Result.Failure(IdentityDomainErrors.User.TenantIdInvalid);
+
+        // Re-assign to the same tenant → idempotent no-op (no UpdatedAt bump).
+        if (TenantId is not null && TenantId == tenantId)
+            return Result.Success();
+
+        // Cross-tenant re-assignment → admin-only.
+        if (TenantId is not null && Role != UserRole.Admin)
+            return Result.Failure(IdentityDomainErrors.User.CrossTenantReassignRequiresAdmin);
+
+        TenantId = tenantId;
+        Touch();
+        return Result.Success();
+    }
 }

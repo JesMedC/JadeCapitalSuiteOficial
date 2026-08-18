@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.RiskProfile;
+using JadeCapital.Identity.Domain.Tenants;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Identity.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<TemporaryCredential> TemporaryCredentials => Set<TemporaryCredential>();
     public Microsoft.EntityFrameworkCore.DbSet<PasswordHistoryEntry> PasswordHistory => Set<PasswordHistoryEntry>();
     public Microsoft.EntityFrameworkCore.DbSet<RiskProfile> RiskProfiles => Set<RiskProfile>();
+    public Microsoft.EntityFrameworkCore.DbSet<Tenant> Tenants => Set<Tenant>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +33,8 @@ public sealed class IdentityDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new TemporaryCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new PasswordHistoryEntryConfiguration());
         modelBuilder.ApplyConfiguration(new RiskProfileConfiguration());
+        // Wave 6, slice 6c.1 — tenants table + tenant_id on users.
+        modelBuilder.ApplyConfiguration(new TenantConfiguration());
     }
 }
 
@@ -55,6 +59,26 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.SessionVersion).HasColumnName("session_version").IsRequired();
         b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(u => u.UpdatedAt).HasColumnName("updated_at");
+
+        // Wave 6, slice 6c.1 — tenant membership. Column is NULLABLE
+        // (per the "ONE migration atómica" user decision). NOT NULL
+        // lands in slice 6c.3 after the 6c.2 backfill. The FK is
+        // created by the SQL migration (0025) — EF will not emit a
+        // duplicate because we don't call HasOne here.
+        // The TenantId record wraps a Guid; EF stores the inner Guid
+        // directly. TenantId is a reference type (record), so the
+        // nullable annotation is honored at the converter level — null
+        // in -> Guid? null in DB, non-null in -> inner Guid in DB.
+        var tenantIdConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<
+            JadeCapital.Shared.Kernel.MultiTenancy.TenantId?,
+            Guid?>(
+            v => v == null ? null : (Guid?)v.Value,  // v is TenantId?; v.Value is the inner Guid
+            v => v == null
+                ? null
+                : new JadeCapital.Shared.Kernel.MultiTenancy.TenantId(v.Value));
+        b.Property(u => u.TenantId)
+            .HasColumnName("tenant_id")
+            .HasConversion(tenantIdConverter);
 
         // Slice 4d — attachment quota + cached usage (migration 0018).
         // Identity owns the columns; Trading reads them via
