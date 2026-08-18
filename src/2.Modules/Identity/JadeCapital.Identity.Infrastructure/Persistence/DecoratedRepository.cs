@@ -5,6 +5,8 @@ using JadeCapital.Shared.Kernel.Audit;
 using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Repository;
 using JadeCapital.Shared.Kernel.Time;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace JadeCapital.Identity.Infrastructure.Persistence;
 
@@ -19,12 +21,16 @@ namespace JadeCapital.Identity.Infrastructure.Persistence;
 /// (<see cref="IRepository{T}.GetByIdAsync"/>) bypass the audit surface.
 /// </para>
 /// <para>
-/// <b>Diff strategy</b>: on Update, the decorator fetches the pre-mutation
-/// snapshot via the inner repository's <c>GetByIdAsync</c>, then asks
-/// <see cref="IDiff"/> to compute the JSON diff between the snapshot and
-/// the post-mutation entity. If the diff helper throws (e.g., a cyclic
-/// reference or a non-serializable property), the decorator falls back to
-/// the full-snapshot JSON of the post-mutation entity — never crashes.
+/// <b>Diff strategy</b>: on Update, the decorator captures the
+/// pre-mutation snapshot via <b>EF's <see cref="EntityEntry.OriginalValues"/></b>
+/// when the inner repository is EF-backed (the production path). The
+/// change tracker holds the pre-modification values even after the
+/// caller mutates the in-memory entity — that's how EF's UPDATE SQL
+/// works (`SET col = ? WHERE col = ?`). If no <see cref="DbContext"/>
+/// is provided (the legacy / in-memory test path), the decorator falls
+/// back to <c>_inner.GetByIdAsync</c>. If the diff helper throws, the
+/// decorator falls back to the full-snapshot JSON of the post-mutation
+/// entity — never crashes.
 /// </para>
 /// <para>
 /// <b>Why the audit fires AFTER the inner call</b>: the main mutation has
@@ -45,19 +51,22 @@ public sealed class DecoratedRepository<T> where T : class
     private readonly ITenantContext _tenant;
     private readonly IClock _clock;
     private readonly IDiff _diff;
+    private readonly DbContext? _db;
 
     public DecoratedRepository(
         IRepository<T> inner,
         IAuditLogger audit,
         ITenantContext tenant,
         IClock clock,
-        IDiff? diff = null)
+        IDiff? diff = null,
+        DbContext? db = null)
     {
         _inner = inner;
         _audit = audit;
         _tenant = tenant;
         _clock = clock;
         _diff = diff ?? new JsonDiff();
+        _db = db;
     }
 
     /// <summary>
@@ -77,13 +86,15 @@ public sealed class DecoratedRepository<T> where T : class
     }
 
     /// <summary>
-    /// Fetches the pre-mutation snapshot, stages the modified entity via
-    /// the inner repository, then logs an <see cref="AuditAction.Updated"/>
-    /// event with the JSON diff between the snapshot and the entity.
+    /// Fetches the pre-mutation snapshot via EF's
+    /// <see cref="EntityEntry.OriginalValues"/> (when the inner repository
+    /// is EF-backed), stages the modified entity via the inner repository,
+    /// then logs an <see cref="AuditAction.Updated"/> event with the JSON
+    /// diff between the snapshot and the post-mutation entity.
     /// </summary>
     public async Task UpdateAsync(T entity, CancellationToken ct)
     {
-        var before = await _inner.GetByIdAsync(GetId(entity), ct);
+        T? before = await ResolveBeforeAsync(entity, ct);
         await _inner.UpdateAsync(entity, ct);
         var changesJson = SafeDiff(before, entity);
         await TryAuditAsync(BuildEntry(entity, AuditAction.Updated, changesJson), ct);
@@ -182,6 +193,30 @@ public sealed class DecoratedRepository<T> where T : class
             return g;
         return Guid.Empty;
     }
+
+    /// <summary>
+    /// Captures the pre-mutation snapshot. When the decorator is wired
+    /// with the inner repository's <see cref="DbContext"/> (the
+    /// production path), we use EF's <see cref="EntityEntry.OriginalValues"/>
+    /// — the change tracker holds the pre-modification values even after
+    /// the caller mutates the in-memory entity. That's how EF's UPDATE
+    /// SQL works (`SET col = ? WHERE col = ?`). Without the DbContext
+    /// (legacy / in-memory test path), we fall back to
+    /// <c>_inner.GetByIdAsync</c>, which returns the SAME tracked instance
+    /// and therefore yields an empty diff in the production flow.
+    /// </summary>
+    private async Task<T?> ResolveBeforeAsync(T entity, CancellationToken ct)
+    {
+        if (_db is not null)
+        {
+            var entry = _db.Entry(entity);
+            if (entry.State != EntityState.Detached)
+            {
+                return entry.OriginalValues.ToObject() as T;
+            }
+        }
+        return await _inner.GetByIdAsync(GetId(entity), ct);
+    }
 }
 
 /// <summary>
@@ -255,56 +290,4 @@ public sealed class JsonDiff : IDiff
 
     private static string? BeforeValue(JsonElement element)
         => element.ValueKind == JsonValueKind.Undefined ? null : element.GetRawText();
-}
-
-/// <summary>
-/// Per-aggregate audit decorator for <see cref="ITenantRepository"/>
-/// (Wave 6, slice 6d.2).
-///
-/// <para>
-/// Implements <see cref="ITenantRepository"/> by:
-/// </para>
-/// <list type="bullet">
-///   <item>Forwarding <see cref="ITenantRepository.FindBySlugAsync"/> +
-///         <see cref="ITenantRepository.ListByOwnerAsync"/> + <see cref="IRepository{T}.GetByIdAsync"/>
-///         to the inner.</item>
-///   <item>Wrapping Add/Update/Delete with audit logging via the generic
-///         <see cref="DecoratedRepository{T}"/> core.</item>
-/// </list>
-/// <para>
-/// Registered via Scrutor: <c>services.Decorate&lt;ITenantRepository, TenantAuditDecorator&gt;()</c>.
-/// </para>
-/// </summary>
-public sealed class TenantAuditDecorator : ITenantRepository
-{
-    private readonly ITenantRepository _inner;
-    private readonly DecoratedRepository<Tenant> _decorated;
-
-    public TenantAuditDecorator(
-        ITenantRepository inner,
-        IAuditLogger audit,
-        ITenantContext tenant,
-        IClock clock)
-    {
-        _inner = inner;
-        _decorated = new DecoratedRepository<Tenant>(inner, audit, tenant, clock);
-    }
-
-    public Task<Tenant?> GetByIdAsync(Guid id, CancellationToken ct)
-        => _inner.GetByIdAsync(id, ct);
-
-    public Task<Tenant?> FindBySlugAsync(string slug, CancellationToken ct)
-        => _inner.FindBySlugAsync(slug, ct);
-
-    public Task AddAsync(Tenant tenant, CancellationToken ct)
-        => _decorated.AddAsync(tenant, ct);
-
-    public Task UpdateAsync(Tenant tenant, CancellationToken ct)
-        => _decorated.UpdateAsync(tenant, ct);
-
-    public Task DeleteAsync(Tenant tenant, CancellationToken ct)
-        => _decorated.DeleteAsync(tenant, ct);
-
-    public Task<IReadOnlyList<Tenant>> ListByOwnerAsync(Guid ownerUserId, CancellationToken ct)
-        => _inner.ListByOwnerAsync(ownerUserId, ct);
 }
