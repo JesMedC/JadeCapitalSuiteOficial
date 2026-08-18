@@ -1,6 +1,6 @@
 using JadeCapital.Billing.Application.Abstractions;
 using JadeCapital.Billing.Domain.Subscriptions;
-using JadeCapital.Identity.Infrastructure.Persistence;
+using JadeCapital.Shared.Infrastructure.Persistence;
 using JadeCapital.Shared.Kernel.Audit;
 using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Time;

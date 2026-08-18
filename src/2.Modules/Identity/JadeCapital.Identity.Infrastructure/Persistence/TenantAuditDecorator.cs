@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Domain.Tenants;
+using JadeCapital.Shared.Infrastructure.Persistence;
 using JadeCapital.Shared.Kernel.Audit;
 using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Time;
