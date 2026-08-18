@@ -220,6 +220,15 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // PlannerSession.UserId for UpdateAsync.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IPlannerSessionRepository,
                   JadeCapital.Trading.Infrastructure.Audit.PlannerSessionAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPreTradeChecklistRepository.
+        // BESPOKE WRITE-ONCE — only AddAsync wraps (no UpdateAsync or DeleteAsync
+        // on the interface — the checklist is write-once per the entity
+        // docstring; cleanup cascades via FK to trading.trades with ON DELETE
+        // CASCADE). Mirrors a simplified TenantAuditDecorator shape (Wave 6
+        // 6d.2). ListByUserIdAsync forwarded without audit (matches Wave 6 +
+        // 7 + 8a.1 + 8a.2 + 8a.3 PlannerSession precedent).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPreTradeChecklistRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PreTradeChecklistAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
