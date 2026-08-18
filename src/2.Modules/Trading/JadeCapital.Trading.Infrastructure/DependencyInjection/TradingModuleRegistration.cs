@@ -140,6 +140,31 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // Identity.Infrastructure circular dep.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
                   JadeCapital.Trading.Infrastructure.Audit.ImportJobAuditDecorator>();
+        // Wave 7 slice 7b.1 — typed audit decorator over IStrategyRepository.
+        // Mirrors the ImportJobAuditDecorator shape: cross-tenant IsOwner
+        // check on Strategy.UserId + DeleteAsync defensive stub emitting
+        // AuditAction.Failed before re-throwing NotSupportedException.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IStrategyRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.StrategyAuditDecorator>();
+        // Wave 7 slice 7b.1 — typed audit decorator over ITradeRepository.
+        // BESPOKE (does NOT use DecoratedRepository<T> because ITradeRepository
+        // is bespoke with FindByIdAsync + 6 read methods). Mirrors the
+        // ImportJobAuditDecorator shape with cross-tenant IsOwner check
+        // on Trade.UserId. The slice 7b.1 BREAKING rename from
+        // RemoveAsync → DeleteAsync makes the canonical hard-delete
+        // surface emit AuditAction.Deleted with before/after diff.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.TradeAuditDecorator>();
+        // Wave 7 slice 7b.2 — typed audit decorator over IJournalEntryRepository.
+        // BESPOKE (does NOT use DecoratedRepository<T> because IJournalEntryRepository
+        // is bespoke with cross-user-scoped read methods — FindByIdAsync takes an
+        // explicit userId parameter). The decorator wraps the slice 7b.2 Phase 1
+        // additive DeleteAsync(JournalEntry, ct) overload + emits AuditAction.Deleted
+        // with a before/after content snapshot. Cross-tenant IsOwner check on
+        // entry.UserId. DeleteAsync(Guid, ct) is forwarded without audit (the
+        // production handler is responsible for cross-user validation).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IJournalEntryRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.JournalEntryAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 

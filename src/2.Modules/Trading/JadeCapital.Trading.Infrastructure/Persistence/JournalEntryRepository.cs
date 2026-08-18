@@ -75,4 +75,16 @@ public sealed class JournalEntryRepository : IJournalEntryRepository
             _db.JournalEntries.Remove(entry);
         }
     }
+
+    /// <summary>
+    /// Decorator-friendly overload (Wave 7, slice 7b.2). Delega a
+    /// <see cref="DeleteAsync(Guid, CancellationToken)"/> pasando
+    /// <c>entry.Id</c>. Production handlers pueden llamar a esta
+    /// overload cuando ya tienen la <see cref="JournalEntry"/> en scope
+    /// (e.g. un handler que la cargo via
+    /// <see cref="FindByIdAsync(Guid, Guid, CancellationToken)"/>);
+    /// evita un acceso extra a la DB para resolver el id.
+    /// </summary>
+    public async Task DeleteAsync(JournalEntry entry, CancellationToken ct)
+        => await DeleteAsync(entry.Id, ct);
 }

@@ -134,4 +134,16 @@ public sealed class StrategyRepository : IStrategyRepository
             AvgMae: avgMae,
             LastTradeAt: closedTrades.Max(t => t.ClosedAt));
     }
+
+    /// <summary>
+    /// Wave 7 slice 7b.1 — defensive STUB. The canonical Strategy
+    /// mutation surface is <c>Strategy.Update(...)</c> +
+    /// <c>Strategy.Deactivate(IClock)</c> + <c>Strategy.Activate(IClock)</c>.
+    /// The <see cref="JadeCapital.Trading.Infrastructure.Audit.StrategyAuditDecorator"/>
+    /// short-circuits BEFORE this stub is reached — the throw is defense
+    /// in depth (catches handlers that accidentally bypass the decorator).
+    /// </summary>
+    public Task DeleteAsync(Strategy strategy, CancellationToken ct)
+        => throw new NotSupportedException(
+            "Strategy deletion happens via Deactivation, not direct delete");
 }

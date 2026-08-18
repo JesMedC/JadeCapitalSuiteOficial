@@ -34,7 +34,7 @@ public class DeleteTradeHandlerTests
         var result = await CreateSut().Handle(cmd, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await _trades.Received(1).RemoveAsync(trade, Arg.Any<CancellationToken>());
+        await _trades.Received(1).DeleteAsync(trade, Arg.Any<CancellationToken>());
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

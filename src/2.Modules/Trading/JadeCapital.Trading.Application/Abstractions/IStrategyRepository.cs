@@ -1,3 +1,4 @@
+using JadeCapital.Shared.Kernel.Repository;
 using JadeCapital.Trading.Contracts.Strategies;
 using JadeCapital.Trading.Domain.Strategies;
 
@@ -15,16 +16,17 @@ namespace JadeCapital.Trading.Application.Abstractions;
 //  usuario para una strategy dada. Se calcula on-read (sin precomputar)
 //  porque Wave 3 no requiere materialized views — Wave 4+ introducira
 //  cache si algun user pasa de ~10k trades.
+//
+//  Wave 7 slice 7b.1 — extends IRepository<Strategy> for the audit decorator
+//  pipeline. DeleteAsync is a defensive STUB — the canonical Strategy
+//  mutation surface is Strategy.Update + Strategy.Deactivate(clock), NOT
+//  a hard delete. See StrategyAuditDecorator for the audit emission.
 // ============================================================================
 
-public interface IStrategyRepository
+public interface IStrategyRepository : IRepository<Strategy>
 {
-    /// <summary>
-    /// Lookup by id sin filtrar por userId. El handler valida el ownership
-    /// contra <c>req.UserId</c>; una strategy de otro user mapea a NotFound
-    /// (no leak existencia).
-    /// </summary>
-    Task<Strategy?> GetByIdAsync(Guid strategyId, CancellationToken ct);
+    // GetByIdAsync, AddAsync, UpdateAsync are inherited from IRepository<Strategy>
+    // (Wave 7 slice 7b.1 extension — same precedent as IUserRepository in 7a.1).
 
     /// <summary>
     /// Lista strategies del user. Si <paramref name="activeOnly"/> es true,
@@ -43,21 +45,20 @@ public interface IStrategyRepository
     Task<bool> ExistsByNameAsync(Guid userId, string name, CancellationToken ct);
 
     /// <summary>
-    /// Staggea una strategy nueva para SaveChanges.
-    /// </summary>
-    Task AddAsync(Strategy strategy, CancellationToken ct);
-
-    /// <summary>
-    /// Marca una strategy existente como Modified para SaveChanges. Idempotente
-    /// si el aggregate ya esta tracked (la mayoria de las veces porque el
-    /// handler lo acabo de cargar via GetByIdAsync).
-    /// </summary>
-    Task UpdateAsync(Strategy strategy, CancellationToken ct);
-
-    /// <summary>
     /// Computa el aggregate StrategyAnalyticsDto para una strategy del user.
     /// Solo cuenta trades cerrados (Open y Cancelled excluidos).
     /// </summary>
     Task<StrategyAnalyticsDto> GetAnalyticsAsync(
         Guid userId, Guid strategyId, CancellationToken ct);
+
+    /// <summary>
+    /// NOT SUPPORTED. Strategy deletion is not a valid operation — use
+    /// <c>Strategy.Deactivate(clock)</c> followed by <c>UpdateAsync</c> to
+    /// flip <c>IsActive</c> from <c>true</c> to <c>false</c>. The decorator
+    /// emits <see cref="Audit.AuditAction.Failed"/> before re-throwing.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// Always thrown. The concrete impl is a defensive stub.
+    /// </exception>
+    new Task DeleteAsync(Strategy strategy, CancellationToken ct);
 }

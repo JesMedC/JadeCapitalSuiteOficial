@@ -36,4 +36,29 @@ public interface IRiskProfileRepository
     /// el handler traduce failures a 409 conflict.
     /// </summary>
     Task<Result> MarkSupersededAsync(Guid id, IClock clock, CancellationToken ct = default);
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — RiskProfile deletion is NOT a valid operation.
+    /// The canonical termination surface is
+    /// <see cref="MarkSupersededAsync"/>: <c>MarkSuperseded</c> on the
+    /// aggregate flips <c>IsActive = false</c> and sets
+    /// <c>SupersededAt = clock.UtcNow</c>; the
+    /// <c>CreateOrSupersedeRiskProfileHandler</c> pairs supersede + add
+    /// inside one UoW so the single-active invariant is preserved.
+    ///
+    /// <para>
+    /// The <c>RiskProfileAuditDecorator</c> emits an
+    /// <see cref="Audit.AuditAction.Failed"/> audit row BEFORE re-throwing
+    /// <see cref="NotSupportedException"/> so the misuse is recorded for the
+    /// compliance trail. This method is part of the decorator-friendly
+    /// overload surface; the inner is a defensive STUB that throws
+    /// immediately so a misconfigured DI container cannot accidentally
+    /// hard-delete a profile.
+    /// </para>
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// Always thrown. The audit decorator surfaces the failure mode to
+    /// callers before this inner method is reached.
+    /// </exception>
+    Task DeleteAsync(RiskProfile profile, CancellationToken ct = default);
 }

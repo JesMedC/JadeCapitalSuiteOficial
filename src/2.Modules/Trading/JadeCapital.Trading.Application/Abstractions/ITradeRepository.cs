@@ -67,5 +67,13 @@ public interface ITradeRepository
     /// Borra fisicamente un trade. Solo aplica a trades Open/Cancelled
     /// (los Closed quedan como registro historico — validacion a nivel handler).
     /// </summary>
-    Task RemoveAsync(Trade trade, CancellationToken ct);
+    /// <remarks>
+    /// Wave 7 slice 7b.1 — BREAKING rename from <c>RemoveAsync</c> to
+    /// <c>DeleteAsync</c> to align with the canonical
+    /// <c>IRepository&lt;T&gt;.DeleteAsync(T, ct)</c> surface from
+    /// <c>Shared.Kernel/Repository/IRepository.cs</c>. No <c>[Obsolete]</c>,
+    /// no overload, no deprecation period. All call sites are updated
+    /// atomically in slice 7b.1.
+    /// </remarks>
+    Task DeleteAsync(Trade trade, CancellationToken ct);
 }

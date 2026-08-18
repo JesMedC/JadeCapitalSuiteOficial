@@ -45,4 +45,19 @@ public sealed class RiskProfileRepository : IRiskProfileRepository
         // correspondiente.
         return profile.MarkSuperseded(clock);
     }
+
+    /// <summary>
+    /// Wave 7, slice 7a.1 — defensive STUB. The canonical RiskProfile
+    /// termination surface is <see cref="MarkSupersededAsync"/>, which the
+    /// application layer pairs with a new <c>AddAsync</c> in one UoW so the
+    /// single-active invariant is preserved. The
+    /// <c>RiskProfileAuditDecorator</c> short-circuits to an
+    /// <see cref="Audit.AuditAction.Failed"/> audit row + re-throws
+    /// <see cref="NotSupportedException"/> BEFORE the inner is reached. The
+    /// inner is kept as a defensive second-line check so a misconfigured DI
+    /// container cannot accidentally hard-delete a profile.
+    /// </summary>
+    public Task DeleteAsync(RiskProfile profile, CancellationToken ct = default)
+        => throw new NotSupportedException(
+            "RiskProfile deletion happens via MarkSupersededAsync, not direct delete.");
 }
