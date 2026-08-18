@@ -244,46 +244,46 @@ Forecast ~400 lines, within 1000L budget — `size:exception` unlikely.
 
 **Phase 1: Shared kernel (TDD)**
 
-- [ ] 1.1 RED test `TenantIdTests` (5 scenarios: Guid from value, equality, Empty sentinel, ToString round-trip, JSON contract).
-- [ ] 1.2 GREEN: `Shared.Kernel/MultiTenancy/TenantId.cs`.
-- [ ] 1.3 RED test `ITenantContextContractTests` (3 scenarios: interface shape, nullable Current + CurrentUserId, IsSuperAdmin default false).
-- [ ] 1.4 GREEN: `Shared.Kernel/MultiTenancy/ITenantContext.cs`.
+- [x] 1.1 RED test `TenantIdTests` (5 scenarios: Guid from value, equality, Empty sentinel, ToString round-trip, JSON contract).
+- [x] 1.2 GREEN: `Shared.Kernel/MultiTenancy/TenantId.cs`.
+- [x] 1.3 RED test `ITenantContextContractTests` (3 scenarios: interface shape, nullable Current + CurrentUserId, IsSuperAdmin default false).
+- [x] 1.4 GREEN: `Shared.Kernel/MultiTenancy/ITenantContext.cs`.
 
 **Phase 2: Domain (TDD)**
 
-- [ ] 2.1 RED test `TenantTests` (14 scenarios: create valid, name length 1..120, slug format `[a-z0-9-]+`, slug length 1..64, owner_user_id FK validation, plan enum range, status enum range, status transitions Active→Suspended→Archived, no back-transitions, rename trims whitespace, ChangePlan validates new plan, immutable after Create, JSON contract, Rehydrate).
-- [ ] 2.2 GREEN: `Identity.Domain/Tenants/Tenant.cs` (aggregate root + `TenantErrors.cs` + `TenantStatus.cs` + `TenantPlan.cs` + `Events/TenantCreatedDomainEvent.cs`).
+- [x] 2.1 RED test `TenantTests` (14 scenarios: create valid, name length 1..120, slug format `[a-z0-9-]+`, slug length 1..64, owner_user_id FK validation, plan enum range, status enum range, status transitions Active→Suspended→Archived, no back-transitions, rename trims whitespace, ChangePlan validates new plan, immutable after Create, JSON contract, Rehydrate).
+- [x] 2.2 GREEN: `Identity.Domain/Tenants/Tenant.cs` (aggregate root + `TenantErrors.cs` + `TenantStatus.cs` + `TenantPlan.cs` + `Events/TenantCreatedDomainEvent.cs`).
 
 **Phase 3: Migration**
 
-- [ ] 3.1 `infrastructure/postgres/migrations/0024_tenants.sql` — `identity.tenants` table (7 columns + 1 unique index + 1 regular index + 2 CHECK constraints). Idempotent.
-- [ ] 3.2 `infrastructure/postgres/migrations/0025_users_tenant_id.sql` — `ALTER TABLE identity.users ADD COLUMN tenant_id UUID` + FK + 1 partial index. Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.1 `infrastructure/postgres/migrations/0024_tenants.sql` — `identity.tenants` table (7 columns + 1 unique index + 1 regular index + 2 CHECK constraints). Idempotent.
+- [x] 3.2 `infrastructure/postgres/migrations/0025_users_tenant_id.sql` — `ALTER TABLE identity.users ADD COLUMN tenant_id UUID` + FK + 1 partial index. Idempotent. Wire en `migrate.Dockerfile`.
 
 **Phase 4: Application (TDD)**
 
-- [ ] 4.1 RED test `CreateTenantHandlerTests` (5 scenarios: valid request → tenant created, slug already exists → 409, owner user not found → 404, name empty → 422, slug with invalid chars → 422).
-- [ ] 4.2 GREEN: `Identity.Application/Features/Tenants/CreateTenant/CreateTenantCommand.cs` + `CreateTenantHandler.cs`.
-- [ ] 4.3 RED test `GetTenantHandlerTests` (3 scenarios: own tenant → 200, cross-tenant lookup → 404, tenant not found → 404).
-- [ ] 4.4 GREEN: `Identity.Application/Features/Tenants/GetTenant/GetTenantQuery.cs` + `GetTenantHandler.cs` + `TenantDto.cs`.
+- [x] 4.1 RED test `CreateTenantHandlerTests` (5 scenarios: valid request → tenant created, slug already exists → 409, owner user not found → 404, name empty → 422, slug with invalid chars → 422).
+- [x] 4.2 GREEN: `Identity.Application/Features/Tenants/CreateTenant/CreateTenantCommand.cs` + `CreateTenantHandler.cs`.
+- [x] 4.3 RED test `GetTenantHandlerTests` (3 scenarios: own tenant → 200, cross-tenant lookup → 404, tenant not found → 404).
+- [x] 4.4 GREEN: `Identity.Application/Features/Tenants/GetTenant/GetTenantQuery.cs` + `GetTenantHandler.cs` + `TenantDto.cs`.
 
 **Phase 5: User.AssignToTenant (TDD)**
 
-- [ ] 5.1 RED test `UserAssignToTenantTests` (4 scenarios: assign valid tenant → user.tenant_id set, re-assign same tenant → no-op, cross-tenant re-assign requires admin, invalid tenant id → 422).
-- [ ] 5.2 GREEN: extend `Identity.Domain/Users/User.cs` with `TenantId? TenantId { get; private set; }` + `AssignToTenant(TenantId, IClock)`.
+- [x] 5.1 RED test `UserAssignToTenantTests` (4 scenarios: assign valid tenant → user.tenant_id set, re-assign same tenant → no-op, cross-tenant re-assign requires admin, invalid tenant id → 422).
+- [x] 5.2 GREEN: extend `Identity.Domain/Users/User.cs` with `TenantId? TenantId { get; private set; }` + `AssignToTenant(TenantId, IClock)`.
 
 **Phase 6: Infrastructure + API**
 
-- [ ] 6.1 `TenantConfiguration` (EF) — `b.ToTable("tenants")` + 1 unique index + 1 regular index + 2 CHECK constraints.
-- [ ] 6.2 `TenantRepository` impl (GetByIdAsync, FindBySlugAsync, AddAsync, UpdateAsync, ListByOwnerAsync).
-- [ ] 6.3 Extend `UserConfiguration` with `b.Property(u => u.TenantId).HasColumnName("tenant_id")`.
-- [ ] 6.4 `TenantDto` + `TenantMapping` (10 LOC `_Common/TenantMapping.cs`).
-- [ ] 6.5 DI: `AddScoped<ITenantContext, TenantContext>` + `AddHttpContextAccessor()` (already present) + `AddScoped<CreateTenantHandler>` + `AddScoped<GetTenantHandler>` + `AddScoped<ITenantRepository, TenantRepository>`.
+- [x] 6.1 `TenantConfiguration` (EF) — `b.ToTable("tenants")` + 1 unique index + 1 regular index + 2 CHECK constraints.
+- [x] 6.2 `TenantRepository` impl (GetByIdAsync, FindBySlugAsync, AddAsync, UpdateAsync, ListByOwnerAsync).
+- [x] 6.3 Extend `UserConfiguration` with `b.Property(u => u.TenantId).HasColumnName("tenant_id")`.
+- [x] 6.4 `TenantDto` + `TenantMapping` (10 LOC `_Common/TenantMapping.cs`).
+- [x] 6.5 DI: `AddScoped<ITenantContext, TenantContext>` + `AddHttpContextAccessor()` (already present) + `AddScoped<CreateTenantHandler>` + `AddScoped<GetTenantHandler>` + `AddScoped<ITenantRepository, TenantRepository>`.
 
 **Phase 7: Validate**
 
-- [ ] 7.1 `dotnet test --filter "FullyQualifiedName~Tenant|TenantId"` --nologo --verbosity minimal → 35/35 pass.
-- [ ] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 7.3 Full BE suite → 1055/1055 pass (was 1020 → +35 new tests, 0 regressions).
+- [x] 7.1 `dotnet test --filter "FullyQualifiedName~Tenant|TenantId"` --nologo --verbosity minimal → 35/35 pass. (Actual: 36 Identity + 8 Shared.Kernel = 44 due to [Theory]/[InlineData] expansions + 1 extra positive test.)
+- [x] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 7.3 Full BE suite → 1055/1055 pass (was 1020 → +35 new tests, 0 regressions). (Actual: 1174 cumulative BE tests across Trading 700 + Billing 116 + Identity 199 + Shared.Kernel 159 — the 1020/1055 forecast predates Wave 6 actuals.)
 
 ### 6c.1 size:exception preview
 
@@ -293,9 +293,9 @@ Forecast ~700 lines, Wave 5 precedent (5a.1=2108) → `size:exception` likely. J
 
 - New files: 12 (Shared.Kernel 2 + Identity.Domain 5 + Identity.Application 5 + Identity.Infrastructure 1 + migration 1).
 - Modified files: 5 (Identity.Domain/Users/User.cs + Identity.Infrastructure/UserConfiguration + DI + Program.cs + IdentityDbContext).
-- Total: **17 paths** ≤ 32 OK.
+- Total: **17 paths** ≤ 32 OK. (Actual: 28 paths — within the 32 budget cap.)
 
-> **Slice 6c.1 completion note**: code lands with all tests green. 35 new BE tests. `tenant_id` column is nullable; NOT NULL lands in 6c.3.
+> **Slice 6c.1 completion note**: code lands with all tests green. 44 new BE tests (spec target 35). `tenant_id` column is nullable; NOT NULL lands in 6c.3.
 
 ---
 

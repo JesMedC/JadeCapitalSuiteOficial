@@ -1,9 +1,11 @@
 using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
+using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Identity.Infrastructure.Projections;
 using JadeCapital.Identity.Infrastructure.Security;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,6 +51,18 @@ public static class IdentityModuleRegistration
         services.AddScoped<IActiveUserIdsReader, IdentityActiveUserIdsReader>();
         services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
+
+        // ===== Slice 6c.1 — Tenants =====
+        // ITenantContext: slice 6c.1 ships a placeholder (returns null/false
+        // for every member). The real JWT-derived impl lands in 6c.2 — the
+        // swap is a one-line change in this registration.
+        services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<ITenantRepository, TenantRepository>();
+        // MediatR resolves handlers by interface; register the concrete
+        // types so DI has an entry. (MediatR also scans the Application
+        // assembly, so the runtime binding happens twice — that's fine.)
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.CreateTenant.CreateTenantHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.GetTenant.GetTenantHandler>();
 
         // ===== Security =====
         services.AddSingleton<IPasswordHasher>(_ =>
