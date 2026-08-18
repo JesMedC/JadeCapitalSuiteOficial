@@ -27,4 +27,18 @@ internal sealed class ScannerFilterRepository : IScannerFilterRepository
 
     public Task UpdateAsync(ScannerFilter filter, CancellationToken ct)
     { _db.ScannerFilters.Update(filter); return Task.CompletedTask; }
+
+    /// <summary>
+    /// Defensive throw — the canonical ScannerFilter mutation surface is
+    /// <c>ScannerFilter.Deactivate(IClock)</c> (flips <c>IsActive = false</c>),
+    /// NOT a hard delete. The <see cref="ScannerFilterAuditDecorator"/>
+    /// short-circuits before this method is called (emitting
+    /// <see cref="AuditAction.Failed"/> first), so this branch is never
+    /// exercised in production. Mirrors the Wave 7 7b.1
+    /// <c>StrategyRepository.DeleteAsync</c> + 7a.1 <c>UserRepository.DeleteAsync</c>
+    /// precedent for non-deletable aggregates.
+    /// </summary>
+    public Task DeleteAsync(ScannerFilter filter, CancellationToken ct)
+        => throw new NotSupportedException(
+            "ScannerFilter deletion is not supported — use Deactivate (IsActive = false).");
 }
