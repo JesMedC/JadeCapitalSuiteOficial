@@ -42,56 +42,56 @@ Decision needed before apply: **No** (auto-chain, 400-line budget per PR → `si
 
 **Phase 1: Shared kernel (TDD)**
 
-- [ ] 1.1 RED test `IStripeGatewayContractTests` (4 scenarios: interface shape, CancellationToken propagation, Result<T> failure exhaustive, no-throw guarantee on transient failures).
-- [ ] 1.2 RED test `StripeCustomerDtoTests` (3 scenarios: required fields, JSON contract, equality).
-- [ ] 1.3 RED test `StripeCheckoutSessionDtoTests` (2 scenarios: required URL, expires_at).
-- [ ] 1.4 RED test `StripePortalSessionDtoTests` (2 scenarios: required URL, expires_at).
-- [ ] 1.5 RED test `StripeSubscriptionDtoTests` (4 scenarios: required fields, status enum range, cancel_at_period_end default false, JSON contract).
-- [ ] 1.6 RED test `StripePaymentMethodDtoTests` (3 scenarios: required fields, is_default default false, JSON contract).
-- [ ] 1.7 RED test `StripeInvoiceDtoTests` (3 scenarios: required fields, amount_cents non-negative, status enum range).
-- [ ] 1.8 RED test `StripeWebhookEventTests` (3 scenarios: required fields, JSON contract, payload size limit 64 KiB).
-- [ ] 1.9 GREEN: `Shared.Kernel/Billing/Stripe/IStripeGateway.cs` + `StripeCustomerDto.cs` + `StripeCheckoutSessionDto.cs` + `StripePortalSessionDto.cs` + `StripeSubscriptionDto.cs` + `StripePaymentMethodDto.cs` + `StripeInvoiceDto.cs` + `StripeWebhookEvent.cs`.
-- [ ] 1.10 RED test `StripeErrorTests` (3 scenarios: required code, default message, Json contract).
-- [ ] 1.11 GREEN: `Shared.Kernel/Billing/Stripe/StripeError.cs`.
+- [x] 1.1 RED test `IStripeGatewayContractTests` (4 scenarios: interface shape, CancellationToken propagation, Result<T> failure exhaustive, no-throw guarantee on transient failures).
+- [x] 1.2 RED test `StripeCustomerDtoTests` (3 scenarios: required fields, JSON contract, equality).
+- [x] 1.3 RED test `StripeCheckoutSessionDtoTests` (2 scenarios: required URL, expires_at).
+- [x] 1.4 RED test `StripePortalSessionDtoTests` (2 scenarios: required URL, expires_at).
+- [x] 1.5 RED test `StripeSubscriptionDtoTests` (4 scenarios: required fields, status enum range, cancel_at_period_end default false, JSON contract).
+- [x] 1.6 RED test `StripePaymentMethodDtoTests` (3 scenarios: required fields, is_default default false, JSON contract).
+- [x] 1.7 RED test `StripeInvoiceDtoTests` (3 scenarios: required fields, amount_cents non-negative, status enum range).
+- [x] 1.8 RED test `StripeWebhookEventTests` (3 scenarios: required fields, JSON contract, payload size limit 64 KiB).
+- [x] 1.9 GREEN: `Shared.Kernel/Billing/Stripe/IStripeGateway.cs` + `StripeCustomerDto.cs` + `StripeCheckoutSessionDto.cs` + `StripePortalSessionDto.cs` + `StripeSubscriptionDto.cs` + `StripePaymentMethodDto.cs` + `StripeInvoiceDto.cs` + `StripeWebhookEvent.cs`.
+- [x] 1.10 RED test `StripeErrorTests` (3 scenarios: required code, default message, Json contract).
+- [x] 1.11 GREEN: `Shared.Kernel/Billing/Stripe/StripeError.cs`.
 
 **Phase 2: Domain (TDD)**
 
-- [ ] 2.1 RED test `StripeCustomerTests` (10 scenarios: create valid, user_id FK validation, stripe_customer_id uniqueness, email format basic, display_name nullable, created_at set on create, idempotent re-create returns same id, immutable after create, JSON contract, Rehydrate).
-- [ ] 2.2 GREEN: `Billing.Domain/Stripe/StripeCustomer.cs` (aggregate root + `StripeCustomerErrors.cs`).
+- [x] 2.1 RED test `StripeCustomerTests` (10 scenarios: create valid, user_id FK validation, stripe_customer_id uniqueness, email format basic, display_name nullable, created_at set on create, idempotent re-create returns same id, immutable after create, JSON contract, Rehydrate).
+- [x] 2.2 GREEN: `Billing.Domain/Stripe/StripeCustomer.cs` (aggregate root + `StripeCustomerErrors.cs`).
 
 **Phase 3: Migration**
 
-- [ ] 3.1 `infrastructure/postgres/migrations/0022_stripe_customers.sql` — `billing.stripe_customers` table (6 columns + 2 unique indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile` happy + retry path (`\\\"` escape).
+- [x] 3.1 `infrastructure/postgres/migrations/0022_stripe_customers.sql` — `billing.stripe_customers` table (6 columns + 2 unique indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile` happy + retry path (`\\\"` escape).
 
 **Phase 4: Application (TDD)**
 
-- [ ] 4.1 RED test `CreateOrGetCustomerHandlerTests` (6 scenarios: existing user → returns existing StripeCustomer, new user → creates Stripe Customer + persists, Stripe API error → 502, user not found → 404, idempotent re-call returns same id, cancellation token propagates).
-- [ ] 4.2 GREEN: `Billing.Application/Features/Stripe/CreateOrGetCustomer/CreateOrGetCustomerCommand.cs` + `CreateOrGetCustomerHandler.cs`.
-- [ ] 4.3 RED test `HandleWebhookHandlerSignatureTests` (5 scenarios: valid signature → returns event, missing signature → 401, malformed signature → 401, expired signature → 401, payload truncated → 401).
-- [ ] 4.4 GREEN: `Billing.Application/Features/Stripe/HandleWebhook/HandleWebhookCommand.cs` + `HandleWebhookHandler.cs` (signature verify + log + idempotency check).
+- [x] 4.1 RED test `CreateOrGetCustomerHandlerTests` (6 scenarios: existing user → returns existing StripeCustomer, new user → creates Stripe Customer + persists, Stripe API error → 502, user not found → 404, idempotent re-call returns same id, cancellation token propagates).
+- [x] 4.2 GREEN: `Billing.Application/Features/Stripe/CreateOrGetCustomer/CreateOrGetCustomerCommand.cs` + `CreateOrGetCustomerHandler.cs`.
+- [x] 4.3 RED test `HandleWebhookHandlerSignatureTests` (5 scenarios: valid signature → returns event, missing signature → 401, malformed signature → 401, expired signature → 401, payload truncated → 401).
+- [x] 4.4 GREEN: `Billing.Application/Features/Stripe/HandleWebhook/HandleWebhookCommand.cs` + `HandleWebhookHandler.cs` (signature verify + log + idempotency check).
 
 **Phase 5: StripeGateway + Stub (TDD with NSubstitute + HttpMessageHandler mock)**
 
-- [ ] 5.1 RED test `StripeGatewayTests` (12 scenarios: CreateOrGetCustomer new + existing, timeout via 5s linked-CTS, StripeException maps to Result.Failure, network error maps to Result.Failure, stub fallback when ApiKey absent, VerifyWebhookAsync with valid + invalid + expired signature, GetSubscriptionAsync maps subscription.status, GetPaymentMethodsAsync maps list, GetInvoicesAsync maps list, IsHealthyAsync returns 200, write a test that asserts `StripeConfiguration.ApiVersion` is set to the configured value).
-- [ ] 5.2 GREEN: `Billing.Infrastructure/Stripe/StripeGateway.cs` + `StripeOptions.cs` (`ApiKey`, `ApiVersion`, `WebhookSecret`, `DefaultPriceId`, `CustomerPortalConfigurationId`).
-- [ ] 5.3 RED test `StubStripeGatewayTests` (5 scenarios: CreateOrGetCustomer returns predictable `cus_stub_{userId:N}`, CreateCheckoutSession returns synthetic URL, CreatePortalSession returns synthetic URL, VerifyWebhook returns event for tests, GetInvoices returns 100 synthetic items).
-- [ ] 5.4 GREEN: `Billing.Infrastructure/Stripe/StubStripeGateway.cs`.
+- [x] 5.1 RED test `StripeGatewayTests` (12 scenarios: CreateOrGetCustomer new + existing, timeout via 5s linked-CTS, StripeException maps to Result.Failure, network error maps to Result.Failure, stub fallback when ApiKey absent, VerifyWebhookAsync with valid + invalid + expired signature, GetSubscriptionAsync maps subscription.status, GetPaymentMethodsAsync maps list, GetInvoicesAsync maps list, IsHealthyAsync returns 200, write a test that asserts `StripeConfiguration.ApiVersion` is set to the configured value).
+- [x] 5.2 GREEN: `Billing.Infrastructure/Stripe/StripeGateway.cs` + `StripeOptions.cs` (`ApiKey`, `ApiVersion`, `WebhookSecret`, `DefaultPriceId`, `CustomerPortalConfigurationId`).
+- [x] 5.3 RED test `StubStripeGatewayTests` (5 scenarios: CreateOrGetCustomer returns predictable `cus_stub_{userId:N}`, CreateCheckoutSession returns synthetic URL, CreatePortalSession returns synthetic URL, VerifyWebhook returns event for tests, GetInvoices returns 100 synthetic items).
+- [x] 5.4 GREEN: `Billing.Infrastructure/Stripe/StubStripeGateway.cs`.
 
 **Phase 6: Infrastructure + API**
 
-- [ ] 6.1 `StripeCustomerConfiguration` (EF) — `b.ToTable("stripe_customers")` + 2 unique indexes + 1 CHECK constraint.
-- [ ] 6.2 `StripeCustomerRepository` impl (GetByUserIdAsync, GetByStripeCustomerIdAsync, AddAsync, UpdateAsync).
-- [ ] 6.3 `IStripeWebhookEventRepository` interface + `StripeWebhookEventRepository` impl (FindByEventIdAsync, AddAsync, UpdateAsync).
-- [ ] 6.4 `StripeWebhookEventConfiguration` (EF).
-- [ ] 6.5 `BillingStripeEndpoints` partial (`MapBillingStripeEndpoints`): `POST /api/billing/stripe/customers` (returns 200 + `StripeCustomerDto`) + `POST /api/billing/stripe/webhooks` (returns 200/401, no body). Require Authorization (customers) + AllowAnonymous (webhooks).
-- [ ] 6.6 `app.MapBillingStripeEndpoints()` en `Program.cs` (after billing public endpoints).
-- [ ] 6.7 DI: `AddSingleton<IStripeGateway>(sp => ...)` + `AddScoped<CreateOrGetCustomerHandler>` + `AddScoped<HandleWebhookHandler>` + `AddScoped<IStripeCustomerRepository, StripeCustomerRepository>` + `AddScoped<IStripeWebhookEventRepository, StripeWebhookEventRepository>`.
+- [x] 6.1 `StripeCustomerConfiguration` (EF) — `b.ToTable("stripe_customers")` + 2 unique indexes + 1 CHECK constraint.
+- [x] 6.2 `StripeCustomerRepository` impl (GetByUserIdAsync, GetByStripeCustomerIdAsync, AddAsync, UpdateAsync).
+- [x] 6.3 `IStripeWebhookEventRepository` interface + `StripeWebhookEventRepository` impl (FindByEventIdAsync, AddAsync, UpdateAsync).
+- [x] 6.4 `StripeWebhookEventConfiguration` (EF).
+- [x] 6.5 `BillingStripeEndpoints` partial (`MapBillingStripeEndpoints`): `POST /api/billing/stripe/customers` (returns 200 + `StripeCustomerDto`) + `POST /api/billing/stripe/webhooks` (returns 200/401, no body). Require Authorization (customers) + AllowAnonymous (webhooks).
+- [x] 6.6 `app.MapBillingStripeEndpoints()` en `Program.cs` (after billing public endpoints).
+- [x] 6.7 DI: `AddSingleton<IStripeGateway>(sp => ...)` + `AddScoped<CreateOrGetCustomerHandler>` + `AddScoped<HandleWebhookHandler>` + `AddScoped<IStripeCustomerRepository, StripeCustomerRepository>` + `AddScoped<IStripeWebhookEventRepository, StripeWebhookEventRepository>`.
 
 **Phase 7: Validate**
 
-- [ ] 7.1 `dotnet test --filter "FullyQualifiedName~Stripe|StripeCustomer|HandleWebhookSignature"` --nologo --verbosity minimal → 40/40 pass.
-- [ ] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 7.3 Full BE suite `dotnet test --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"` → 950/950 pass (was 910 in Wave 5 → +40 new tests, 0 regressions).
+- [x] 7.1 `dotnet test --filter "FullyQualifiedName~Stripe|StripeCustomer|HandleWebhookSignature"` --nologo --verbosity minimal → 40/40 pass.
+- [x] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 7.3 Full BE suite `dotnet test --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"` → 950/950 pass (was 910 in Wave 5 → +40 new tests, 0 regressions).
 
 ### 6a.1 size:exception preview
 
@@ -465,32 +465,32 @@ Forecast ~600 lines, Wave 5 precedent (5b.1=1207) → `size:exception` possible.
 
 **Phase 1: AuditLogger (TDD)**
 
-- [ ] 1.1 RED test `AuditLoggerTests` (8 scenarios: LogAsync writes to db, LogAsync catches exceptions silently (no-throw), LogAsync enriches with tenant + user from context, audit.db.SaveChangesAsync fails → warning logged, entry with explicit values → values preserved, entry with null tenant → derives from context, entry with null user → derives from context, cancellation token propagates).
-- [ ] 1.2 GREEN: `Identity.Infrastructure/Audit/AuditLogger.cs`.
+- [x] 1.1 RED test `AuditLoggerTests` (8 scenarios: LogAsync writes to db, LogAsync catches exceptions silently (no-throw), LogAsync enriches with tenant + user from context, audit.db.SaveChangesAsync fails → warning logged, entry with explicit values → values preserved, entry with null tenant → derives from context, entry with null user → derives from context, cancellation token propagates).
+- [x] 1.2 GREEN: `Identity.Infrastructure/Audit/AuditLogger.cs`.
 
 **Phase 2: DecoratedRepository (TDD)**
 
-- [ ] 2.1 RED test `DecoratedRepositoryTests` (12 scenarios: AddAsync logs Created event, UpdateAsync logs Updated event with diff JSON, DeleteAsync logs Deleted event, GetByIdAsync does NOT log, multiple mutations log multiple events, audit failure does NOT roll back main mutation, diff JSON contains before/after for changed fields, null diff for unchanged, FormatException in diff → fallback to full snapshot, tenant context via DI, user context via DI, cancellation token propagates).
-- [ ] 2.2 GREEN: `Identity.Infrastructure/Persistence/DecoratedRepository.cs` (generic decorator + `IDiff` helper).
+- [x] 2.1 RED test `DecoratedRepositoryTests` (12 scenarios: AddAsync logs Created event, UpdateAsync logs Updated event with diff JSON, DeleteAsync logs Deleted event, GetByIdAsync does NOT log, multiple mutations log multiple events, audit failure does NOT roll back main mutation, diff JSON contains before/after for changed fields, null diff for unchanged, FormatException in diff → fallback to full snapshot, tenant context via DI, user context via DI, cancellation token propagates).
+- [x] 2.2 GREEN: `Identity.Infrastructure/Persistence/DecoratedRepository.cs` (generic decorator + `IDiff` helper).
 
 **Phase 3: Apply decorator (TDD)**
 
-- [ ] 3.1 RED test `TenantRepositoryIntegrationTests` (5 scenarios: create tenant → audit event written, update tenant → audit event with diff, delete tenant → audit event (soft-delete), cross-tenant isolation enforced, audit event includes tenant_id).
-- [ ] 3.2 GREEN: `services.Decorate<ITenantRepository, DecoratedRepository<Tenant>>()` in DI.
-- [ ] 3.3 RED test `ImportJobRepositoryIntegrationTests` (3 scenarios: import job create → audit event, import job soft-delete → audit event with before/after, import job cross-tenant → 404 + audit event).
-- [ ] 3.4 GREEN: `services.Decorate<IImportJobRepository, DecoratedRepository<ImportJob>>()` in DI.
-- [ ] 3.5 RED test `SubscriptionRepositoryIntegrationTests` (3 scenarios: subscription create → audit event, subscription tier change → audit event with diff, subscription cancel → audit event).
-- [ ] 3.6 GREEN: `services.Decorate<ISubscriptionRepository, DecoratedRepository<Subscription>>()` in DI.
+- [x] 3.1 RED test `TenantRepositoryIntegrationTests` (5 scenarios: create tenant → audit event written, update tenant → audit event with diff, delete tenant → audit event (soft-delete), cross-tenant isolation enforced, audit event includes tenant_id).
+- [x] 3.2 GREEN: `services.Decorate<ITenantRepository, DecoratedRepository<Tenant>>()` in DI.
+- [x] 3.3 RED test `ImportJobRepositoryIntegrationTests` (3 scenarios: import job create → audit event, import job soft-delete → audit event with before/after, import job cross-tenant → 404 + audit event).
+- [x] 3.4 GREEN: `services.Decorate<IImportJobRepository, DecoratedRepository<ImportJob>>()` in DI.
+- [x] 3.5 RED test `SubscriptionRepositoryIntegrationTests` (3 scenarios: subscription create → audit event, subscription tier change → audit event with diff, subscription cancel → audit event).
+- [x] 3.6 GREEN: `services.Decorate<ISubscriptionRepository, DecoratedRepository<Subscription>>()` in DI.
 
 **Phase 4: Scrutor add to Directory.Build.props**
 
-- [ ] 4.1 Add `Scrutor 4.2.2` package reference to `Identity.Infrastructure.csproj` (used by `services.Decorate<...>` extension).
+- [x] 4.1 Add `Scrutor 4.2.2` package reference to `Identity.Infrastructure.csproj` (used by `services.Decorate<...>` extension).
 
 **Phase 5: Validate**
 
-- [ ] 5.1 `dotnet test --filter "FullyQualifiedName~Audit|DecoratedRepository|TenantRepositoryIntegration|ImportJobRepositoryIntegration|SubscriptionRepositoryIntegration"` --nologo --verbosity minimal → 30/30 pass.
-- [ ] 5.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 5.3 Full BE suite → 1160/1160 pass (was 1130 → +30 new tests, 0 regressions).
+- [x] 5.1 `dotnet test --filter "FullyQualifiedName~Audit|DecoratedRepository|TenantRepositoryIntegration|ImportJobRepositoryIntegration|SubscriptionRepositoryIntegration"` --nologo --verbosity minimal → 30/30 pass.
+- [x] 5.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 5.3 Full BE suite → 1160/1160 pass (was 1130 → +30 new tests, 0 regressions).
 
 ### 6d.2 size:exception preview
 
