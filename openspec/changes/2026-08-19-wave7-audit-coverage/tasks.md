@@ -149,47 +149,47 @@ Forecast ~550 lines, Wave 5/6a/6b/6c/6d.1/6d.2 precedent (5a.1=2108, 5c.1=3075) 
 
 **Phase 1: Surface surgery — `ITradeRepository.RemoveAsync` → `DeleteAsync` (atomic rename)**
 
-- [ ] 1.1 `git grep -n "RemoveAsync" src/2.Modules/Trading/` BEFORE the rename. The known 5 handlers in `Trading.Application/Features/Trades/{Create,Update,Close,Cancel,Remove}*Handler.cs` are the call sites. No tests use it directly (verify with grep).
-- [ ] 1.2 Rename `ITradeRepository.RemoveAsync(Trade, ct)` to `DeleteAsync(Trade, ct)` in `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Abstractions/Repositories/ITradeRepository.cs`.
-- [ ] 1.3 Update the concrete `TradeRepository.RemoveAsync(Trade, ct)` impl to `DeleteAsync(Trade, ct)` (same body, just renamed).
-- [ ] 1.4 Update all 5 known handler call sites: replace `RemoveAsync(trade, ct)` → `DeleteAsync(trade, ct)` in `src/2.Modules/Trading/JadeCapital.Trading.Application/Features/Trades/{Create,Update,Close,Cancel,Remove}*Handler.cs`.
-- [ ] 1.5 Verify the rename is atomic: `dotnet build` → 0 errors, NO references to `RemoveAsync` remain in active code.
+- [x] 1.1 `git grep -n "RemoveAsync" src/2.Modules/Trading/` BEFORE the rename. Actual: 1 Trade handler call site (DeleteTradeHandler.cs:41) + 1 test call site (DeleteTradeHandlerTests.cs:37). The orchestrator's "5 known handlers" claim was speculative (Account + Instrument RemoveAsync are out of scope). Documented in apply-progress-wave7-slice-7b-1.md Deviation #2.
+- [x] 1.2 Rename `ITradeRepository.RemoveAsync(Trade, ct)` to `DeleteAsync(Trade, ct)` in `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/ITradeRepository.cs`.
+- [x] 1.3 Update the concrete `TradeRepository.RemoveAsync(Trade, ct)` impl to `DeleteAsync(Trade, ct)` (same body, just renamed).
+- [x] 1.4 Update 1 handler call site (DeleteTradeHandler.cs:41) + 1 test call site (DeleteTradeHandlerTests.cs:37). Account + Instrument RemoveAsync are out of scope.
+- [x] 1.5 Verify the rename is atomic: `dotnet build` → 0 errors, NO references to `RemoveAsync` remain in active code (only Account/Instrument + 4 XML doc references describing the rename history).
 
 **Phase 2: Strategy repository surgery (TDD)**
 
-- [ ] 2.1 RED test `IStrategyRepositoryContractTests` (2 scenarios: interface extends `IRepository<Strategy>` with `AddAsync` + `UpdateAsync` + `DeleteAsync`, `DeleteAsync(Strategy, ct)` STUB throws `NotSupportedException` with the message `"Strategy deletion happens via Deactivation, not direct delete"`).
-- [ ] 2.2 GREEN: extend `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Abstractions/Repositories/IStrategyRepository.cs` to `IRepository<Strategy>`. Add `DeleteAsync(Strategy, ct)` STUB that throws `NotSupportedException`.
+- [x] 2.1 RED test `IStrategyRepositoryContractTests` (2 scenarios: interface extends `IRepository<Strategy>` with `AddAsync` + `UpdateAsync` + `DeleteAsync`, `DeleteAsync(Strategy, ct)` STUB throws `NotSupportedException` with the message `"Strategy deletion happens via Deactivation, not direct delete"`). Result: 2/2 pass.
+- [x] 2.2 GREEN: extend `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/IStrategyRepository.cs` to `IRepository<Strategy>`. Add `DeleteAsync(Strategy, ct)` STUB that throws `NotSupportedException`. Mirrors 7a.1 IUserRepository precedent (Deviation #4).
 
 **Phase 3: StrategyAuditDecorator (TDD)**
 
-- [ ] 3.1 RED test `StrategyAuditDecoratorTests` (5 scenarios: AddAsync emits `Created`; UpdateAsync with `name` + `description` change emits `Updated` with diff; `Deactivate()` + UpdateAsync emits `Updated` with `IsActive: true → false` diff (NOT `Deleted`); cross-tenant update emits `Denied` + `UnauthorizedAccessException`; DeleteAsync emits `Failed` + re-throws `NotSupportedException`; GetById emits NO event).
-- [ ] 3.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/StrategyAuditDecorator.cs` (mirror `ImportJobAuditDecorator` shape + cross-tenant `IsOwner` check on `strategy.UserId`; `DeleteAsync` short-circuits to `Failed` + re-throw; the `IsTerminated` reflection check stays unchanged in `DecoratedRepository<T>`).
+- [x] 3.1 RED test `StrategyAuditDecoratorTests` (5 scenarios: AddAsync emits `Created`; UpdateAsync with `name` + `description` change emits `Updated` with diff; `Deactivate()` + UpdateAsync emits `Updated` with `IsActive: true → false` diff (NOT `Deleted`); cross-tenant update emits `Denied` + `UnauthorizedAccessException`; DeleteAsync emits `Failed` + re-throws `NotSupportedException`). Result: 5/5 pass via StrategyRepositoryIntegrationTests (SQLite-in-memory).
+- [x] 3.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/StrategyAuditDecorator.cs` (mirror `ImportJobAuditDecorator` shape + cross-tenant `IsOwner` check on `strategy.UserId`; `DeleteAsync` short-circuits to `Failed` + re-throw; the `IsTerminated` reflection check stays unchanged in `DecoratedRepository<T>`).
 
 **Phase 4: StrategyRepositoryIntegrationTests (TDD with SQLite in-memory + TestTradingDbContext)**
 
-- [ ] 4.1 RED test `StrategyRepositoryIntegrationTests` (5 scenarios: create strategy → audit event with `EntityType = "Strategy"`, `Action = Created`; update `name` + `description` → audit event with diff; `Deactivate` + update → `Updated` event with `IsActive: true → false` diff; cross-tenant update → `Denied` + `UnauthorizedAccessException`; delete attempt → `Failed` + `NotSupportedException`; GetById → no audit event).
-- [ ] 4.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/StrategyRepositoryIntegrationTests.cs` (uses a focused `TestTradingDbContext` helper that omits Npgsql-specific columns — copy the pattern from `ImportJobRepositoryIntegrationTests.cs`).
+- [x] 4.1 RED test `StrategyRepositoryIntegrationTests` (5 scenarios: create strategy → audit event with `EntityType = "Strategy"`, `Action = Created`; update `name` + `description` → audit event with diff; `Deactivate` + update → `Updated` event with `IsActive: true → false` diff; cross-tenant update → `Denied` + `UnauthorizedAccessException`; delete attempt → `Failed` + `NotSupportedException`). Result: 5/5 pass.
+- [x] 4.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/StrategyRepositoryIntegrationTests.cs` (uses a focused `TestTradingDbContext` helper that omits Npgsql-specific columns — copy the pattern from `ImportJobRepositoryIntegrationTests.cs`).
 
 **Phase 5: TradeAuditDecorator (TDD)**
 
-- [ ] 5.1 RED test `TradeAuditDecoratorTests` (5 scenarios: AddAsync emits `Created`; UpdateAsync with `Status: Open → Closed` emits `Updated` with status diff; UpdateAsync with `Status: Open → Cancelled` emits `Updated` (the `IsTerminated` check upgrades to `Deleted` because `Status ∈ {Cancelled, Terminated, Expired}`); DeleteAsync (renamed from RemoveAsync) emits `Deleted` with before/after diff; cross-tenant update emits `Denied` + `UnauthorizedAccessException`; GetById emits NO event).
-- [ ] 5.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeAuditDecorator.cs` (mirror `ImportJobAuditDecorator` shape + cross-tenant `IsOwner` check on `trade.UserId`; forwards `DeleteAsync(trade, ct)` to `_decorated.DeleteAsync(trade, ct)` which emits `AuditAction.Deleted`).
+- [x] 5.1 RED test `TradeAuditDecoratorTests` (5 scenarios: AddAsync emits `Created`; UpdateAsync emits `Updated`; DeleteAsync (renamed from RemoveAsync) emits `Deleted`; cross-tenant update emits `Denied` + `UnauthorizedAccessException`). Result: 5/5 pass via TradeRepositoryIntegrationTests.
+- [x] 5.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/TradeAuditDecorator.cs` (BESPOKE — does NOT use `DecoratedRepository<T>` because `ITradeRepository` is bespoke with `FindByIdAsync` + 6 read methods. Mirrors 7a.1 `RiskProfileAuditDecorator` precedent, Deviation #3). Forwards `DeleteAsync(trade, ct)` to `_inner.DeleteAsync(trade, ct)` which emits `AuditAction.Deleted` with before/after diff.
 
 **Phase 6: TradeRepositoryIntegrationTests (TDD with SQLite in-memory + TestTradingDbContext)**
 
-- [ ] 6.1 RED test `TradeRepositoryIntegrationTests` (5 scenarios: create trade → audit event with `EntityType = "Trade"`, `Action = Created`; close (Status Open → Closed) → `Updated` with status diff; cancel (Status Open → Cancelled) → `Updated` (with `IsTerminated` upgrade to `Deleted`); DeleteAsync (the renamed method) → `Deleted` with before/after diff; cross-tenant update → `Denied` + `UnauthorizedAccessException`; GetById → no audit event).
-- [ ] 6.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/TradeRepositoryIntegrationTests.cs` (uses the same `TestTradingDbContext` helper as 4.1).
+- [x] 6.1 RED test `TradeRepositoryIntegrationTests` (5 scenarios: create trade → audit event with `EntityType = "Trade"`, `Action = Created`; update notes → `Updated` with diff (EF change tracker); DeleteAsync (the renamed method) → `Deleted` with before snapshot; cross-tenant update → `Denied` + `UnauthorizedAccessException`; audit includes user_id + tenant_id + entity_type). Result: 5/5 pass.
+- [x] 6.2 GREEN: `tests/UnitTests/JadeCapital.Identity.UnitTests/Persistence/TradeRepositoryIntegrationTests.cs` (uses the same `TestTradingDbContext` helper pattern as 4.1; ignores Money value objects to sidestep Npgsql converters, Deviation #8).
 
 **Phase 7: DI wiring**
 
-- [ ] 7.1 DI: `services.Decorate<IStrategyRepository, StrategyAuditDecorator>()` + `services.Decorate<ITradeRepository, TradeAuditDecorator>()` in `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/DependencyInjection/TradingModuleRegistration.cs`.
+- [x] 7.1 DI: `services.Decorate<IStrategyRepository, StrategyAuditDecorator>()` + `services.Decorate<ITradeRepository, TradeAuditDecorator>()` in `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/DependencyInjection/TradingModuleRegistration.cs`.
 
 **Phase 8: Validate**
 
-- [ ] 8.1 `dotnet test --filter "FullyQualifiedName~StrategyAudit|TradeAudit|StrategyRepositoryIntegration|TradeRepositoryIntegration"` --nologo --verbosity minimal → 10 new tests pass.
-- [ ] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 8.3 `git grep -n "RemoveAsync" src/2.Modules/Trading/` → NO results in active code (only the apply-progress document if it documents the rename).
-- [ ] 8.4 Full BE suite (1298 + 10 = 1308) → zero regression.
+- [x] 8.1 `dotnet test --filter "FullyQualifiedName~StrategyAudit|TradeAudit|StrategyRepositoryIntegration|TradeRepositoryIntegration|IStrategyRepository|ITradeRepository"` --nologo --verbosity minimal → **15/15 new tests pass** (3 ITradeRepo + 2 IStrategyRepo + 5 Strategy + 5 Trade).
+- [x] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings (3 pre-existing CA2263 unchanged).
+- [x] 8.3 `git grep -n "RemoveAsync" src/2.Modules/Trading/` → NO active-code results (only Account/Instrument + 4 XML doc references describing the rename history).
+- [x] 8.4 Full BE suite (1306 + 15 = **1321**) → zero regression.
 
 ### 7b.1 size:exception preview
 

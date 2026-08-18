@@ -38,7 +38,7 @@ public sealed class DeleteTradeHandler : IRequestHandler<DeleteTradeCommand, Res
         if (trade.Status == TradeStatus.Closed)
             return Result.Failure<Unit>(TradingApplicationErrors.Trades.CannotDeleteClosed);
 
-        await _trades.RemoveAsync(trade, ct);
+        await _trades.DeleteAsync(trade, ct);
         var saved = await _uow.SaveChangesAsync(ct);
         DomainGuard.EnsureSuccess(saved);
 
