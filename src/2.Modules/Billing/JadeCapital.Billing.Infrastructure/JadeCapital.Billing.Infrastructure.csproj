@@ -14,16 +14,16 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Stripe.net" Version="47.0.0" />
+    <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
+         so the Identity.Infrastructure ProjectReference is no longer needed.
+         Scrutor's Decorate<> is now an explicit PackageReference (was transitive
+         via Identity.Infrastructure before). -->
+    <PackageReference Include="Scrutor" Version="4.2.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Domain\JadeCapital.Billing.Domain.csproj" />
-    <!-- Slice 6d.2 deviation: Billing.Infrastructure → Identity.Infrastructure
-         so BillingModuleRegistration can wire Decorate<ISubscriptionRepository,
-         SubscriptionAuditDecorator>() using the typed decorator class. Same
-         layering cost pattern as Trading.Infrastructure (Phases 3.3-3.4). -->
-    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
