@@ -1,11 +1,14 @@
+using JadeCapital.Billing.Application.Features.Subscriptions;
 using JadeCapital.Billing.Application.Stripe;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Stripe;
+using JadeCapital.Shared.Kernel.Time;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace JadeCapital.Billing.UnitTests.Stripe;
 
 /// <summary>
-/// Tests for <see cref="HandleWebhookHandler"/> (Wave 6, slice 6a.1).
+/// Tests for <see cref="HandleWebhookHandler"/> (Wave 6, slices 6a.1 + 6a.2).
 ///
 /// <para>
 /// Contract (slice 6a.1 — signature verify + log only, no business logic):
@@ -25,6 +28,17 @@ public class HandleWebhookHandlerTests
     private const string Payload = "{\"id\":\"evt_123\",\"type\":\"ping\"}";
     private const string Signature = "t=1234567890,v1=abcdef0123456789";
 
+    private static HandleWebhookHandler BuildSut(IStripeGateway gateway)
+    {
+        var webhookRepo = Substitute.For<IStripeWebhookEventRepository>();
+        var subRepo = Substitute.For<ISubscriptionAdminRepository>();
+        var uow = Substitute.For<ISubscriptionAdminUnitOfWork>();
+        uow.SaveChangesAsync(Arg.Any<CancellationToken>()).Returns(Result.Success());
+        return new HandleWebhookHandler(
+            gateway, webhookRepo, subRepo, uow, new SystemClock(),
+            NullLogger<HandleWebhookHandler>.Instance);
+    }
+
     [Fact]
     public async Task Handle_Valid_Signature_Returns_Parsed_Event()
     {
@@ -33,7 +47,7 @@ public class HandleWebhookHandlerTests
         gateway.VerifyWebhookAsync(Payload, Signature, Arg.Any<CancellationToken>())
             .Returns(Result.Success(parsed));
 
-        var sut = new HandleWebhookHandler(gateway);
+        var sut = BuildSut(gateway);
         var result = await sut.Handle(
             new HandleWebhookCommand(Payload, Signature),
             CancellationToken.None);
@@ -51,7 +65,7 @@ public class HandleWebhookHandlerTests
             .Returns(Result.Failure<StripeWebhookEvent>(
                 JadeCapital.Shared.Kernel.Stripe.StripeError.SignatureMissing("missing header")));
 
-        var sut = new HandleWebhookHandler(gateway);
+        var sut = BuildSut(gateway);
         var result = await sut.Handle(
             new HandleWebhookCommand(Payload, ""),
             CancellationToken.None);
@@ -68,7 +82,7 @@ public class HandleWebhookHandlerTests
             .Returns(Result.Failure<StripeWebhookEvent>(
                 JadeCapital.Shared.Kernel.Stripe.StripeError.SignatureInvalid("bad signature")));
 
-        var sut = new HandleWebhookHandler(gateway);
+        var sut = BuildSut(gateway);
         var result = await sut.Handle(
             new HandleWebhookCommand(Payload, "bad"),
             CancellationToken.None);
@@ -85,7 +99,7 @@ public class HandleWebhookHandlerTests
             .Returns(Result.Failure<StripeWebhookEvent>(
                 JadeCapital.Shared.Kernel.Stripe.StripeError.Authentication("no webhook secret")));
 
-        var sut = new HandleWebhookHandler(gateway);
+        var sut = BuildSut(gateway);
         var result = await sut.Handle(
             new HandleWebhookCommand(Payload, Signature),
             CancellationToken.None);
@@ -105,7 +119,7 @@ public class HandleWebhookHandlerTests
                 return Result.Success(new StripeWebhookEvent("evt_x", "ping", Payload, DateTimeOffset.UnixEpoch));
             });
 
-        var sut = new HandleWebhookHandler(gateway);
+        var sut = BuildSut(gateway);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 

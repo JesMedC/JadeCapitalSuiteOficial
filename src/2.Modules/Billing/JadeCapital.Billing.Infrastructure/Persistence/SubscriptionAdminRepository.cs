@@ -48,6 +48,27 @@ public sealed class SubscriptionAdminRepository : ISubscriptionAdminRepository
             .Include("_history")
             .FirstOrDefaultAsync(s => s.Id == subscriptionId, ct);
 
+    /// <summary>
+    /// Wave 6a.2: looks up a subscription by its Stripe subscription id
+    /// (<c>sub_...</c>). The webhook handler uses this to resolve a
+    /// <c>customer.subscription.*</c> event to the local subscription
+    /// without an admin lookup. The DB has a UNIQUE partial index on
+    /// <c>stripe_subscription_id</c> (created by migration 0023), so the
+    /// query is a fast equality lookup with at most one row.
+    /// </summary>
+    public Task<Subscription?> FindByStripeSubscriptionIdAsync(
+        string stripeSubscriptionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(stripeSubscriptionId))
+            return Task.FromResult<Subscription?>(null);
+
+        return _db.Subscriptions
+            .Include("_history")
+            .FirstOrDefaultAsync(
+                s => s.StripeSubscriptionId == stripeSubscriptionId,
+                ct);
+    }
+
     private static SubscriptionStatus ParseStatus(string status)
         => Enum.TryParse<SubscriptionStatus>(status, ignoreCase: true, out var parsed)
             ? parsed

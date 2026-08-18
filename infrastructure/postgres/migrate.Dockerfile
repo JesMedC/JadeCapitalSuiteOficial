@@ -28,6 +28,7 @@ COPY migrations/0019_import_jobs.sql                           /migrations/0019_
 COPY migrations/0020_coaching_prompts_ai.sql                   /migrations/0020_coaching_prompts_ai.sql
 COPY migrations/0021_ai_risk_advice.sql                        /migrations/0021_ai_risk_advice.sql
 COPY migrations/0022_stripe_customers.sql                     /migrations/0022_stripe_customers.sql
+COPY migrations/0023_stripe_webhook_events.sql                 /migrations/0023_stripe_webhook_events.sql
 # Importante: como usamos CMD ["bash", "-c", ...] (no el entrypoint oficial),
 # NO se propaga POSTGRES_PASSWORD -> PGPASSWORD automaticamente. Lo seteamos a mano.
 CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep 2; done && \
@@ -56,6 +57,7 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0020_coaching_prompts_ai.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0021_ai_risk_advice.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0022_stripe_customers.sql && \
+       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0023_stripe_webhook_events.sql && \
       echo 'ALL MIGRATIONS OK' || \
      (echo 'PARTIAL MIGRATION — retrying (idempotent SQL)' && sleep 3 && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0001_InitialIdentitySchema.sql && \
@@ -81,4 +83,5 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0020_coaching_prompts_ai.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0021_ai_risk_advice.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0022_stripe_customers.sql && \
+        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0023_stripe_webhook_events.sql && \
         echo 'ALL MIGRATIONS OK (retry)')"]

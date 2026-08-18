@@ -18,6 +18,16 @@ public interface ISubscriptionAdminRepository
     /// <summary>Loads a subscription with its history for mutator write paths.
     /// Returns null if not found; the handler converts that into NotFound.</summary>
     Task<Subscription?> LoadForUpdateAsync(Guid subscriptionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Wave 6a.2: looks up a subscription by its Stripe subscription id
+    /// (e.g. <c>sub_...</c>). Used by the webhook handler to resolve a
+    /// Stripe event to the local subscription. Returns null if no mapping
+    /// exists (e.g. webhook arrived before <c>/api/billing/stripe/customers</c>
+    /// was called, or admin created the subscription without a Stripe mapping).
+    /// </summary>
+    Task<Subscription?> FindByStripeSubscriptionIdAsync(
+        string stripeSubscriptionId, CancellationToken ct = default);
 }
 
 /// <summary>Unit-of-work boundary for the Admin write paths. Persists the

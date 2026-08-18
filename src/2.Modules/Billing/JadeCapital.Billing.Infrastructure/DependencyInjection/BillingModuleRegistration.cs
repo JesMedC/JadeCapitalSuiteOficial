@@ -71,6 +71,9 @@ public static class BillingModuleRegistration
         // Repository for StripeCustomer — Scoped (depends on BillingDbContext).
         services.AddScoped<IStripeCustomerRepository, Persistence.StripeCustomerRepository>();
 
+        // Wave 6a.2 — Append-only webhook event repository.
+        services.AddScoped<IStripeWebhookEventRepository, Persistence.StripeWebhookEventRepository>();
+
         return services;
     }
 }

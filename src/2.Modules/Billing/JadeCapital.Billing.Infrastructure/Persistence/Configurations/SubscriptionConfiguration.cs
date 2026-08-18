@@ -44,6 +44,15 @@ internal sealed class SubscriptionConfiguration : IEntityTypeConfiguration<Subsc
         b.Property(s => s.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
+        // Wave 6a.2: nullable Stripe subscription id. Populated by the
+        // webhook handler on the first customer.subscription.* event.
+        // UNIQUE partial index lives at the SQL level (migration 0023); the
+        // EF model doesn't need to declare it because we never query by it
+        // through EF — the only reader is SubscriptionAdminRepository.
+        b.Property(s => s.StripeSubscriptionId)
+            .HasColumnName("stripe_subscription_id")
+            .HasMaxLength(64);
+
         // History is a computed projection (newest-first ordering on the
         // backing field). EF must NOT auto-discover it as a collection nav
         // (it would clash with the private _history navigation), so we Ignore

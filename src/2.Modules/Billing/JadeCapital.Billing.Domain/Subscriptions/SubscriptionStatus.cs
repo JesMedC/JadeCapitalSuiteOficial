@@ -15,7 +15,15 @@ public enum SubscriptionStatus
     Cancelled = 2,
 
     /// <summary>Trial expired without conversion to a paid plan.</summary>
-    Expired = 3
+    Expired = 3,
+
+    /// <summary>
+    /// Wave 6a.2: payment failed but not yet cancelled. Stripe's
+    /// <c>past_due</c> and <c>unpaid</c> statuses both map here. The
+    /// trader's subscription is no longer paying; the admin must intervene
+    /// to retry the charge, update the card, or cancel.
+    /// </summary>
+    PastDue = 4
 }
 
 /// <summary>
@@ -26,5 +34,13 @@ public enum SubscriptionAction
 {
     TierChanged = 0,
     Cancelled = 1,
-    TrialExtended = 2
+    TrialExtended = 2,
+
+    /// <summary>
+    /// Wave 6a.2: the subscription was synced from a Stripe webhook
+    /// (customer.subscription.created|updated|deleted). Carries a stripe
+    /// subscription id; the resulting status is recorded in the history
+    /// entry's <c>ResultingStatus</c>.
+    /// </summary>
+    WebhookSynced = 3
 }
