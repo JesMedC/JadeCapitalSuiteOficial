@@ -35,4 +35,23 @@ public interface IJournalEntryRepository
 
     /// <summary>Borra el entry por id (no filtra por userId — el handler ya valido).</summary>
     Task DeleteAsync(Guid entryId, CancellationToken ct);
+
+    /// <summary>
+    /// Decorator-friendly overload. Borra el entry a partir de la entidad
+    /// completa (Wave 7, slice 7b.2). Internamente delega a
+    /// <see cref="DeleteAsync(Guid, CancellationToken)"/> pasando
+    /// <c>entry.Id</c>. Production handlers pueden llamar a cualquiera
+    /// de las dos firmas:
+    /// <list type="bullet">
+    ///   <item>Si solo tienen el <c>Guid</c> (e.g. <c>DeleteJournalEntryHandler</c>):
+    ///         <see cref="DeleteAsync(Guid, CancellationToken)"/>.</item>
+    ///   <item>Si ya tienen la <see cref="JournalEntry"/> en scope (e.g. un
+    ///         handler que la cargo via <see cref="FindByIdAsync"/>): esta
+    ///         overload evita un acceso extra a la DB para resolver el id.</item>
+    /// </list>
+    /// El decorator <c>JournalEntryAuditDecorator</c> envuelve esta
+    /// overload (no la Guid-only) para emitir <c>AuditAction.Deleted</c>
+    /// con el id + content fields del entry.
+    /// </summary>
+    Task DeleteAsync(JournalEntry entry, CancellationToken ct);
 }
