@@ -206,6 +206,20 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // child entity of the review, not a separately-audited aggregate).
         services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeReviewRepository,
                   JadeCapital.Trading.Infrastructure.Audit.TradeReviewAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPlannerSessionRepository.
+        // BESPOKE (does NOT use DecoratedRepository<PlannerSession> because
+        // IPlannerSessionRepository is bespoke with ListByUserAndWeekAsync +
+        // ExistsForDateAsync + GetWeekComparisonAsync — cross-user-scoped read
+        // methods that don't fit the generic IRepository<T> shape).
+        // CRITICAL deviation: UpdateAsync emits AuditAction.Updated by default
+        // but is upgraded to AuditAction.Deleted when the session's Status ==
+        // PlannerStatus.Cancelled via the bespoke IsTerminated reflection
+        // check (re-implemented locally for the single terminated value in
+        // PlannerStatus — mirrors the Wave 7 7b.1 TradeAuditDecorator pattern
+        // for bespoke-shape decorators). Cross-tenant IsOwner check on
+        // PlannerSession.UserId for UpdateAsync.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPlannerSessionRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PlannerSessionAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
