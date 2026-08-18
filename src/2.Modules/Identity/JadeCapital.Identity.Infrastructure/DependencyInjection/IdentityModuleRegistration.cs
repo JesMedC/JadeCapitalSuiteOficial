@@ -65,6 +65,17 @@ public static class IdentityModuleRegistration
         // assembly, so the runtime binding happens twice — that's fine.)
         services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.CreateTenant.CreateTenantHandler>();
         services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.GetTenant.GetTenantHandler>();
+        // ===== Slice 6c.3 — Tenant admin endpoints =====
+        // 4 handlers + DTO mappers that back PATCH /api/tenants/{id} +
+        // GET /api/tenants/{id}/users + POST /api/tenants/{id}/users +
+        // DELETE /api/tenants/{id}/users/{userId}. Each uses the real
+        // ITenantContext (slice 6c.2) for cross-tenant 404 + capacity
+        // enforcement; the SQL migration 0026_NOT_NULL_tenant_id.sql
+        // closes the loop on the "ONE migration atómica" strategy.
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.UpdateTenant.UpdateTenantHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.ListTenantUsers.ListTenantUsersHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.InviteTenantUser.InviteTenantUserHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.RemoveTenantUser.RemoveTenantUserHandler>();
 
         // ===== Slice 6c.2 — Tenant middleware + backfill =====
         // BackfillTenantsHostedService fires once, 15s after startup, to

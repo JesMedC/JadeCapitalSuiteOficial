@@ -80,5 +80,53 @@ public static class TenantErrors
         public static readonly Error CrossTenantAccess =
             Error.NotFound("tenant.not_found",
                 "Tenant not found or not accessible from the current context.");
+
+        public static readonly Error UserNotInTenant =
+            Error.NotFound("tenant.user_not_in_tenant",
+                "User is not a member of this tenant.");
+
+        /// <summary>
+        /// Slice 6c.3 — the Personal default tenant (stable slug
+        /// <c>personal-default</c>, created by 0026_backfill_personal_tenant.sql
+        /// and <c>BackfillTenantsRunner</c>) was not found in the DB. This
+        /// should be impossible after the Wave-6 migrations run; surfacing
+        /// a dedicated error keeps the failure observable rather than
+        /// silently writing NULL into the (NOT NULL) tenant_id column.
+        /// </summary>
+        public static readonly Error PersonalDefaultMissing =
+            Error.NotFound("tenant.personal_default_missing",
+                "Personal default tenant is missing — migration 0026_backfill_personal_tenant.sql has not run.");
+    }
+
+    public static class Capacity
+    {
+        /// <summary>
+        /// Slice 6c.3 — tenant has reached its plan-bounded user capacity.
+        /// Personal=10, Pro=100, Enterprise=1000 (see
+        /// <see cref="Tenant.MaxUsersForPlan"/>). Returning 422 lets the
+        /// client surface an upsell ("upgrade to Pro") rather than a 500.
+        /// </summary>
+        public static readonly Error AtCapacity =
+            Error.Validation("tenant.at_capacity",
+                "Tenant has reached its plan-bounded user capacity.");
+
+        /// <summary>
+        /// Slice 6c.3 — owner cannot remove themselves from their own tenant.
+        /// Invariant from design.md: removing the owner would leave the
+        /// tenant without an owner, which the API doesn't support
+        /// (transfer-ownership is a separate operation, not in Wave 6).
+        /// </summary>
+        public static readonly Error OwnerCannotRemoveSelf =
+            Error.Validation("tenant.owner_cannot_remove_self",
+                "Tenant owner cannot remove themselves from the tenant.");
+
+        /// <summary>
+        /// Slice 6c.3 — Suspended tenants reject all mutations
+        /// (rename, plan change, invite, remove). Matches the
+        /// "compliance hold" invariant documented in design.md.
+        /// </summary>
+        public static readonly Error CannotModifySuspended =
+            Error.Validation("tenant.cannot_modify_suspended",
+                "Suspended tenants are read-only until reactivated.");
     }
 }

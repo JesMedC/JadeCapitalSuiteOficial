@@ -32,6 +32,7 @@ COPY migrations/0023_stripe_webhook_events.sql                 /migrations/0023_
 COPY migrations/0024_tenants.sql                              /migrations/0024_tenants.sql
 COPY migrations/0025_users_tenant_id.sql                      /migrations/0025_users_tenant_id.sql
 COPY migrations/0026_backfill_personal_tenant.sql            /migrations/0026_backfill_personal_tenant.sql
+COPY migrations/0026_NOT_NULL_tenant_id.sql                  /migrations/0026_NOT_NULL_tenant_id.sql
 # Importante: como usamos CMD ["bash", "-c", ...] (no el entrypoint oficial),
 # NO se propaga POSTGRES_PASSWORD -> PGPASSWORD automaticamente. Lo seteamos a mano.
 CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep 2; done && \
@@ -64,6 +65,7 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0024_tenants.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0025_users_tenant_id.sql && \
        PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0026_backfill_personal_tenant.sql && \
+       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0026_NOT_NULL_tenant_id.sql && \
       echo 'ALL MIGRATIONS OK' || \
      (echo 'PARTIAL MIGRATION — retrying (idempotent SQL)' && sleep 3 && \
       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0001_InitialIdentitySchema.sql && \
@@ -93,4 +95,5 @@ PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$P
         PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0024_tenants.sql && \
 PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0025_users_tenant_id.sql && \
          PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0026_backfill_personal_tenant.sql && \
+       PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/0026_NOT_NULL_tenant_id.sql && \
          echo 'ALL MIGRATIONS OK (retry)')"]

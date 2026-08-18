@@ -13,6 +13,7 @@ namespace JadeCapital.Shared.Infrastructure.Email;
 public sealed class InMemoryCapturingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<RecoveryEmailMessage> _captured = new();
+    private readonly ConcurrentQueue<TenantInviteEmailMessage> _invitesCaptured = new();
     private readonly ILogger<InMemoryCapturingEmailSender> _logger;
 
     public InMemoryCapturingEmailSender(ILogger<InMemoryCapturingEmailSender> logger)
@@ -28,8 +29,24 @@ public sealed class InMemoryCapturingEmailSender : IEmailSender
         return Task.CompletedTask;
     }
 
-    /// <summary>Snapshot of every captured message. Tests assert against this.</summary>
+    public Task SendTenantInviteAsync(TenantInviteEmailMessage message, CancellationToken ct = default)
+    {
+        _invitesCaptured.Enqueue(message);
+        // Correlation only — no token, no link.
+        _logger.LogInformation("Tenant invite captured for {To} (tenant {TenantName}).",
+            message.To, message.TenantName);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Snapshot of every captured recovery message. Tests assert against this.</summary>
     public IReadOnlyList<RecoveryEmailMessage> Captured => _captured.ToArray();
 
-    public void Reset() => _captured.Clear();
+    /// <summary>Snapshot of every captured tenant-invite message (slice 6c.3).</summary>
+    public IReadOnlyList<TenantInviteEmailMessage> CapturedInvites => _invitesCaptured.ToArray();
+
+    public void Reset()
+    {
+        _captured.Clear();
+        _invitesCaptured.Clear();
+    }
 }
