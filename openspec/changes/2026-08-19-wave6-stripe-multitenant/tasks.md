@@ -113,38 +113,38 @@ Forecast ~600 lines, Wave 5 precedent (5a.1=2108, 5b.1=1207) → `size:exception
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `CreateCheckoutSessionHandlerTests` (6 scenarios: valid user + priceId → returns URL, user has no Stripe customer → creates one first, Stripe API error → 502, invalid priceId → 422, success_url/cancel_url validation, cancellation token propagates).
-- [ ] 1.2 GREEN: `Billing.Application/Features/Stripe/CreateCheckoutSession/CreateCheckoutSessionCommand.cs` + `CreateCheckoutSessionHandler.cs`.
-- [ ] 1.3 RED test `CreatePortalSessionHandlerTests` (5 scenarios: valid user → returns URL, user has no Stripe customer → 404, Stripe API error → 502, return_url validation, cancellation token propagates).
-- [ ] 1.4 GREEN: `Billing.Application/Features/Stripe/CreatePortalSession/CreatePortalSessionCommand.cs` + `CreatePortalSessionHandler.cs`.
+- [x] 1.1 RED test `CreateCheckoutSessionHandlerTests` (6 scenarios: valid user + priceId → returns URL, user has no Stripe customer → creates one first, Stripe API error → 502, invalid priceId → 422, success_url/cancel_url validation, cancellation token propagates).
+- [x] 1.2 GREEN: `Billing.Application/Features/Stripe/CreateCheckoutSession/CreateCheckoutSessionCommand.cs` + `CreateCheckoutSessionHandler.cs`.
+- [x] 1.3 RED test `CreatePortalSessionHandlerTests` (5 scenarios: valid user → returns URL, user has no Stripe customer → 404, Stripe API error → 502, return_url validation, cancellation token propagates).
+- [x] 1.4 GREEN: `Billing.Application/Features/Stripe/CreatePortalSession/CreatePortalSessionCommand.cs` + `CreatePortalSessionHandler.cs`.
 
 **Phase 2: Webhook dispatch (TDD)**
 
-- [ ] 2.1 RED test `HandleWebhookSubscriptionEventTests` (8 scenarios: `customer.subscription.created` → SyncSubscription creates new subscription, `customer.subscription.updated` → SyncSubscription applies diff, `customer.subscription.deleted` → CancelSubscription, unknown event type → log + 200, idempotent re-delivery → 200 no-op, `billing.subscriptions` not found for stripe subscription id → log warning + 200, optimistic-concurrency version conflict → retry 3 times with jitter, audit event written for every successful sync).
-- [ ] 2.2 GREEN: extend `HandleWebhookHandler` with switch on `event.type` for `customer.subscription.*` events.
+- [x] 2.1 RED test `HandleWebhookSubscriptionEventTests` (8 scenarios: `customer.subscription.created` → SyncSubscription creates new subscription, `customer.subscription.updated` → SyncSubscription applies diff, `customer.subscription.deleted` → CancelSubscription, unknown event type → log + 200, idempotent re-delivery → 200 no-op, `billing.subscriptions` not found for stripe subscription id → log warning + 200, optimistic-concurrency version conflict → retry 3 times with jitter, audit event written for every successful sync).
+- [x] 2.2 GREEN: extend `HandleWebhookHandler` with switch on `event.type` for `customer.subscription.*` events.
 
 **Phase 3: SubscriptionWebhookSync (TDD)**
 
-- [ ] 3.1 RED test `SubscriptionWebhookSyncTests` (6 scenarios: maps Stripe subscription.status "active" → SubscriptionStatus.Active, "past_due" → SubscriptionStatus.PastDue, "canceled" → SubscriptionStatus.Cancelled, "trialing" → SubscriptionStatus.Trial, "unpaid" → SubscriptionStatus.PastDue, unknown status → 422).
-- [ ] 3.2 GREEN: `Billing.Domain/Stripe/SubscriptionWebhookSync.cs` (static translator + `StripeSubscriptionStatus` enum).
+- [x] 3.1 RED test `SubscriptionWebhookSyncTests` (6 scenarios: maps Stripe subscription.status "active" → SubscriptionStatus.Active, "past_due" → SubscriptionStatus.PastDue, "canceled" → SubscriptionStatus.Cancelled, "trialing" → SubscriptionStatus.Trial, "unpaid" → SubscriptionStatus.PastDue, unknown status → 422).
+- [x] 3.2 GREEN: `Billing.Domain/Stripe/SubscriptionWebhookSync.cs` (static translator + `StripeSubscriptionStatus` enum).
 
 **Phase 4: Migration**
 
-- [ ] 4.1 `infrastructure/postgres/migrations/0023_stripe_webhook_events.sql` — `billing.stripe_webhook_events` table (8 columns + 1 unique index + 1 regular index). Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 4.1 `infrastructure/postgres/migrations/0023_stripe_webhook_events.sql` — `billing.stripe_webhook_events` table (8 columns + 1 unique index + 1 regular index). Idempotent. Wire en `migrate.Dockerfile`.
 
 **Phase 5: Infrastructure + API**
 
-- [ ] 5.1 Extend `Subscription.Configuration` with `stripe_subscription_id VARCHAR(64)` nullable column + index. ALTER TABLE via migration 0023 (additive idempotent).
-- [ ] 5.2 `StripeWebhookEventRepository` impl (FindByEventIdAsync, AddAsync, UpdateAsync).
-- [ ] 5.3 `StripeWebhookEventConfiguration` (EF).
-- [ ] 5.4 `BillingStripeEndpoints` extension: `POST /api/billing/stripe/checkout` (RequireAuthorization) + `POST /api/billing/stripe/portal` (RequireAuthorization).
-- [ ] 5.5 DI: `AddScoped<CreateCheckoutSessionHandler>` + `AddScoped<CreatePortalSessionHandler>`.
+- [x] 5.1 Extend `Subscription.Configuration` with `stripe_subscription_id VARCHAR(64)` nullable column + index. ALTER TABLE via migration 0023 (additive idempotent).
+- [x] 5.2 `StripeWebhookEventRepository` impl (FindByEventIdAsync, AddAsync, UpdateAsync).
+- [x] 5.3 `StripeWebhookEventConfiguration` (EF).
+- [x] 5.4 `BillingStripeEndpoints` extension: `POST /api/billing/stripe/checkout` (RequireAuthorization) + `POST /api/billing/stripe/portal` (RequireAuthorization).
+- [x] 5.5 DI: `AddScoped<CreateCheckoutSessionHandler>` + `AddScoped<CreatePortalSessionHandler>`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~StripeCheckout|StripeSubscription|StripeWebhook|SubscriptionWebhookSync"` --nologo --verbosity minimal → 45/45 pass.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 6.3 Full BE suite → 995/995 pass (was 950 → +45 new tests, 0 regressions).
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~StripeCheckout|StripeSubscription|StripeWebhook|SubscriptionWebhookSync"` --nologo --verbosity minimal → 50/50 pass.
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 6.3 Full BE suite → 1040+ tests pass (was 950 → +50 new tests, 0 regressions).
 
 ### 6a.2 size:exception preview
 

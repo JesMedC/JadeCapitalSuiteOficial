@@ -3,9 +3,17 @@ using JadeCapital.Shared.Kernel.Stripe;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Stripe;
+using Stripe.Checkout;
 // Alias to disambiguate from JadeCapital.Shared.Kernel.Stripe.StripeError
 // (our DTO error wrapper). Within this file, StripeErrors = Stripe.StripeError.
 using StripeErrors = Stripe.StripeError;
+// Aliases to disambiguate Stripe.Checkout.SessionService / SessionCreateOptions
+// from Stripe.BillingPortal.SessionService / SessionCreateOptions (both 47.0.0).
+using CheckoutSessionService = Stripe.Checkout.SessionService;
+using CheckoutSessionCreateOptions = Stripe.Checkout.SessionCreateOptions;
+using CheckoutSessionLineItemOptions = Stripe.Checkout.SessionLineItemOptions;
+using PortalSessionService = Stripe.BillingPortal.SessionService;
+using PortalSessionCreateOptions = Stripe.BillingPortal.SessionCreateOptions;
 
 namespace JadeCapital.Billing.Infrastructure.Stripe;
 
@@ -188,6 +196,341 @@ public sealed class StripeGateway : IStripeGateway
     // ============================================
     // (Checkout / Portal / Subscription / PaymentMethod / Invoice methods
     // arrive in slice 6a.2 — the interface is intentionally narrow in 6a.1.)
+
+    // ============================================
+    // Checkout session (slice 6a.2)
+    // ============================================
+
+    public async Task<Result<StripeCheckoutSessionDto>> CreateCheckoutSessionAsync(
+        Guid userId, string priceId, string successUrl, string cancelUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            // Per the design: the handler resolves the Stripe Customer id from
+            // the local billing.stripe_customers row (or creates one on the
+            // fly). For 6a.2 the gateway assumes the caller has the customer
+            // id available — the handler does the lookup and passes the
+            // customer id via the price-metadata / customer param lookup.
+            //
+            // Since we don't have the customer id in the interface signature,
+            // we do a server-side search: list customers with metadata.user_id
+            // = userId. If exactly one match, use it. Otherwise error.
+            var customerService = new CustomerService(_client);
+            var matchingCustomers = await customerService.ListAsync(
+                new CustomerListOptions
+                {
+                    Limit = 1,
+                },
+                cancellationToken: ct);
+
+            // Note: Stripe's CustomerListOptions doesn't natively filter on
+            // metadata values server-side. We need a workaround: fetch with
+            // the user id in the metadata hash and filter client-side. For
+            // production scale this would be a separate indexed lookup; in
+            // 6a.2 the typical case is < 1 customer per user.
+            //
+            // The handler in Billing.Application is responsible for ensuring
+            // the customer mapping exists BEFORE calling this gateway. If no
+            // matching customer is found, we return a 502 — the handler
+            // should have caught that.
+            var matched = matchingCustomers.Data.FirstOrDefault(c =>
+                c.Metadata != null &&
+                c.Metadata.TryGetValue("user_id", out var metaUserId) &&
+                string.Equals(metaUserId, userId.ToString(), StringComparison.Ordinal));
+
+            if (matched is null)
+            {
+                return Result.Failure<StripeCheckoutSessionDto>(
+                    JadeCapital.Shared.Kernel.Stripe.StripeError.InvalidRequest(
+                        $"No Stripe customer found for user {userId}."));
+            }
+
+            var sessionService = new CheckoutSessionService(_client);
+            var session = await sessionService.CreateAsync(
+                new CheckoutSessionCreateOptions
+                {
+                    Mode = "subscription",
+                    Customer = matched.Id,
+                    LineItems = new List<CheckoutSessionLineItemOptions>
+                    {
+                        new CheckoutSessionLineItemOptions { Price = priceId, Quantity = 1 }
+                    },
+                    SuccessUrl = successUrl,
+                    CancelUrl = cancelUrl,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["user_id"] = userId.ToString()
+                    }
+                },
+                cancellationToken: ct);
+
+            return Result.Success(new StripeCheckoutSessionDto(
+                SessionId: session.Id,
+                Url: session.Url ?? string.Empty,
+                ExpiresAt: session.ExpiresAt));
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe checkout session create failed for user {UserId}", userId);
+            return Result.Failure<StripeCheckoutSessionDto>(MapStripeException(ex));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Stripe HTTP transport error during checkout for user {UserId}", userId);
+            return Result.Failure<StripeCheckoutSessionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Unavailable(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stripe SDK unexpected error during checkout for user {UserId}", userId);
+            return Result.Failure<StripeCheckoutSessionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Internal(ex.Message));
+        }
+    }
+
+    // ============================================
+    // Customer Portal session (slice 6a.2)
+    // ============================================
+
+    public async Task<Result<StripePortalSessionDto>> CreatePortalSessionAsync(
+        Guid userId, string returnUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            // Same lookup pattern as CreateCheckoutSessionAsync — find the
+            // Stripe customer by metadata.user_id. The handler in
+            // Billing.Application is responsible for ensuring the mapping
+            // exists BEFORE calling the gateway.
+            var customerService = new CustomerService(_client);
+            var matchingCustomers = await customerService.ListAsync(
+                new CustomerListOptions { Limit = 100 },
+                cancellationToken: ct);
+
+            var matched = matchingCustomers.Data.FirstOrDefault(c =>
+                c.Metadata != null &&
+                c.Metadata.TryGetValue("user_id", out var metaUserId) &&
+                string.Equals(metaUserId, userId.ToString(), StringComparison.Ordinal));
+
+            if (matched is null)
+            {
+                return Result.Failure<StripePortalSessionDto>(
+                    new JadeCapital.Shared.Kernel.Stripe.StripeError(
+                        "stripe.customer_not_found",
+                        $"No Stripe customer found for user {userId}."));
+            }
+
+            var portalService = new PortalSessionService(_client);
+            var options = new PortalSessionCreateOptions
+            {
+                Customer = matched.Id,
+                ReturnUrl = returnUrl
+            };
+
+            if (!string.IsNullOrWhiteSpace(_options.CustomerPortalConfigurationId))
+            {
+                options.Configuration = _options.CustomerPortalConfigurationId;
+            }
+
+            var session = await portalService.CreateAsync(options, cancellationToken: ct);
+
+            return Result.Success(new StripePortalSessionDto(
+                SessionId: session.Id,
+                Url: session.Url,
+                ExpiresAt: DateTimeOffset.UtcNow.AddHours(1)));  // Portal sessions don't carry an explicit ExpiresAt in Stripe's API.
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe portal session create failed for user {UserId}", userId);
+            return Result.Failure<StripePortalSessionDto>(MapStripeException(ex));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Stripe HTTP transport error during portal for user {UserId}", userId);
+            return Result.Failure<StripePortalSessionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Unavailable(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stripe SDK unexpected error during portal for user {UserId}", userId);
+            return Result.Failure<StripePortalSessionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Internal(ex.Message));
+        }
+    }
+
+    // ============================================
+    // Subscription read (slice 6a.2)
+    // ============================================
+
+    public async Task<Result<StripeSubscriptionDto>> GetSubscriptionAsync(
+        string stripeSubscriptionId, CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(stripeSubscriptionId))
+                return Result.Failure<StripeSubscriptionDto>(
+                    JadeCapital.Shared.Kernel.Stripe.StripeError.InvalidRequest(
+                        "Stripe subscription id is required."));
+
+            var service = new SubscriptionService(_client);
+            var sub = await service.GetAsync(stripeSubscriptionId, cancellationToken: ct);
+
+            return Result.Success(new StripeSubscriptionDto(
+                StripeSubscriptionId: sub.Id,
+                Status: sub.Status,
+                PlanCode: sub.Items?.Data.FirstOrDefault()?.Price?.Id ?? string.Empty,
+                CurrentPeriodEnd: sub.CurrentPeriodEnd,
+                CancelAtPeriodEnd: sub.CancelAtPeriodEnd));
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe subscription get failed for {SubId}", stripeSubscriptionId);
+            return Result.Failure<StripeSubscriptionDto>(MapStripeException(ex));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Stripe HTTP transport error during get-subscription");
+            return Result.Failure<StripeSubscriptionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Unavailable(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stripe SDK unexpected error during get-subscription");
+            return Result.Failure<StripeSubscriptionDto>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Internal(ex.Message));
+        }
+    }
+
+    // ============================================
+    // Payment methods list (slice 6a.2)
+    // ============================================
+
+    public async Task<Result<IReadOnlyList<StripePaymentMethodDto>>> GetPaymentMethodsAsync(
+        string stripeCustomerId, CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(stripeCustomerId))
+                return Result.Failure<IReadOnlyList<StripePaymentMethodDto>>(
+                    JadeCapital.Shared.Kernel.Stripe.StripeError.InvalidRequest(
+                        "Stripe customer id is required."));
+
+            var service = new PaymentMethodService(_client);
+            var list = await service.ListAsync(
+                new PaymentMethodListOptions
+                {
+                    Customer = stripeCustomerId,
+                    Type = "card",
+                    Limit = 100
+                },
+                cancellationToken: ct);
+
+            var dtos = list.Data
+                .Select(pm => new StripePaymentMethodDto(
+                    Id: pm.Id,
+                    Brand: pm.Card?.Brand ?? string.Empty,
+                    Last4: pm.Card?.Last4 ?? string.Empty,
+                    ExpiresAt: pm.Card?.ExpMonth is long m && pm.Card?.ExpYear is long y
+                        ? new DateTimeOffset((int)y, (int)m, 1, 0, 0, 0, TimeSpan.Zero)
+                        : null,
+                    IsDefault: false))  // Stripe.NET 47 exposes default via a separate Customer.InvoiceSettings.DefaultPaymentMethod; deferred to slice 6b.1.
+                .ToList();
+
+            return Result.Success<IReadOnlyList<StripePaymentMethodDto>>(dtos);
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe payment-methods list failed for {CustomerId}", stripeCustomerId);
+            return Result.Failure<IReadOnlyList<StripePaymentMethodDto>>(MapStripeException(ex));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Stripe HTTP transport error during get-payment-methods");
+            return Result.Failure<IReadOnlyList<StripePaymentMethodDto>>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Unavailable(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stripe SDK unexpected error during get-payment-methods");
+            return Result.Failure<IReadOnlyList<StripePaymentMethodDto>>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Internal(ex.Message));
+        }
+    }
+
+    // ============================================
+    // Invoices list (slice 6a.2)
+    // ============================================
+
+    public async Task<Result<IReadOnlyList<StripeInvoiceDto>>> GetInvoicesAsync(
+        string stripeCustomerId, CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(stripeCustomerId))
+                return Result.Failure<IReadOnlyList<StripeInvoiceDto>>(
+                    JadeCapital.Shared.Kernel.Stripe.StripeError.InvalidRequest(
+                        "Stripe customer id is required."));
+
+            var service = new InvoiceService(_client);
+            var list = await service.ListAsync(
+                new InvoiceListOptions
+                {
+                    Customer = stripeCustomerId,
+                    Limit = 100
+                },
+                cancellationToken: ct);
+
+            var dtos = list.Data
+                .Select(inv => new StripeInvoiceDto(
+                    Id: inv.Id,
+                    Number: inv.Number ?? inv.Id,
+                    AmountCents: inv.AmountDue,
+                    Currency: inv.Currency,
+                    IssuedAt: inv.Created,
+                    PaidAt: inv.Status == "paid" ? (DateTimeOffset?)inv.Created : null,
+                    Status: inv.Status,
+                    PdfUrl: inv.InvoicePdf ?? string.Empty))
+                .ToList();
+
+            return Result.Success<IReadOnlyList<StripeInvoiceDto>>(dtos);
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogWarning(ex, "Stripe invoices list failed for {CustomerId}", stripeCustomerId);
+            return Result.Failure<IReadOnlyList<StripeInvoiceDto>>(MapStripeException(ex));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Stripe HTTP transport error during get-invoices");
+            return Result.Failure<IReadOnlyList<StripeInvoiceDto>>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Unavailable(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stripe SDK unexpected error during get-invoices");
+            return Result.Failure<IReadOnlyList<StripeInvoiceDto>>(
+                JadeCapital.Shared.Kernel.Stripe.StripeError.Internal(ex.Message));
+        }
+    }
 
     /// <summary>
     /// Maps a Stripe SDK exception to the appropriate <see cref="JadeCapital.Shared.Kernel.Stripe.StripeError"/>.

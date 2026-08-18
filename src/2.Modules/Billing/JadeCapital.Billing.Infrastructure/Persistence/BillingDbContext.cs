@@ -22,6 +22,9 @@ public sealed class BillingDbContext : DbContext
     /// <summary>Wave 6a.1: Stripe Customer mapping per user.</summary>
     public DbSet<StripeCustomer> StripeCustomers => Set<StripeCustomer>();
 
+    /// <summary>Wave 6a.2: append-only log of received Stripe webhook events.</summary>
+    public DbSet<StripeWebhookEvent> StripeWebhookEvents => Set<StripeWebhookEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("billing");
@@ -29,5 +32,6 @@ public sealed class BillingDbContext : DbContext
         modelBuilder.ApplyConfiguration(new SubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new SubscriptionHistoryConfiguration());
         modelBuilder.ApplyConfiguration(new StripeCustomerConfiguration());
+        modelBuilder.ApplyConfiguration(new StripeWebhookEventConfiguration());
     }
 }

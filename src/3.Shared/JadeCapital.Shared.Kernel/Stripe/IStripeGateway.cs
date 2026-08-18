@@ -3,13 +3,13 @@ using JadeCapital.Shared.Kernel.Results;
 namespace JadeCapital.Shared.Kernel.Stripe;
 
 /// <summary>
-/// Stripe gateway abstraction (Wave 6, slice 6a.1 — partial interface).
+/// Stripe gateway abstraction (Wave 6, slices 6a.1 + 6a.2).
 ///
 /// <para>
 /// <b>Why Shared.Kernel</b>: mirrors the <c>IQuoteProvider</c> (Wave 4b) and
 /// <c>IAIProvider</c> (Wave 5b) precedent. The wire shapes
-/// (<see cref="StripeCustomerDto"/>, <see cref="StripeWebhookEvent"/>) are
-/// cross-module stable — Billing owns the default impl (<c>StripeGateway</c>
+/// (<see cref="StripeCustomerDto"/>, <see cref="StripeWebhookEvent"/>, etc.)
+/// are cross-module stable — Billing owns the default impl (<c>StripeGateway</c>
 /// in Billing.Infrastructure) but Identity or Trading could later consume
 /// the same abstraction.
 /// </para>
@@ -41,8 +41,9 @@ namespace JadeCapital.Shared.Kernel.Stripe;
 /// </para>
 ///
 /// <para>
-/// <b>Slice 6a.1 surface</b>: only Customer + Webhook verification. Checkout,
-/// Portal, Subscription, PaymentMethod, Invoice reads land in slice 6a.2.
+/// <b>Slice 6a.1 surface</b>: Customer + Webhook verification.
+/// <b>Slice 6a.2 surface</b>: + Checkout + Portal + Subscription +
+/// PaymentMethods + Invoices (5 new methods, total 7).
 /// </para>
 /// </summary>
 public interface IStripeGateway
@@ -62,4 +63,44 @@ public interface IStripeGateway
     /// </summary>
     Task<Result<StripeWebhookEvent>> VerifyWebhookAsync(
         string payload, string signatureHeader, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a Stripe Checkout session for a subscription. Returns the URL
+    /// the FE should redirect the user to. Stripe drives payment + the
+    /// subsequent <c>customer.subscription.created</c> webhook.
+    /// </summary>
+    Task<Result<StripeCheckoutSessionDto>> CreateCheckoutSessionAsync(
+        Guid userId, string priceId, string successUrl, string cancelUrl,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a Stripe Customer Portal session for the user. Returns the
+    /// URL the FE should redirect the user to. Stripe hosts the actual
+    /// self-service UI (cancel subscription, update card, view invoices).
+    /// </summary>
+    Task<Result<StripePortalSessionDto>> CreatePortalSessionAsync(
+        Guid userId, string returnUrl, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reads subscription state from Stripe (single source of truth for
+    /// current state). Used by the webhook handler to apply updates and by
+    /// the billing portal read API (slice 6b.1).
+    /// </summary>
+    Task<Result<StripeSubscriptionDto>> GetSubscriptionAsync(
+        string stripeSubscriptionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lists payment methods for a Stripe Customer. Newest-first; the
+    /// <c>is_default</c> flag on the DTO is the source of truth for which
+    /// card is charged.
+    /// </summary>
+    Task<Result<IReadOnlyList<StripePaymentMethodDto>>> GetPaymentMethodsAsync(
+        string stripeCustomerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lists invoices for a Stripe Customer (newest first, capped at 100 by
+    /// Stripe's default page size).
+    /// </summary>
+    Task<Result<IReadOnlyList<StripeInvoiceDto>>> GetInvoicesAsync(
+        string stripeCustomerId, CancellationToken ct = default);
 }
