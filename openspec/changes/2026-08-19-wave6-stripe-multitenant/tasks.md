@@ -205,24 +205,24 @@ Forecast ~500 lines, Wave 5 precedent (5b.1=1207) → `size:exception` possible.
 
 **Phase 1: Service + state**
 
-- [ ] 1.1 `api/billing-portal.service.ts` with 3 HTTP methods (`getSubscription`, `getPaymentMethods`, `getInvoices`).
-- [ ] 1.2 `api/billing-portal.types.ts` with DTOs (`BillingPortalSubscriptionDto`, `BillingPortalPaymentMethodDto`, `BillingPortalInvoiceDto`).
-- [ ] 1.3 `state/billing-portal.state.ts` (Signals: `subscription`, `paymentMethods`, `invoices`, `loading`, `error`).
-- [ ] 1.4 3 jest specs (state) — covered by 6 page-level specs.
+- [x] 1.1 `api/billing-portal.service.ts` with 3 HTTP methods (`getSubscription`, `getPaymentMethods`, `getInvoices`).
+- [x] 1.2 `api/billing-portal.types.ts` with DTOs (`BillingPortalSubscriptionDto`, `BillingPortalPaymentMethodDto`, `BillingPortalInvoiceDto`).
+- [x] 1.3 `state/billing-portal.state.ts` (Signals: `subscription`, `paymentMethods`, `invoices`, `loading`, `error`).
+- [x] 1.4 3 jest specs (state) — covered by 6 page-level specs.
 
 **Phase 2: Page + routing**
 
-- [ ] 2.1 `billing-portal-page.ts` standalone Signals OnPush SCSS with: plan card (current plan + status + next billing date), payment methods list (brand + last 4 + expiry), invoices list (number + amount + status + pdf link), "Manage in Stripe" button (calls `POST /api/billing/stripe/portal` → redirect).
-- [ ] 2.2 `billing.routes.ts` (sub-routes: `/billing`).
-- [ ] 2.3 Add `'billing'` route to `trader.routes.ts` (loadChildren → BILLING_ROUTES).
-- [ ] 2.4 Add `'Billing'` nav entry to `trader-shell.ts` (12 items total; mobile-nav horizontal scroll continues to work).
-- [ ] 2.5 6 jest specs (renders title, exposes helper methods, canNavigateToPortal, empty states, error states, loading states).
+- [x] 2.1 `billing-portal-page.ts` standalone Signals OnPush SCSS with: plan card (current plan + status + next billing date), payment methods list (brand + last 4 + expiry), invoices list (number + amount + status + pdf link), "Manage in Stripe" button (calls `POST /api/billing/stripe/portal` → redirect).
+- [x] 2.2 `billing.routes.ts` (sub-routes: `/billing`).
+- [x] 2.3 Add `'billing'` route to `trader.routes.ts` (loadChildren → BILLING_ROUTES).
+- [x] 2.4 Add `'Billing'` nav entry to `trader-shell.ts` (12 items total; mobile-nav horizontal scroll continues to work).
+- [x] 2.5 6 jest specs (renders title, exposes helper methods, canNavigateToPortal, empty states, error states, loading states).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `npm test -- --testPathPattern=billing-portal` → 6/6 pass.
-- [ ] 3.2 `npm test` (full FE suite) → 169/169 pass (was 163 in Wave 5 → +6 new tests, 0 regressions).
-- [ ] 3.3 `npm run build` → 0 errors.
+- [x] 3.1 `npm test -- --testPathPattern=billing-portal` → 6/6 pass.
+- [x] 3.2 `npm test` (full FE suite) → 185/185 pass (179 baseline + 6 new tests, 0 regressions).
+- [x] 3.3 `npm run build` → 0 errors.
 
 ### 6b.2 size:exception preview
 
@@ -510,7 +510,7 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 | 6a.1 | +40 | 0 | 950 |
 | 6a.2 | +45 | 0 | 995 |
 | 6b.1 | +25 | 0 | 1020 |
-| 6b.2 | 0 | +6 | 1020 + 169 FE |
+| 6b.2 | 0 | +6 | 1020 + 185 FE |
 | 6c.1 | +35 | 0 | 1055 |
 | 6c.2 | +30 | 0 | 1085 |
 | 6c.3 | +20 | 0 | 1105 |
