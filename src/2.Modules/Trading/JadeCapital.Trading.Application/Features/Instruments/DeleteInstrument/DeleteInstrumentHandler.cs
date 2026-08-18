@@ -42,7 +42,7 @@ public sealed class DeleteInstrumentHandler : IRequestHandler<DeleteInstrumentCo
         if (tradeCount > 0)
             return Result.Failure<Unit>(TradingApplicationErrors.Instruments.HasTrades);
 
-        await _instruments.RemoveAsync(instrument, ct);
+        await _instruments.DeleteAsync(instrument, ct);
         var saved = await _uow.SaveChangesAsync(ct);
         DomainGuard.EnsureSuccess(saved);
 

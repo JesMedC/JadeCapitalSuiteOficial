@@ -200,6 +200,17 @@ public sealed class InstrumentRepository : IInstrumentRepository
     public Task<Instrument?> FindByIdAsync(Guid id, CancellationToken ct)
         => _db.Instruments.FirstOrDefaultAsync(i => i.Id == id, ct);
 
+    /// <summary>
+    /// Wave 8 slice 8a.1 — canonical <see cref="JadeCapital.Shared.Kernel.Repository.IRepository{T}.GetByIdAsync"/>
+    /// contributed by the <c>IRepository&lt;Instrument&gt;</c> extension.
+    /// Forwards to the bespoke <see cref="FindByIdAsync"/> impl so the
+    /// audit decorator (which calls <c>GetByIdAsync</c> for the
+    /// pre-mutation snapshot via <c>DecoratedRepository&lt;T&gt;</c>) hits
+    /// the same SQL path.
+    /// </summary>
+    public Task<Instrument?> GetByIdAsync(Guid id, CancellationToken ct)
+        => FindByIdAsync(id, ct);
+
     public async Task<Instrument?> FindBySymbolAsync(string symbol, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(symbol)) return null;
@@ -227,7 +238,32 @@ public sealed class InstrumentRepository : IInstrumentRepository
     public async Task AddAsync(Instrument instrument, CancellationToken ct)
         => await _db.Instruments.AddAsync(instrument, ct);
 
-    public Task RemoveAsync(Instrument instrument, CancellationToken ct)
+    public async Task UpdateAsync(Instrument instrument, CancellationToken ct)
+    {
+        // Wave 8 slice 8a.1 — UpdateAsync contributed by the
+        // IRepository<Instrument> extension. Mirrors the TradeRepository
+        // UpdateAsync pattern: attach the detached entity via the change
+        // tracker so EF emits the UPDATE SQL with the post-mutation
+        // values (ChangeTracker.OriginalValues is then available to the
+        // InstrumentAuditDecorator for the pre-mutation diff).
+        var entry = _db.Entry(instrument);
+        if (entry.State == EntityState.Detached)
+        {
+            _db.Instruments.Update(instrument);
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Wave 8 slice 8a.1 — BREAKING rename from <c>RemoveAsync</c> to
+    /// <c>DeleteAsync</c>. The body is identical to the old
+    /// <c>RemoveAsync</c> (mark the entity as Deleted in the change
+    /// tracker; the caller is responsible for SaveChanges). The
+    /// Instrument table has no soft-delete flag, so this is a hard
+    /// delete — the handler is responsible for the pre-check of
+    /// associated trades (FK RESTRICT in DB).
+    /// </summary>
+    public Task DeleteAsync(Instrument instrument, CancellationToken ct)
     {
         _db.Instruments.Remove(instrument);
         return Task.CompletedTask;
