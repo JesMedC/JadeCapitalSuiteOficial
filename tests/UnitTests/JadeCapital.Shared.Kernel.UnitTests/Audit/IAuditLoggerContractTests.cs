@@ -123,11 +123,11 @@ public class IAuditLoggerContractTests
     // ────────── AuditAction enum values ──────────
 
     [Fact]
-    public void AuditAction_HasExactlyFourValues_WithExpectedByteOrder()
+    public void AuditAction_HasExactlySixValues_WithExpectedByteOrder()
     {
-        // The migration's CHECK constraint is `action IN (0, 1, 2, 3)`.
-        // Renaming any enum member or changing the underlying byte breaks
-        // the contract. Pin the values.
+        // The migration's CHECK constraint is `action IN (0, 1, 2, 3, 4, 5)`
+        // (Wave 6 + Wave 7 slice 7a.1). Renaming any enum member or changing
+        // the underlying byte breaks the contract. Pin the values.
         var values = Enum.GetValues<AuditAction>()
             .Cast<AuditAction>()
             .OrderBy(v => (int)v)
@@ -139,11 +139,15 @@ public class IAuditLoggerContractTests
             AuditAction.Updated,
             AuditAction.Deleted,
             AuditAction.Restored,
+            AuditAction.Denied,
+            AuditAction.Failed,
         }, opts => opts.WithStrictOrdering());
 
         ((int)AuditAction.Created).Should().Be(0);
         ((int)AuditAction.Updated).Should().Be(1);
         ((int)AuditAction.Deleted).Should().Be(2);
         ((int)AuditAction.Restored).Should().Be(3);
+        ((int)AuditAction.Denied).Should().Be(4);
+        ((int)AuditAction.Failed).Should().Be(5);
     }
 }

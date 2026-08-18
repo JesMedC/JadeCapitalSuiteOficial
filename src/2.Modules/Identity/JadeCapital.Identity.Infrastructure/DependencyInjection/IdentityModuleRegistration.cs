@@ -86,6 +86,23 @@ public static class IdentityModuleRegistration
         // ITenantContext.Current + ICurrentUserId). Reads (GetByIdAsync,
         // FindBySlugAsync, ListByOwnerAsync) bypass the audit surface.
         services.Decorate<ITenantRepository, TenantAuditDecorator>();
+        // ===== Slice 7a.1, phase 4 — UserAuditDecorator =====
+        // Wave 7 widens the audit decorator pattern from 3 of 8 user-owned
+        // aggregates (Tenant + ImportJob + Subscription) to 8 of 8
+        // (Strategy + Trade + JournalEntry land in slices 7b.1 + 7b.2;
+        // RiskProfileAuditDecorator lands with this branch in phase 5).
+        // UserAuditDecorator emits AuditAction.Failed before re-throwing
+        // NotSupportedException on DeleteAsync (User deletion is
+        // contractually invalid — use Cancel() or Tenant reassignment).
+        services.Decorate<IUserRepository, UserAuditDecorator>();
+        // ===== Slice 7a.1, phase 5 — RiskProfileAuditDecorator =====
+        // BESPOKE shape: RiskProfile has no UpdateAsync in its canonical
+        // mutation surface (the supersede IS the termination). The
+        // decorator wraps MarkSupersededAsync directly + emits
+        // AuditAction.Deleted with a supersession diff (IsActive true→false
+        // + SupersededAt null→now). DeleteAsync short-circuits to
+        // AuditAction.Failed + re-throws NotSupportedException.
+        services.Decorate<IRiskProfileRepository, RiskProfileAuditDecorator>();
         // MediatR resolves handlers by interface; register the concrete
         // types so DI has an entry. (MediatR also scans the Application
         // assembly, so the runtime binding happens twice — that's fine.)
