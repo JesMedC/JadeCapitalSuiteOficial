@@ -140,6 +140,12 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // Identity.Infrastructure circular dep.
         services.Decorate<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
                   JadeCapital.Trading.Infrastructure.Audit.ImportJobAuditDecorator>();
+        // Wave 7 slice 7b.1 — typed audit decorator over IStrategyRepository.
+        // Mirrors the ImportJobAuditDecorator shape: cross-tenant IsOwner
+        // check on Strategy.UserId + DeleteAsync defensive stub emitting
+        // AuditAction.Failed before re-throwing NotSupportedException.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IStrategyRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.StrategyAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
