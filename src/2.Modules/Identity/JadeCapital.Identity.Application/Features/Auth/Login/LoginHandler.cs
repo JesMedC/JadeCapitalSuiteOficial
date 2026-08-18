@@ -85,7 +85,7 @@ public sealed class LoginHandler : IRequestHandler<LoginCommand, Result<LoginRes
                     : IdentityApplicationErrors.Auth.AccessDenied);
         }
 
-        var access = _tokens.CreateAccessToken(user.Id, user.Email, user.Role.ToString());
+        var access = _tokens.CreateAccessToken(user.Id, user.Email, user.Role.ToString(), tenantId: user.TenantId);
         var refreshOpaque = _tokens.CreateOpaqueRefreshToken();
         var refreshHash = _tokens.HashToken(refreshOpaque);
         var refreshExpiry = _clock.UtcNow.AddDays(_jwtOptions.RefreshTokenTtlDays);

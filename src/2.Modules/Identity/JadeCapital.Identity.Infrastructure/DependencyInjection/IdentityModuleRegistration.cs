@@ -53,9 +53,11 @@ public static class IdentityModuleRegistration
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
 
         // ===== Slice 6c.1 — Tenants =====
-        // ITenantContext: slice 6c.1 ships a placeholder (returns null/false
-        // for every member). The real JWT-derived impl lands in 6c.2 — the
-        // swap is a one-line change in this registration.
+        // ITenantContext: 6c.2 ships the real HttpContext-bound impl that
+        // resolves tenant_id + user id from the JWT claims. The 6c.1
+        // placeholder is gone (the file was rewritten in 6c.2 to be the
+        // real impl; the registration line stayed the same to keep the
+        // DI seam minimal — see MultiTenancy/TenantContext.cs).
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ITenantRepository, TenantRepository>();
         // MediatR resolves handlers by interface; register the concrete
@@ -63,6 +65,15 @@ public static class IdentityModuleRegistration
         // assembly, so the runtime binding happens twice — that's fine.)
         services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.CreateTenant.CreateTenantHandler>();
         services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.GetTenant.GetTenantHandler>();
+
+        // ===== Slice 6c.2 — Tenant middleware + backfill =====
+        // BackfillTenantsHostedService fires once, 15s after startup, to
+        // assign NULL users to a Personal tenant. The SQL migration 0026
+        // covers greenfield deploys; the hosted service handles in-place
+        // upgrades of pre-Wave-6 DBs. Both are idempotent against each
+        // other (independent surfaces, same slug).
+        services.AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>();
+        services.AddHostedService<BackfillTenantsHostedService>();
 
         // ===== Security =====
         services.AddSingleton<IPasswordHasher>(_ =>

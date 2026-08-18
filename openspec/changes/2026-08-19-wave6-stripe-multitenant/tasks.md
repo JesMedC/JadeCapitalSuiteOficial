@@ -305,43 +305,43 @@ Forecast ~700 lines, Wave 5 precedent (5a.1=2108) → `size:exception` likely. J
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `TenantContextMiddlewareTests` (6 scenarios: authenticated user with tenant_id → next(), authenticated user without tenant_id → 401 `auth.tenant_missing`, anonymous user → next() (no auth claim), malformed tenant_id claim → 401, multiple requests → fresh resolution per request, exception in next() → propagates).
-- [ ] 1.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContextMiddleware.cs`.
+- [x] 1.1 RED test `TenantContextMiddlewareTests` (6 scenarios: authenticated user with tenant_id → next(), authenticated user without tenant_id → 401 `auth.tenant_missing`, anonymous user → next() (no auth claim), malformed tenant_id claim → 401, multiple requests → fresh resolution per request, exception in next() → propagates).
+- [x] 1.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContextMiddleware.cs`.
 
 **Phase 2: TenantContext impl (TDD)**
 
-- [ ] 2.1 RED test `TenantContextTests` (5 scenarios: HttpContext-bound Current returns tenant_id from JWT, CurrentUserId returns NameIdentifier, IsSuperAdmin returns true for SuperAdmin role, Current returns null for anonymous, mock IHttpContextAccessor).
-- [ ] 2.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContext.cs`.
+- [x] 2.1 RED test `TenantContextTests` (5 scenarios: HttpContext-bound Current returns tenant_id from JWT, CurrentUserId returns NameIdentifier, IsSuperAdmin returns true for SuperAdmin role, Current returns null for anonymous, mock IHttpContextAccessor).
+- [x] 2.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContext.cs`.
 
 **Phase 3: Repository extension (TDD)**
 
-- [ ] 3.1 RED test `TenantRepositoryFilterTests` (10 scenarios: GetByIdAsync filters by tenant + soft-delete, query returns user's tenant only, cross-tenant lookup returns null, IgnoreQueryFilters() returns all, list operations filter, count operations filter, async enumeration, cancellation token propagates, no tenant context → returns empty, no tenant context + super-admin → returns all).
-- [ ] 3.2 GREEN: `Identity.Infrastructure/Repositories/TenantRepository.cs` (decorator over `IRepository<T>` for `ITenantOwned` entities).
+- [x] 3.1 RED test `TenantRepositoryFilterTests` (10 scenarios: GetByIdAsync filters by tenant + soft-delete, query returns user's tenant only, cross-tenant lookup returns null, IgnoreQueryFilters() returns all, list operations filter, count operations filter, async enumeration, cancellation token propagates, no tenant context → returns empty, no tenant context + super-admin → returns all).
+- [x] 3.2 GREEN: `Shared.Kernel/MultiTenancy/TenantQueryFilter.cs` + `ITenantOwned.cs` (extension on `IQueryable<T>` for `ITenantOwned` entities).
 
 **Phase 4: JWT mint fix (TDD)**
 
-- [ ] 4.1 RED test `JwtMintWithTenantIdTests` (4 scenarios: user with tenant → claim included, user without tenant → no claim (pre-Wave-6), refresh token carries tenant_id, malformed tenant_id → token rejected).
-- [ ] 4.2 GREEN: extend `Identity.Application/Authentication/_MintAccessToken.cs` with `tenant_id` claim.
+- [x] 4.1 RED test `JwtMintWithTenantIdTests` (4 scenarios: user with tenant → claim included, user without tenant → no claim (pre-Wave-6), refresh token carries tenant_id, malformed tenant_id → token rejected).
+- [x] 4.2 GREEN: extend `Identity.Infrastructure/Security/JwtTokenService.cs` (note: actual location, not `_MintAccessToken.cs`) with `tenantId` parameter; updated `ITokenService` + `LoginHandler` + `RefreshTokenHandler` + `RegisterUserHandler` callers.
 
 **Phase 5: Backfill (TDD)**
 
-- [ ] 5.1 RED test `BackfillTenantsRunnerTests` (5 scenarios: first run → creates Personal + assigns all users, re-run → no-op (idempotent), 0 users → no Personal created, partial users → only NULL users assigned, exception → transient retry on next startup).
-- [ ] 5.2 GREEN: `Identity.Infrastructure/MultiTenancy/BackfillTenantsRunner.cs` + `IBackfillTenantsRunner.cs` + `BackfillTenantsHostedService.cs` (BackgroundService, idle 15s after startup).
+- [x] 5.1 RED test `BackfillTenantsRunnerTests` (5 scenarios: first run → creates Personal + assigns all users, re-run → no-op (idempotent), 0 users → no Personal created, partial users → only NULL users assigned, exception → transient retry on next startup).
+- [x] 5.2 GREEN: `Identity.Infrastructure/MultiTenancy/BackfillTenantsRunner.cs` + `IBackfillTenantsRunner.cs` + `BackfillTenantsHostedService.cs` (BackgroundService, idle 15s after startup).
 
 **Phase 6: Migration**
 
-- [ ] 6.1 `infrastructure/postgres/migrations/0026_backfill_personal_tenant.sql` — idempotent INSERT Personal + UPDATE users SET tenant_id = ... WHERE NULL. Wire en `migrate.Dockerfile`.
+- [x] 6.1 `infrastructure/postgres/migrations/0026_backfill_personal_tenant.sql` — idempotent INSERT Personal + UPDATE users SET tenant_id = ... WHERE NULL. Wire en `migrate.Dockerfile`.
 
 **Phase 7: DI + wiring**
 
-- [ ] 7.1 DI: `AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>` + `AddHostedService<BackfillTenantsHostedService>`.
-- [ ] 7.2 `Program.cs`: `app.UseMiddleware<TenantContextMiddleware>()` after `UseAuthentication` + `UseAuthorization`.
+- [x] 7.1 DI: `AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>` + `AddHostedService<BackfillTenantsHostedService>`.
+- [x] 7.2 `Program.cs`: `app.UseMiddleware<TenantContextMiddleware>()` after `UseAuthentication` + `UseAuthorization`.
 
 **Phase 8: Validate**
 
-- [ ] 8.1 `dotnet test --filter "FullyQualifiedName~TenantContext|TenantFilter|BackfillTenants|JwtMintWithTenantId"` --nologo --verbosity minimal → 30/30 pass.
-- [ ] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 8.3 Full BE suite → 1085/1085 pass (was 1055 → +30 new tests, 0 regressions).
+- [x] 8.1 `dotnet test --filter "FullyQualifiedName~TenantContext|TenantFilter|BackfillTenants|JwtMintWithTenantId"` --nologo --verbosity minimal → 30/30 pass. (Actual: 25 Identity + 5 Shared.Kernel = 30.)
+- [x] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 8.3 Full BE suite → 1209/1209 pass (was 1174 → +35 new tests: 25 Identity + 10 Shared.Kernel, 0 regressions).
 
 ### 6c.2 size:exception preview
 
@@ -353,7 +353,7 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 - Modified files: 6 (Program.cs + DI + Identity.Application/Authentication + IdentityDbContext + ...).
 - Total: **14 paths** ≤ 32 OK.
 
-> **Slice 6c.2 completion note**: code lands with all tests green. 30 new BE tests. Backfill runs on startup; idempotent re-run safe.
+> **Slice 6c.2 completion note**: code lands with all tests green. 35 new BE tests (target 30; +5 from hardening tests for malformed claim, anonymous callers, refresh path, standard JWT claims preservation). Backfill runs on startup (15s delay); idempotent re-run safe. Tenant middleware enforces the tenant_id claim on authenticated requests; the 0026 SQL migration is the greenfield equivalent. NOT NULL on tenant_id lands in 6c.3.
 
 ---
 
@@ -511,12 +511,12 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 | 6a.2 | +45 | 0 | 995 |
 | 6b.1 | +25 | 0 | 1020 |
 | 6b.2 | 0 | +6 | 1020 + 185 FE |
-| 6c.1 | +35 | 0 | 1055 |
-| 6c.2 | +30 | 0 | 1085 |
-| 6c.3 | +20 | 0 | 1105 |
-| 6d.1 | +25 | 0 | 1130 |
-| 6d.2 | +30 | 0 | 1160 |
-| **Total** | **+250** | **+6** | **~1160 BE + ~175 FE** |
+| 6c.1 | +44 (35 spec) | 0 | 1064 (cumulative actual: 1174) |
+| 6c.2 | +35 (30 spec) | 0 | 1099 (cumulative actual: 1209) |
+| 6c.3 | +20 | 0 | 1119 |
+| 6d.1 | +25 | 0 | 1144 |
+| 6d.2 | +30 | 0 | 1174 |
+| **Total** | **+264** | **+6** | **~1244 BE + ~185 FE** |
 
 ## Definition of Done (per Wave 5 precedent)
 
