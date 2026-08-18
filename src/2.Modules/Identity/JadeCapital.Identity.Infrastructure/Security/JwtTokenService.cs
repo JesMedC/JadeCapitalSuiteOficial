@@ -1,4 +1,5 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Time;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -31,8 +32,24 @@ public sealed class JwtTokenService : ITokenService
             throw new InvalidOperationException("Jwt.AccessTokenSecret and RefreshTokenSecret must differ.");
     }
 
+    /// <summary>
+    /// Mints a JWT access token.
+    /// <para>
+    /// <b>Wave 6, slice 6c.2</b>: when <paramref name="tenantId"/> is
+    /// non-null the token carries a <c>tenant_id</c> claim; when null
+    /// the claim is omitted entirely (so a downstream middleware can
+    /// gate the request as <c>auth.tenant_missing</c>). The
+    /// <c>tenant_id</c> value is stored as the inner Guid string so the
+    /// <c>TenantContextMiddleware</c> can <see cref="Guid.TryParse"/> it
+    /// back to a <see cref="TenantId"/> cheaply.
+    /// </para>
+    /// </summary>
     public (string Token, DateTimeOffset ExpiresAt) CreateAccessToken(
-        Guid userId, string email, string role, IEnumerable<string>? extraClaims = null)
+        Guid userId,
+        string email,
+        string role,
+        IEnumerable<string>? extraClaims = null,
+        TenantId? tenantId = null)
     {
         var now = _clock.UtcNow;
         var expires = now.AddMinutes(_opts.AccessTokenTtlMinutes);
@@ -46,6 +63,20 @@ public sealed class JwtTokenService : ITokenService
             new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(),
                 ClaimValueTypes.Integer64)
         };
+
+        // Slice 6c.2 — tenant_id claim. Only emitted when the user
+        // has been assigned to a tenant; otherwise the middleware
+        // rejects the request with auth.tenant_missing so a re-login
+        // (or refresh) is forced once the assignment lands. Keeping
+        // the claim absent (rather than empty) prevents the
+        // middleware's TryParse from succeeding on a string the rest
+        // of the pipeline never expects.
+        if (tenantId is not null)
+        {
+            claims.Add(new Claim(JadeCapital.Identity.Infrastructure.MultiTenancy.TenantContext.TenantClaimName,
+                tenantId.Value.ToString()));
+        }
+
         if (extraClaims is not null)
             foreach (var c in extraClaims)
                 claims.Add(new Claim("scope", c));

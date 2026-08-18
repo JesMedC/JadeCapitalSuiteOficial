@@ -9,6 +9,7 @@ using JadeCapital.Trading.Infrastructure.BackgroundServices;
 using JadeCapital.Trading.Infrastructure.Persistence;
 using JadeCapital.Trading.Infrastructure.Queries;
 using JadeCapital.Trading.Infrastructure.Realtime;
+using JadeCapital.Trading.Infrastructure.SoftDelete;
 using JadeCapital.Trading.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -131,6 +132,14 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
 // Infrastructure-layer repositories + dedupe service.
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportJobRepository>();
+        // Slice 6d.2 — typed audit decorator over IImportJobRepository.
+        // Co-located with the AddScoped above because Scrutor's Decorate
+        // requires the underlying service to be registered first. The
+        // decorator lives in Trading.Infrastructure/Audit/ (Trading → Trading)
+        // to avoid an Identity.Infrastructure → Trading.Infrastructure →
+        // Identity.Infrastructure circular dep.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IImportJobRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.ImportJobAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
@@ -151,11 +160,19 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IAIRiskAdviceRepository,
                   JadeCapital.Trading.Infrastructure.Persistence.AIRiskAdviceRepository>();
 
-// BackgroundService — daily tick at 03:00 UTC ± 30min jitter. Resolves
-// GenerateCoachingPromptHandler + IUserTradingContextProvider from a per-tick
-// scope via IServiceScopeFactory.
+        // BackgroundService — daily tick at 03:00 UTC ± 30min jitter. Resolves
+        // GenerateCoachingPromptHandler + IUserTradingContextProvider from a per-tick
+        // scope via IServiceScopeFactory.
         services.AddHostedService<JadeCapital.Trading.Infrastructure.BackgroundServices.CoachingPromptService>();
 
+        // ===== Slice 6d.1 — Soft-delete =====
+        // Register ImportJobSoftDeleteProvider so the
+        // ISoftDeleteProviderRegistry (wired in IdentityModuleRegistration)
+        // picks it up via IEnumerable<ISoftDeleteProvider>. 6d.2 / Wave 7
+        // add more providers (Tenant, Subscription, etc.).
+        services.AddScoped<JadeCapital.Shared.Kernel.SoftDelete.ISoftDeleteProvider,
+            ImportJobSoftDeleteProvider>();
+
 return services;
-}
+    }
 }

@@ -5,6 +5,10 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="JadeCapital.Billing.UnitTests" />
+    <!-- Slice 6d.2: SubscriptionRepositoryIntegrationTests needs access
+         to the internal SubscriptionConfiguration for the test-only
+         SQLite-compatible BillingDbContext subclass. -->
+    <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
@@ -16,5 +20,10 @@
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Domain\JadeCapital.Billing.Domain.csproj" />
+    <!-- Slice 6d.2 deviation: Billing.Infrastructure → Identity.Infrastructure
+         so BillingModuleRegistration can wire Decorate<ISubscriptionRepository,
+         SubscriptionAuditDecorator>() using the typed decorator class. Same
+         layering cost pattern as Trading.Infrastructure (Phases 3.3-3.4). -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

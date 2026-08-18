@@ -65,6 +65,21 @@ public class MailKitSmtpEmailSender : IEmailSender
             $"SMTP delivery failed after {_opts.MaxAttempts} attempts.", last);
     }
 
+    /// <summary>
+    /// Slice 6c.3 — STUB. The Spanish/Jade-branded invite mime composition
+    /// is deferred to a follow-up slice. Production wiring logs a warning
+    /// so the operator notices the gap; tests use the
+    /// <c>InMemoryCapturingEmailSender</c> to assert the message payload.
+    /// </summary>
+    public Task SendTenantInviteAsync(TenantInviteEmailMessage message, CancellationToken ct = default)
+    {
+        _logger.LogWarning(
+            "SendTenantInviteAsync is a stub in slice 6c.3 — invite to {Tenant} ({To}) NOT delivered. " +
+            "Wire the Spanish/Jade-branded invite template in the follow-up slice.",
+            message.TenantName, message.To);
+        return Task.CompletedTask;
+    }
+
     /// <summary>Builds the Spanish Jade-branded recovery mime. Public for subclass override.</summary>
     protected static MimeMessage BuildRecoveryMime(RecoveryEmailMessage m, string from)
     {

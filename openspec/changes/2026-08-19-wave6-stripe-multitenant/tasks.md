@@ -6,7 +6,7 @@
 |---|---|---:|---:|---|:---:|
 | 6a.1 | Stripe SDK + Customer + webhook stub (IStripeGateway + StripeGateway + StubStripeGateway + StripeCustomer + migration 0022 + 2 endpoints + 15 tests) | ~600 | 15 | likely (Wave 5/5a.1=2108 precedent) | OK |
 | 6a.2 | Checkout + Portal + subscription sync (CheckoutSession + 2 endpoints + webhook handler for subscription events + migration 0023 + 15 tests) | ~800 | 14 | likely (5b.2=2989 precedent) | OK |
-| 6b.1 | Billing portal read API (3 endpoints + 3 query handlers + 10 tests) | ~500 | 10 | possible (5b.1=1207 precedent) | OK |
+| 6b.1 | Billing portal read API (3 endpoints + 3 query handlers + 3 DTOs + 25 tests) | ~500 | 10 | possible (5b.1=1207 precedent) | OK |
 | 6b.2 | Billing portal FE (1 page + service + state + types + 6 jest specs) | ~400 | 9 | unlikely (within budget) | OK |
 | 6c.1 | Tenant aggregate + tenant_id migration (Tenant + TenantId + ITenantContext + CreateTenant + migration 0024 + migration 0025 + 12 tests) | ~700 | 17 | likely (5a.1=2108 precedent) | OK |
 | 6c.2 | Tenant middleware + query filter + backfill (TenantContextMiddleware + Repository filter + BackfillTenantsHostedService + migration 0026 + JWT mint fix + 12 tests) | ~900 | 14 | likely (5c.1=3075 precedent) | OK |
@@ -166,24 +166,24 @@ Forecast ~800 lines, Wave 5 precedent (5b.2=2989, 5c.1=3075) → `size:exception
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `GetSubscriptionHandlerTests` (5 scenarios: own subscription → returns DTO, no subscription → 404, cross-user lookup → 404, Stripe API down → 503, cancellation token propagates).
-- [ ] 1.2 GREEN: `Billing.Application/Features/Stripe/GetSubscription/GetSubscriptionQuery.cs` + `GetSubscriptionHandler.cs` + `BillingPortalSubscriptionDto.cs`.
-- [ ] 1.3 RED test `GetPaymentMethodsHandlerTests` (4 scenarios: own payment methods → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
-- [ ] 1.4 GREEN: `Billing.Application/Features/Stripe/GetPaymentMethods/GetPaymentMethodsQuery.cs` + `GetPaymentMethodsHandler.cs` + `BillingPortalPaymentMethodDto.cs`.
-- [ ] 1.5 RED test `GetInvoicesHandlerTests` (4 scenarios: own invoices → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
-- [ ] 1.6 GREEN: `Billing.Application/Features/Stripe/GetInvoices/GetInvoicesQuery.cs` + `GetInvoicesHandler.cs` + `BillingPortalInvoiceDto.cs`.
+- [x] 1.1 RED test `GetSubscriptionHandlerTests` (5 scenarios: own subscription → returns DTO, no subscription → 404, cross-user lookup → 404, Stripe API down → 503, cancellation token propagates).
+- [x] 1.2 GREEN: `Billing.Application/Features/Stripe/GetSubscription/GetSubscriptionQuery.cs` + `GetSubscriptionHandler.cs` + `BillingPortalSubscriptionDto.cs`.
+- [x] 1.3 RED test `GetPaymentMethodsHandlerTests` (4 scenarios: own payment methods → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
+- [x] 1.4 GREEN: `Billing.Application/Features/Stripe/GetPaymentMethods/GetPaymentMethodsQuery.cs` + `GetPaymentMethodsHandler.cs` + `BillingPortalPaymentMethodDto.cs`.
+- [x] 1.5 RED test `GetInvoicesHandlerTests` (4 scenarios: own invoices → returns list, no Stripe customer → 404, empty list → empty array, Stripe API down → 503).
+- [x] 1.6 GREEN: `Billing.Application/Features/Stripe/GetInvoices/GetInvoicesQuery.cs` + `GetInvoicesHandler.cs` + `BillingPortalInvoiceDto.cs`.
 
 **Phase 2: Infrastructure + API**
 
-- [ ] 2.1 `BillingPortalEndpoints` (`MapBillingPortalEndpoints`): `GET /api/billing/portal/subscription` + `GET /api/billing/portal/payment-methods` + `GET /api/billing/portal/invoices`. RequireAuthorization.
-- [ ] 2.2 `app.MapBillingPortalEndpoints()` en `Program.cs`.
-- [ ] 2.3 DI: `AddScoped<GetSubscriptionHandler>` + `AddScoped<GetPaymentMethodsHandler>` + `AddScoped<GetInvoicesHandler>`.
+- [x] 2.1 `BillingPortalEndpoints` (`MapBillingPortalEndpoints`): `GET /api/billing/portal/subscription` + `GET /api/billing/portal/payment-methods` + `GET /api/billing/portal/invoices`. RequireAuthorization.
+- [x] 2.2 `app.MapBillingPortalEndpoints()` en `Program.cs`.
+- [x] 2.3 DI: `AddScoped<GetSubscriptionHandler>` + `AddScoped<GetPaymentMethodsHandler>` + `AddScoped<GetInvoicesHandler>`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~BillingPortal"` --nologo --verbosity minimal → 25/25 pass.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 3.3 Full BE suite → 1020/1020 pass (was 995 → +25 new tests, 0 regressions).
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~BillingPortal"` --nologo --verbosity minimal → 25/25 pass.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 3.3 Full BE suite → 1065/1065 pass (was 1040 in 6a.2 → +25 new tests, 0 regressions).
 
 ### 6b.1 size:exception preview
 
@@ -205,24 +205,24 @@ Forecast ~500 lines, Wave 5 precedent (5b.1=1207) → `size:exception` possible.
 
 **Phase 1: Service + state**
 
-- [ ] 1.1 `api/billing-portal.service.ts` with 3 HTTP methods (`getSubscription`, `getPaymentMethods`, `getInvoices`).
-- [ ] 1.2 `api/billing-portal.types.ts` with DTOs (`BillingPortalSubscriptionDto`, `BillingPortalPaymentMethodDto`, `BillingPortalInvoiceDto`).
-- [ ] 1.3 `state/billing-portal.state.ts` (Signals: `subscription`, `paymentMethods`, `invoices`, `loading`, `error`).
-- [ ] 1.4 3 jest specs (state) — covered by 6 page-level specs.
+- [x] 1.1 `api/billing-portal.service.ts` with 3 HTTP methods (`getSubscription`, `getPaymentMethods`, `getInvoices`).
+- [x] 1.2 `api/billing-portal.types.ts` with DTOs (`BillingPortalSubscriptionDto`, `BillingPortalPaymentMethodDto`, `BillingPortalInvoiceDto`).
+- [x] 1.3 `state/billing-portal.state.ts` (Signals: `subscription`, `paymentMethods`, `invoices`, `loading`, `error`).
+- [x] 1.4 3 jest specs (state) — covered by 6 page-level specs.
 
 **Phase 2: Page + routing**
 
-- [ ] 2.1 `billing-portal-page.ts` standalone Signals OnPush SCSS with: plan card (current plan + status + next billing date), payment methods list (brand + last 4 + expiry), invoices list (number + amount + status + pdf link), "Manage in Stripe" button (calls `POST /api/billing/stripe/portal` → redirect).
-- [ ] 2.2 `billing.routes.ts` (sub-routes: `/billing`).
-- [ ] 2.3 Add `'billing'` route to `trader.routes.ts` (loadChildren → BILLING_ROUTES).
-- [ ] 2.4 Add `'Billing'` nav entry to `trader-shell.ts` (12 items total; mobile-nav horizontal scroll continues to work).
-- [ ] 2.5 6 jest specs (renders title, exposes helper methods, canNavigateToPortal, empty states, error states, loading states).
+- [x] 2.1 `billing-portal-page.ts` standalone Signals OnPush SCSS with: plan card (current plan + status + next billing date), payment methods list (brand + last 4 + expiry), invoices list (number + amount + status + pdf link), "Manage in Stripe" button (calls `POST /api/billing/stripe/portal` → redirect).
+- [x] 2.2 `billing.routes.ts` (sub-routes: `/billing`).
+- [x] 2.3 Add `'billing'` route to `trader.routes.ts` (loadChildren → BILLING_ROUTES).
+- [x] 2.4 Add `'Billing'` nav entry to `trader-shell.ts` (12 items total; mobile-nav horizontal scroll continues to work).
+- [x] 2.5 6 jest specs (renders title, exposes helper methods, canNavigateToPortal, empty states, error states, loading states).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `npm test -- --testPathPattern=billing-portal` → 6/6 pass.
-- [ ] 3.2 `npm test` (full FE suite) → 169/169 pass (was 163 in Wave 5 → +6 new tests, 0 regressions).
-- [ ] 3.3 `npm run build` → 0 errors.
+- [x] 3.1 `npm test -- --testPathPattern=billing-portal` → 6/6 pass.
+- [x] 3.2 `npm test` (full FE suite) → 185/185 pass (179 baseline + 6 new tests, 0 regressions).
+- [x] 3.3 `npm run build` → 0 errors.
 
 ### 6b.2 size:exception preview
 
@@ -244,46 +244,46 @@ Forecast ~400 lines, within 1000L budget — `size:exception` unlikely.
 
 **Phase 1: Shared kernel (TDD)**
 
-- [ ] 1.1 RED test `TenantIdTests` (5 scenarios: Guid from value, equality, Empty sentinel, ToString round-trip, JSON contract).
-- [ ] 1.2 GREEN: `Shared.Kernel/MultiTenancy/TenantId.cs`.
-- [ ] 1.3 RED test `ITenantContextContractTests` (3 scenarios: interface shape, nullable Current + CurrentUserId, IsSuperAdmin default false).
-- [ ] 1.4 GREEN: `Shared.Kernel/MultiTenancy/ITenantContext.cs`.
+- [x] 1.1 RED test `TenantIdTests` (5 scenarios: Guid from value, equality, Empty sentinel, ToString round-trip, JSON contract).
+- [x] 1.2 GREEN: `Shared.Kernel/MultiTenancy/TenantId.cs`.
+- [x] 1.3 RED test `ITenantContextContractTests` (3 scenarios: interface shape, nullable Current + CurrentUserId, IsSuperAdmin default false).
+- [x] 1.4 GREEN: `Shared.Kernel/MultiTenancy/ITenantContext.cs`.
 
 **Phase 2: Domain (TDD)**
 
-- [ ] 2.1 RED test `TenantTests` (14 scenarios: create valid, name length 1..120, slug format `[a-z0-9-]+`, slug length 1..64, owner_user_id FK validation, plan enum range, status enum range, status transitions Active→Suspended→Archived, no back-transitions, rename trims whitespace, ChangePlan validates new plan, immutable after Create, JSON contract, Rehydrate).
-- [ ] 2.2 GREEN: `Identity.Domain/Tenants/Tenant.cs` (aggregate root + `TenantErrors.cs` + `TenantStatus.cs` + `TenantPlan.cs` + `Events/TenantCreatedDomainEvent.cs`).
+- [x] 2.1 RED test `TenantTests` (14 scenarios: create valid, name length 1..120, slug format `[a-z0-9-]+`, slug length 1..64, owner_user_id FK validation, plan enum range, status enum range, status transitions Active→Suspended→Archived, no back-transitions, rename trims whitespace, ChangePlan validates new plan, immutable after Create, JSON contract, Rehydrate).
+- [x] 2.2 GREEN: `Identity.Domain/Tenants/Tenant.cs` (aggregate root + `TenantErrors.cs` + `TenantStatus.cs` + `TenantPlan.cs` + `Events/TenantCreatedDomainEvent.cs`).
 
 **Phase 3: Migration**
 
-- [ ] 3.1 `infrastructure/postgres/migrations/0024_tenants.sql` — `identity.tenants` table (7 columns + 1 unique index + 1 regular index + 2 CHECK constraints). Idempotent.
-- [ ] 3.2 `infrastructure/postgres/migrations/0025_users_tenant_id.sql` — `ALTER TABLE identity.users ADD COLUMN tenant_id UUID` + FK + 1 partial index. Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.1 `infrastructure/postgres/migrations/0024_tenants.sql` — `identity.tenants` table (7 columns + 1 unique index + 1 regular index + 2 CHECK constraints). Idempotent.
+- [x] 3.2 `infrastructure/postgres/migrations/0025_users_tenant_id.sql` — `ALTER TABLE identity.users ADD COLUMN tenant_id UUID` + FK + 1 partial index. Idempotent. Wire en `migrate.Dockerfile`.
 
 **Phase 4: Application (TDD)**
 
-- [ ] 4.1 RED test `CreateTenantHandlerTests` (5 scenarios: valid request → tenant created, slug already exists → 409, owner user not found → 404, name empty → 422, slug with invalid chars → 422).
-- [ ] 4.2 GREEN: `Identity.Application/Features/Tenants/CreateTenant/CreateTenantCommand.cs` + `CreateTenantHandler.cs`.
-- [ ] 4.3 RED test `GetTenantHandlerTests` (3 scenarios: own tenant → 200, cross-tenant lookup → 404, tenant not found → 404).
-- [ ] 4.4 GREEN: `Identity.Application/Features/Tenants/GetTenant/GetTenantQuery.cs` + `GetTenantHandler.cs` + `TenantDto.cs`.
+- [x] 4.1 RED test `CreateTenantHandlerTests` (5 scenarios: valid request → tenant created, slug already exists → 409, owner user not found → 404, name empty → 422, slug with invalid chars → 422).
+- [x] 4.2 GREEN: `Identity.Application/Features/Tenants/CreateTenant/CreateTenantCommand.cs` + `CreateTenantHandler.cs`.
+- [x] 4.3 RED test `GetTenantHandlerTests` (3 scenarios: own tenant → 200, cross-tenant lookup → 404, tenant not found → 404).
+- [x] 4.4 GREEN: `Identity.Application/Features/Tenants/GetTenant/GetTenantQuery.cs` + `GetTenantHandler.cs` + `TenantDto.cs`.
 
 **Phase 5: User.AssignToTenant (TDD)**
 
-- [ ] 5.1 RED test `UserAssignToTenantTests` (4 scenarios: assign valid tenant → user.tenant_id set, re-assign same tenant → no-op, cross-tenant re-assign requires admin, invalid tenant id → 422).
-- [ ] 5.2 GREEN: extend `Identity.Domain/Users/User.cs` with `TenantId? TenantId { get; private set; }` + `AssignToTenant(TenantId, IClock)`.
+- [x] 5.1 RED test `UserAssignToTenantTests` (4 scenarios: assign valid tenant → user.tenant_id set, re-assign same tenant → no-op, cross-tenant re-assign requires admin, invalid tenant id → 422).
+- [x] 5.2 GREEN: extend `Identity.Domain/Users/User.cs` with `TenantId? TenantId { get; private set; }` + `AssignToTenant(TenantId, IClock)`.
 
 **Phase 6: Infrastructure + API**
 
-- [ ] 6.1 `TenantConfiguration` (EF) — `b.ToTable("tenants")` + 1 unique index + 1 regular index + 2 CHECK constraints.
-- [ ] 6.2 `TenantRepository` impl (GetByIdAsync, FindBySlugAsync, AddAsync, UpdateAsync, ListByOwnerAsync).
-- [ ] 6.3 Extend `UserConfiguration` with `b.Property(u => u.TenantId).HasColumnName("tenant_id")`.
-- [ ] 6.4 `TenantDto` + `TenantMapping` (10 LOC `_Common/TenantMapping.cs`).
-- [ ] 6.5 DI: `AddScoped<ITenantContext, TenantContext>` + `AddHttpContextAccessor()` (already present) + `AddScoped<CreateTenantHandler>` + `AddScoped<GetTenantHandler>` + `AddScoped<ITenantRepository, TenantRepository>`.
+- [x] 6.1 `TenantConfiguration` (EF) — `b.ToTable("tenants")` + 1 unique index + 1 regular index + 2 CHECK constraints.
+- [x] 6.2 `TenantRepository` impl (GetByIdAsync, FindBySlugAsync, AddAsync, UpdateAsync, ListByOwnerAsync).
+- [x] 6.3 Extend `UserConfiguration` with `b.Property(u => u.TenantId).HasColumnName("tenant_id")`.
+- [x] 6.4 `TenantDto` + `TenantMapping` (10 LOC `_Common/TenantMapping.cs`).
+- [x] 6.5 DI: `AddScoped<ITenantContext, TenantContext>` + `AddHttpContextAccessor()` (already present) + `AddScoped<CreateTenantHandler>` + `AddScoped<GetTenantHandler>` + `AddScoped<ITenantRepository, TenantRepository>`.
 
 **Phase 7: Validate**
 
-- [ ] 7.1 `dotnet test --filter "FullyQualifiedName~Tenant|TenantId"` --nologo --verbosity minimal → 35/35 pass.
-- [ ] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 7.3 Full BE suite → 1055/1055 pass (was 1020 → +35 new tests, 0 regressions).
+- [x] 7.1 `dotnet test --filter "FullyQualifiedName~Tenant|TenantId"` --nologo --verbosity minimal → 35/35 pass. (Actual: 36 Identity + 8 Shared.Kernel = 44 due to [Theory]/[InlineData] expansions + 1 extra positive test.)
+- [x] 7.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 7.3 Full BE suite → 1055/1055 pass (was 1020 → +35 new tests, 0 regressions). (Actual: 1174 cumulative BE tests across Trading 700 + Billing 116 + Identity 199 + Shared.Kernel 159 — the 1020/1055 forecast predates Wave 6 actuals.)
 
 ### 6c.1 size:exception preview
 
@@ -293,9 +293,9 @@ Forecast ~700 lines, Wave 5 precedent (5a.1=2108) → `size:exception` likely. J
 
 - New files: 12 (Shared.Kernel 2 + Identity.Domain 5 + Identity.Application 5 + Identity.Infrastructure 1 + migration 1).
 - Modified files: 5 (Identity.Domain/Users/User.cs + Identity.Infrastructure/UserConfiguration + DI + Program.cs + IdentityDbContext).
-- Total: **17 paths** ≤ 32 OK.
+- Total: **17 paths** ≤ 32 OK. (Actual: 28 paths — within the 32 budget cap.)
 
-> **Slice 6c.1 completion note**: code lands with all tests green. 35 new BE tests. `tenant_id` column is nullable; NOT NULL lands in 6c.3.
+> **Slice 6c.1 completion note**: code lands with all tests green. 44 new BE tests (spec target 35). `tenant_id` column is nullable; NOT NULL lands in 6c.3.
 
 ---
 
@@ -305,43 +305,43 @@ Forecast ~700 lines, Wave 5 precedent (5a.1=2108) → `size:exception` likely. J
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `TenantContextMiddlewareTests` (6 scenarios: authenticated user with tenant_id → next(), authenticated user without tenant_id → 401 `auth.tenant_missing`, anonymous user → next() (no auth claim), malformed tenant_id claim → 401, multiple requests → fresh resolution per request, exception in next() → propagates).
-- [ ] 1.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContextMiddleware.cs`.
+- [x] 1.1 RED test `TenantContextMiddlewareTests` (6 scenarios: authenticated user with tenant_id → next(), authenticated user without tenant_id → 401 `auth.tenant_missing`, anonymous user → next() (no auth claim), malformed tenant_id claim → 401, multiple requests → fresh resolution per request, exception in next() → propagates).
+- [x] 1.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContextMiddleware.cs`.
 
 **Phase 2: TenantContext impl (TDD)**
 
-- [ ] 2.1 RED test `TenantContextTests` (5 scenarios: HttpContext-bound Current returns tenant_id from JWT, CurrentUserId returns NameIdentifier, IsSuperAdmin returns true for SuperAdmin role, Current returns null for anonymous, mock IHttpContextAccessor).
-- [ ] 2.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContext.cs`.
+- [x] 2.1 RED test `TenantContextTests` (5 scenarios: HttpContext-bound Current returns tenant_id from JWT, CurrentUserId returns NameIdentifier, IsSuperAdmin returns true for SuperAdmin role, Current returns null for anonymous, mock IHttpContextAccessor).
+- [x] 2.2 GREEN: `Identity.Infrastructure/MultiTenancy/TenantContext.cs`.
 
 **Phase 3: Repository extension (TDD)**
 
-- [ ] 3.1 RED test `TenantRepositoryFilterTests` (10 scenarios: GetByIdAsync filters by tenant + soft-delete, query returns user's tenant only, cross-tenant lookup returns null, IgnoreQueryFilters() returns all, list operations filter, count operations filter, async enumeration, cancellation token propagates, no tenant context → returns empty, no tenant context + super-admin → returns all).
-- [ ] 3.2 GREEN: `Identity.Infrastructure/Repositories/TenantRepository.cs` (decorator over `IRepository<T>` for `ITenantOwned` entities).
+- [x] 3.1 RED test `TenantRepositoryFilterTests` (10 scenarios: GetByIdAsync filters by tenant + soft-delete, query returns user's tenant only, cross-tenant lookup returns null, IgnoreQueryFilters() returns all, list operations filter, count operations filter, async enumeration, cancellation token propagates, no tenant context → returns empty, no tenant context + super-admin → returns all).
+- [x] 3.2 GREEN: `Shared.Kernel/MultiTenancy/TenantQueryFilter.cs` + `ITenantOwned.cs` (extension on `IQueryable<T>` for `ITenantOwned` entities).
 
 **Phase 4: JWT mint fix (TDD)**
 
-- [ ] 4.1 RED test `JwtMintWithTenantIdTests` (4 scenarios: user with tenant → claim included, user without tenant → no claim (pre-Wave-6), refresh token carries tenant_id, malformed tenant_id → token rejected).
-- [ ] 4.2 GREEN: extend `Identity.Application/Authentication/_MintAccessToken.cs` with `tenant_id` claim.
+- [x] 4.1 RED test `JwtMintWithTenantIdTests` (4 scenarios: user with tenant → claim included, user without tenant → no claim (pre-Wave-6), refresh token carries tenant_id, malformed tenant_id → token rejected).
+- [x] 4.2 GREEN: extend `Identity.Infrastructure/Security/JwtTokenService.cs` (note: actual location, not `_MintAccessToken.cs`) with `tenantId` parameter; updated `ITokenService` + `LoginHandler` + `RefreshTokenHandler` + `RegisterUserHandler` callers.
 
 **Phase 5: Backfill (TDD)**
 
-- [ ] 5.1 RED test `BackfillTenantsRunnerTests` (5 scenarios: first run → creates Personal + assigns all users, re-run → no-op (idempotent), 0 users → no Personal created, partial users → only NULL users assigned, exception → transient retry on next startup).
-- [ ] 5.2 GREEN: `Identity.Infrastructure/MultiTenancy/BackfillTenantsRunner.cs` + `IBackfillTenantsRunner.cs` + `BackfillTenantsHostedService.cs` (BackgroundService, idle 15s after startup).
+- [x] 5.1 RED test `BackfillTenantsRunnerTests` (5 scenarios: first run → creates Personal + assigns all users, re-run → no-op (idempotent), 0 users → no Personal created, partial users → only NULL users assigned, exception → transient retry on next startup).
+- [x] 5.2 GREEN: `Identity.Infrastructure/MultiTenancy/BackfillTenantsRunner.cs` + `IBackfillTenantsRunner.cs` + `BackfillTenantsHostedService.cs` (BackgroundService, idle 15s after startup).
 
 **Phase 6: Migration**
 
-- [ ] 6.1 `infrastructure/postgres/migrations/0026_backfill_personal_tenant.sql` — idempotent INSERT Personal + UPDATE users SET tenant_id = ... WHERE NULL. Wire en `migrate.Dockerfile`.
+- [x] 6.1 `infrastructure/postgres/migrations/0026_backfill_personal_tenant.sql` — idempotent INSERT Personal + UPDATE users SET tenant_id = ... WHERE NULL. Wire en `migrate.Dockerfile`.
 
 **Phase 7: DI + wiring**
 
-- [ ] 7.1 DI: `AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>` + `AddHostedService<BackfillTenantsHostedService>`.
-- [ ] 7.2 `Program.cs`: `app.UseMiddleware<TenantContextMiddleware>()` after `UseAuthentication` + `UseAuthorization`.
+- [x] 7.1 DI: `AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>` + `AddHostedService<BackfillTenantsHostedService>`.
+- [x] 7.2 `Program.cs`: `app.UseMiddleware<TenantContextMiddleware>()` after `UseAuthentication` + `UseAuthorization`.
 
 **Phase 8: Validate**
 
-- [ ] 8.1 `dotnet test --filter "FullyQualifiedName~TenantContext|TenantFilter|BackfillTenants|JwtMintWithTenantId"` --nologo --verbosity minimal → 30/30 pass.
-- [ ] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 8.3 Full BE suite → 1085/1085 pass (was 1055 → +30 new tests, 0 regressions).
+- [x] 8.1 `dotnet test --filter "FullyQualifiedName~TenantContext|TenantFilter|BackfillTenants|JwtMintWithTenantId"` --nologo --verbosity minimal → 30/30 pass. (Actual: 25 Identity + 5 Shared.Kernel = 30.)
+- [x] 8.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 8.3 Full BE suite → 1209/1209 pass (was 1174 → +35 new tests: 25 Identity + 10 Shared.Kernel, 0 regressions).
 
 ### 6c.2 size:exception preview
 
@@ -353,7 +353,7 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 - Modified files: 6 (Program.cs + DI + Identity.Application/Authentication + IdentityDbContext + ...).
 - Total: **14 paths** ≤ 32 OK.
 
-> **Slice 6c.2 completion note**: code lands with all tests green. 30 new BE tests. Backfill runs on startup; idempotent re-run safe.
+> **Slice 6c.2 completion note**: code lands with all tests green. 35 new BE tests (target 30; +5 from hardening tests for malformed claim, anonymous callers, refresh path, standard JWT claims preservation). Backfill runs on startup (15s delay); idempotent re-run safe. Tenant middleware enforces the tenant_id claim on authenticated requests; the 0026 SQL migration is the greenfield equivalent. NOT NULL on tenant_id lands in 6c.3.
 
 ---
 
@@ -363,31 +363,31 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 
 **Phase 1: Application (TDD)**
 
-- [ ] 1.1 RED test `UpdateTenantHandlerTests` (4 scenarios: valid update → 200, cross-tenant update → 404, suspended tenant → 422, invalid name → 422).
-- [ ] 1.2 GREEN: `Identity.Application/Features/Tenants/UpdateTenant/UpdateTenantCommand.cs` + `UpdateTenantHandler.cs`.
-- [ ] 1.3 RED test `ListTenantUsersHandlerTests` (4 scenarios: own tenant → returns list, cross-tenant → 404, empty tenant → empty array, suspended tenant → 422).
-- [ ] 1.4 GREEN: `Identity.Application/Features/Tenants/ListTenantUsers/ListTenantUsersQuery.cs` + `ListTenantUsersHandler.cs` + `TenantUserDto.cs`.
-- [ ] 1.5 RED test `InviteTenantUserHandlerTests` (4 scenarios: valid email → invite sent (mock), existing user → assigned, cross-tenant → 404, tenant at capacity → 422).
-- [ ] 1.6 GREEN: `Identity.Application/Features/Tenants/InviteTenantUser/InviteTenantUserCommand.cs` + `InviteTenantUserHandler.cs` + `IEmailSender` stub.
-- [ ] 1.7 RED test `RemoveTenantUserHandlerTests` (4 scenarios: valid removal → 200, owner cannot remove self → 422, cross-tenant → 404, user not in tenant → 404).
-- [ ] 1.8 GREEN: `Identity.Application/Features/Tenants/RemoveTenantUser/RemoveTenantUserCommand.cs` + `RemoveTenantUserHandler.cs`.
+- [x] 1.1 RED test `UpdateTenantHandlerTests` (4 scenarios: valid update → 200, cross-tenant update → 404, suspended tenant → 422, invalid name → 422).
+- [x] 1.2 GREEN: `Identity.Application/Features/Tenants/UpdateTenant/UpdateTenantCommand.cs` + `UpdateTenantHandler.cs`.
+- [x] 1.3 RED test `ListTenantUsersHandlerTests` (4 scenarios: own tenant → returns list, cross-tenant → 404, empty tenant → empty array, suspended tenant → 422).
+- [x] 1.4 GREEN: `Identity.Application/Features/Tenants/ListTenantUsers/ListTenantUsersQuery.cs` + `ListTenantUsersHandler.cs` + `TenantUserDto.cs`.
+- [x] 1.5 RED test `InviteTenantUserHandlerTests` (4 scenarios: valid email → invite sent (mock), existing user → assigned, cross-tenant → 404, tenant at capacity → 422).
+- [x] 1.6 GREEN: `Identity.Application/Features/Tenants/InviteTenantUser/InviteTenantUserCommand.cs` + `InviteTenantUserHandler.cs` + `IEmailSender` stub.
+- [x] 1.7 RED test `RemoveTenantUserHandlerTests` (4 scenarios: valid removal → 200, owner cannot remove self → 422, cross-tenant → 404, user not in tenant → 404).
+- [x] 1.8 GREEN: `Identity.Application/Features/Tenants/RemoveTenantUser/RemoveTenantUserCommand.cs` + `RemoveTenantUserHandler.cs`.
 
 **Phase 2: NOT NULL on tenant_id (TDD)**
 
-- [ ] 2.1 RED test `MigrationNotNullTenantIdTests` (1 scenario: validate that migration 0026 has run on the test DB before this slice runs).
-- [ ] 2.2 `infrastructure/postgres/migrations/0026_NOT_NULL_tenant_id.sql` — `ALTER TABLE identity.users ALTER COLUMN tenant_id SET NOT NULL` (idempotent). Wire en `migrate.Dockerfile`.
+- [x] 2.1 RED test `MigrationNotNullTenantIdTests` (1 scenario: validate that migration 0026 has run on the test DB before this slice runs).
+- [x] 2.2 `infrastructure/postgres/migrations/0026_NOT_NULL_tenant_id.sql` — `ALTER TABLE identity.users ALTER COLUMN tenant_id SET NOT NULL` (idempotent). Wire en `migrate.Dockerfile`.
 
 **Phase 3: Infrastructure + API**
 
-- [ ] 3.1 `TenantEndpoints` (`MapTenantEndpoints`): `GET /api/tenants/{id}/users` + `POST /api/tenants/{id}/users` + `DELETE /api/tenants/{id}/users/{user_id}` + `PATCH /api/tenants/{id}`. RequireAuthorization + RequireRole("Admin") OR tenant-owner.
-- [ ] 3.2 `app.MapTenantEndpoints()` en `Program.cs`.
-- [ ] 3.3 DI: `AddScoped<UpdateTenantHandler>` + `AddScoped<ListTenantUsersHandler>` + `AddScoped<InviteTenantUserHandler>` + `AddScoped<RemoveTenantUserHandler>`.
+- [x] 3.1 `TenantEndpoints` (`MapTenantEndpoints`): `GET /api/tenants/{id}/users` + `POST /api/tenants/{id}/users` + `DELETE /api/tenants/{id}/users/{user_id}` + `PATCH /api/tenants/{id}`. RequireAuthorization + RequireRole("Admin") OR tenant-owner.
+- [x] 3.2 `app.MapTenantEndpoints()` en `Program.cs` (wired via `MapIdentityApi()` composition root in `IdentityApiRegistration.cs` — see apply-progress deviation #2).
+- [x] 3.3 DI: `AddScoped<UpdateTenantHandler>` + `AddScoped<ListTenantUsersHandler>` + `AddScoped<InviteTenantUserHandler>` + `AddScoped<RemoveTenantUserHandler>`.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~TenantAdmin"` --nologo --verbosity minimal → 20/20 pass.
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 4.3 Full BE suite → 1105/1105 pass (was 1085 → +20 new tests, 0 regressions).
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~Tenant"` --nologo --verbosity minimal → 82/82 pass (TenantAdmin filter is covered; spec said 20; actual 21 incl. 1 hardening edge case).
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
+- [x] 4.3 Full BE suite → 1230/1230 pass (Shared.Kernel 169 + Identity 245 + Billing 116 + Trading 700; 0 regressions, +21 new tests over 6c.2).
 
 ### 6c.3 size:exception preview
 
@@ -409,38 +409,41 @@ Forecast ~500 lines, Wave 5 precedent (5b.1=1207) → `size:exception` possible.
 
 **Phase 1: Shared kernel (TDD)**
 
-- [ ] 1.1 RED test `ISoftDeleteContractTests` (3 scenarios: interface shape, IsDeleted default false, DeletedAtUtc nullable).
-- [ ] 1.2 GREEN: `Shared.Kernel/SoftDelete/ISoftDelete.cs`.
-- [ ] 1.3 RED test `IAuditLoggerContractTests` (3 scenarios: interface shape, LogAsync(AuditEventEntry, CancellationToken), no-throw guarantee).
-- [ ] 1.4 GREEN: `Shared.Kernel/Audit/IAuditLogger.cs` + `AuditEventEntry.cs` + `AuditAction.cs` enum.
+- [x] 1.1 RED test `ISoftDeleteContractTests` (3 scenarios: interface shape, IsDeleted default false, DeletedAtUtc nullable).
+- [x] 1.2 GREEN: `Shared.Kernel/SoftDelete/ISoftDelete.cs`.
+- [x] 1.3 RED test `IAuditLoggerContractTests` (3 scenarios: interface shape, LogAsync(AuditEventEntry, CancellationToken), no-throw guarantee).
+- [x] 1.4 GREEN: `Shared.Kernel/Audit/IAuditLogger.cs` + `AuditEventEntry.cs` + `AuditAction.cs` enum.
 
 **Phase 2: Domain (TDD)**
 
-- [ ] 2.1 RED test `AuditEventTests` (8 scenarios: create valid, entity_type length 1..80, entity_id required, action enum range, tenant_id nullable, user_id nullable, occurred_at set on create, immutable after create (no mutators)).
-- [ ] 2.2 GREEN: `Identity.Domain/Audit/AuditEvent.cs` (aggregate root + `AuditEventErrors.cs`).
-- [ ] 2.3 RED test `SoftDeleteCommandTests` (4 scenarios: existing entity → marks IsDeleted+DeletedAt+DeletedBy, already deleted → 404 not_found, non-soft-deleteable entity → 422, audit event written).
-- [ ] 2.4 GREEN: `Identity.Application/Features/SoftDelete/SoftDeleteCommand.cs` + `SoftDeleteHandler.cs` (generic `ISoftDelete`).
+- [x] 2.1 RED test `AuditEventTests` (8 scenarios: create valid, entity_type length 1..80, entity_id required, action enum range, tenant_id nullable, user_id nullable, occurred_at set on create, immutable after create (no mutators)).
+- [x] 2.2 GREEN: `Identity.Domain/Audit/AuditEvent.cs` (aggregate root + `AuditEventErrors.cs`).
+- [x] 2.3 RED test `SoftDeleteCommandTests` (4 scenarios: existing entity → marks IsDeleted+DeletedAt+DeletedBy, already deleted → 404 not_found, non-soft-deleteable entity → 422, audit event written).
+- [x] 2.4 GREEN: `Identity.Application/Features/SoftDelete/SoftDeleteCommand.cs` + `SoftDeleteHandler.cs` (generic `ISoftDelete`).
 
 **Phase 3: Migration**
 
-- [ ] 3.1 `infrastructure/postgres/migrations/0027_audit_events.sql` — `audit.events` table (8 columns + 3 indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.1 `infrastructure/postgres/migrations/0027_audit_events.sql` — `audit.events` table (8 columns + 3 indexes + 1 CHECK constraint). Idempotent. Wire en `migrate.Dockerfile`.
+- [x] 3.2 `infrastructure/postgres/migrations/0028_import_job_soft_delete.sql` — 3 additive columns on `trading.import_jobs` (`is_deleted`, `deleted_at`, `deleted_by_user_id`). Idempotent. Wired into `migrate.Dockerfile` happy + retry path. (Documented deviation: spec mentioned 1 migration; 6d.1 needs 2 because the ImportJob columns are on a separate table from `audit.events`.)
 
 **Phase 4: EF global query filter (TDD)**
 
-- [ ] 4.1 RED test `ImportJobSoftDeleteQueryFilterTests` (5 scenarios: query returns only non-deleted, soft-deleted entity excluded, IgnoreQueryFilters() returns all, count returns non-deleted count, async enumeration excludes soft-deleted).
-- [ ] 4.2 GREEN: extend `ImportJobConfiguration` with `b.HasQueryFilter(j => !j.IsDeleted)` + `IsDeleted` property mapping.
+- [x] 4.1 RED test `ImportJobSoftDeleteQueryFilterTests` (5 scenarios: query returns only non-deleted, soft-deleted entity excluded, IgnoreQueryFilters() returns all, count returns non-deleted count, async enumeration excludes soft-deleted).
+- [x] 4.2 GREEN: extend `ImportJobConfiguration` with `b.HasQueryFilter(j => !j.IsDeleted)` + `IsDeleted` property mapping.
 
 **Phase 5: Infrastructure + API**
 
-- [ ] 5.1 `AuditEventConfiguration` (EF) — `b.ToTable("events")` + 3 indexes + 1 CHECK constraint.
-- [ ] 5.2 `AuditDbContext` (separate, write-only) — isolated from `IdentityDbContext` to prevent accidental UPDATE/DELETE.
-- [ ] 5.3 `app.UseMiddleware<TenantContextMiddleware>()` (already present).
+- [x] 5.1 `AuditEventConfiguration` (EF) — `b.ToTable("events")` + 3 indexes + 1 CHECK constraint.
+- [x] 5.2 `AuditDbContext` (separate, write-only) — isolated from `IdentityDbContext` to prevent accidental UPDATE/DELETE.
+- [x] 5.3 `app.UseMiddleware<TenantContextMiddleware>()` (already present).
+- [x] 5.4 `NoOpAuditLogger` placeholder — accepts the call without persisting; replaced by the real `AuditLogger` impl in slice 6d.2 (single DI line swap).
+- [x] 5.5 `ImportJobSoftDeleteProvider` (Trading.Infrastructure) — bridges `IImportJobRepository` to the cross-cutting `ISoftDeleteProvider`; registered in `TradingModuleRegistration`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~SoftDelete|ISoftDelete|AuditEvent|ImportJobSoftDelete"` --nologo --verbosity minimal → 25/25 pass.
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 warnings nuevos.
-- [ ] 6.3 Full BE suite → 1130/1130 pass (was 1105 → +25 new tests, 0 regressions).
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~SoftDelete|ISoftDelete|AuditEvent|ImportJobSoftDelete"` --nologo --verbosity minimal → 26/26 pass (15 Identity + 7 Trading + 4 Shared.Kernel). Spec forecast 25; +1 over (the 2 Trading matches are pre-existing `AttachmentLifecycleServiceTests` that contain "SoftDelete" in their test names; the 5 new `ImportJobSoftDeleteQueryFilterTests` are the slice's contribution).
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings (baseline = 3 CA2263 on pre-existing tests; this slice adds 0).
+- [x] 6.3 Full BE suite → 1258/1258 pass (was 1230 → +28 new tests from this slice, 0 regressions). Cumulative breakdown: Identity 260 (+15) + Trading 705 (+5) + Shared.Kernel 177 (+8) + Billing 116 (unchanged). Spec forecast 1130; actual cumulative has been over-forecast since 6c.1 (per the 6c.3 apply-progress note — the actual 1230 baseline already exceeded the spec's 1105 forecast).
 
 ### 6d.1 size:exception preview
 
@@ -510,13 +513,13 @@ Forecast ~900 lines, Wave 5 precedent (5c.1=3075) → `size:exception` likely. J
 | 6a.1 | +40 | 0 | 950 |
 | 6a.2 | +45 | 0 | 995 |
 | 6b.1 | +25 | 0 | 1020 |
-| 6b.2 | 0 | +6 | 1020 + 169 FE |
-| 6c.1 | +35 | 0 | 1055 |
-| 6c.2 | +30 | 0 | 1085 |
-| 6c.3 | +20 | 0 | 1105 |
-| 6d.1 | +25 | 0 | 1130 |
-| 6d.2 | +30 | 0 | 1160 |
-| **Total** | **+250** | **+6** | **~1160 BE + ~175 FE** |
+| 6b.2 | 0 | +6 | 1020 + 185 FE |
+| 6c.1 | +44 (35 spec) | 0 | 1064 (cumulative actual: 1174) |
+| 6c.2 | +35 (30 spec) | 0 | 1099 (cumulative actual: 1209) |
+| 6c.3 | +21 (20 spec; +1 hardening edge case) | 0 | 1120 (cumulative actual: 1230) |
+| 6d.1 | +25 | 0 | 1144 |
+| 6d.2 | +30 | 0 | 1174 |
+| **Total** | **+264** | **+6** | **~1244 BE + ~185 FE** |
 
 ## Definition of Done (per Wave 5 precedent)
 

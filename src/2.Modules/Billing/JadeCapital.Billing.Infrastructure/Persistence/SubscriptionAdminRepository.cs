@@ -69,6 +69,24 @@ public sealed class SubscriptionAdminRepository : ISubscriptionAdminRepository
                 ct);
     }
 
+    /// <summary>
+    /// Wave 6b.1: looks up a subscription by the owning user's id. The
+    /// billing portal read API uses this to resolve the caller's local
+    /// subscription from the JWT-derived userId. The DB has a UNIQUE index
+    /// on <c>user_id</c> (mirrored in <c>SubscriptionConfiguration</c>), so
+    /// the query is a fast equality lookup with at most one row.
+    /// </summary>
+    public Task<Subscription?> FindByUserIdAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            return Task.FromResult<Subscription?>(null);
+
+        return _db.Subscriptions
+            .Include("_history")
+            .FirstOrDefaultAsync(s => s.UserId == userId, ct);
+    }
+
     private static SubscriptionStatus ParseStatus(string status)
         => Enum.TryParse<SubscriptionStatus>(status, ignoreCase: true, out var parsed)
             ? parsed

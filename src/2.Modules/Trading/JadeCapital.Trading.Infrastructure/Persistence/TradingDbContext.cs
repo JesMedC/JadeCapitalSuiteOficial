@@ -22,7 +22,7 @@ namespace JadeCapital.Trading.Infrastructure.Persistence;
 /// trading.pre_trade_checklists, trading.trade_reviews,
 /// trading.trade_attachments, trading.journal_entries.
 /// </summary>
-public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
+public class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
     public TradingDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<TradingDbContext> options)
         : base(options) { }

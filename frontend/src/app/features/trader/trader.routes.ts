@@ -25,6 +25,9 @@ export const traderRoutes: Routes = [
   { path: 'imports', loadChildren: () => import('./imports/imports.routes').then((m) => m.IMPORTS_ROUTES) },
   // Slice 5c.1 — AI risk advisor (pre-trade advisory panel).
   { path: 'risk-advice', loadChildren: () => import('./risk-advice/risk-advice.routes').then((m) => m.RISK_ADVICE_ROUTES) },
+  // Wave 6, slice 6b.2 — self-service billing portal (subscription +
+  // payment methods + invoices + "Manage in Stripe" redirect).
+  { path: 'billing', loadChildren: () => import('./billing/billing.routes').then((m) => m.BILLING_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

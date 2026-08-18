@@ -56,6 +56,14 @@ public static class IdentityDomainErrors
 
         public static readonly Error PasswordReused =
             Error.Validation("user.password_reused", "New password must differ from current and previous five.");
+
+        public static readonly Error TenantIdInvalid =
+            Error.Validation("user.tenant_id_invalid",
+                "Tenant id cannot be empty.");
+
+        public static readonly Error CrossTenantReassignRequiresAdmin =
+            Error.Forbidden("user.cross_tenant_reassign_requires_admin",
+                "Re-assigning to a different tenant requires the Admin role.");
     }
 
     public static class RefreshToken

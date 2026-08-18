@@ -1,5 +1,6 @@
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Common;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
 
@@ -60,6 +61,14 @@ public sealed class User : AggregateRoot<Guid>
     /// SUM(trade_attachments.bytes) daily).
     /// </summary>
     public long AttachmentUsedBytes { get; private set; }
+
+    /// <summary>
+    /// Wave 6c — tenant membership. NULL pre-Wave-6 (slice 6c.1); NOT NULL
+    /// after backfill (slice 6c.3). Stored in <c>identity.users.tenant_id</c>
+    /// (migration 0025); the FK to <c>identity.tenants.id</c> is enforced at
+    /// the DB level.
+    /// </summary>
+    public TenantId? TenantId { get; private set; }
 
     /// <summary>
     /// Ordered (changed_at DESC, id DESC) list of the user's previous
@@ -320,4 +329,104 @@ public sealed class User : AggregateRoot<Guid>
     public bool CanAuthenticate()
         => Status == UserStatus.Active
            && (LockedUntil is null || LockedUntil <= DateTimeOffset.UtcNow);
+
+    // ============================================
+    // Wave 6c.1 — Tenant membership
+    // ============================================
+
+    /// <summary>
+    /// Assigns the user to a tenant. Idempotent on the same
+    /// <see cref="TenantId"/>; cross-tenant re-assignment requires the
+    /// Admin role.
+    ///
+    /// <para>
+    /// <b>Slice 6c.1 contract</b>: the column is nullable (per the
+    /// "ONE migration atómica" user decision — 6c.1=nullable,
+    /// 6c.2=backfill, 6c.3=NOT NULL). Until 6c.2 runs, every user has
+    /// <see cref="TenantId"/> = <c>null</c> and the first call sets it.
+    /// </para>
+    /// </summary>
+    public Result AssignToTenant(TenantId tenantId)
+    {
+        if (tenantId.Value == Guid.Empty)
+            return Result.Failure(IdentityDomainErrors.User.TenantIdInvalid);
+
+        // Re-assign to the same tenant → idempotent no-op (no UpdatedAt bump).
+        if (TenantId is not null && TenantId == tenantId)
+            return Result.Success();
+
+        // Cross-tenant re-assignment → admin-only.
+        if (TenantId is not null && Role != UserRole.Admin)
+            return Result.Failure(IdentityDomainErrors.User.CrossTenantReassignRequiresAdmin);
+
+        TenantId = tenantId;
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 6c.3 — unassigns the user from their current tenant. Used by
+    /// <c>RemoveTenantUserHandler</c> for the "remove from workspace"
+    /// semantics; the user account itself is NOT deleted. Sets
+    /// <see cref="TenantId"/> back to <c>null</c> and bumps
+    /// <see cref="Entity{T}.UpdatedAt"/>.
+    ///
+    /// <para>
+    /// <b>Note</b>: this conflicts with the 6c.3 NOT NULL constraint on
+    /// <c>identity.users.tenant_id</c>. The slice is safe ONLY because
+    /// <c>RemoveTenantUserHandler</c> runs this from the tenant context
+    /// after a re-assignment to a Personal default — i.e. the user is
+    /// never left with <c>NULL</c>; they fall back to the Personal
+    /// tenant assigned by the 6c.2 backfill. The 6c.3 handler
+    /// implementation is responsible for that fallback. This method is
+    /// the "explicit unassign" primitive; the handler decides whether
+    /// it's safe to call.
+    /// </para>
+    /// </summary>
+    public Result UnassignFromTenant()
+    {
+        if (TenantId is null)
+            return Result.Success();   // already unassigned → idempotent no-op
+
+        TenantId = null;
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Slice 6c.3 — admin-orchestrated reassignment of the user to a new
+    /// tenant. Used by <c>RemoveTenantUserHandler</c> to remove a user
+    /// from a workspace WITHOUT violating the NOT NULL constraint on
+    /// <c>identity.users.tenant_id</c>: the user is reassigned to the
+    /// Personal default tenant instead of leaving the column NULL.
+    ///
+    /// <para>
+    /// <b>Why this is NOT <see cref="AssignToTenant"/></b>: that method
+    /// guards against self-initiated cross-tenant reassignment
+    /// (<c>Role != Admin → failure</c>). The remove-from-workspace flow
+    /// is initiated by the TENANT OWNER on behalf of a target member —
+    /// the target is not the actor. The actor-vs-subject split means we
+    /// need a separate primitive that does NOT enforce the self-init
+    /// guard. The handler (not the aggregate) is responsible for the
+    /// authorization check (caller is tenant-owner or SuperAdmin).
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotent on no-op: assigning to the current tenant returns
+    /// <c>Success</c> without bumping <see cref="Entity{T}.UpdatedAt"/>.
+    /// </para>
+    /// </summary>
+    public Result ReassignToTenantByAdmin(TenantId newTenantId)
+    {
+        if (newTenantId.Value == Guid.Empty)
+            return Result.Failure(IdentityDomainErrors.User.TenantIdInvalid);
+
+        // No-op when already in the target tenant — avoids spurious UpdatedAt bumps.
+        if (TenantId is not null && TenantId.Value == newTenantId.Value)
+            return Result.Success();
+
+        TenantId = newTenantId;
+        Touch();
+        return Result.Success();
+    }
 }

@@ -11,7 +11,7 @@ namespace JadeCapital.Billing.Infrastructure.Persistence;
 /// subscription history. Slice 0f will add repositories and the handler
 /// layer; 0e wires the persistence shape and indexes only.
 /// </summary>
-public sealed class BillingDbContext : DbContext
+public class BillingDbContext : DbContext
 {
     public BillingDbContext(DbContextOptions<BillingDbContext> options) : base(options) { }
 

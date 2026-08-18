@@ -7,7 +7,7 @@ export interface MobileNavItem {
   /** Route path (relative or absolute). */
   path: string;
   /** Icon name (matches the icon set in trader-shell). */
-  icon: 'dashboard' | 'trades' | 'calendar' | 'settings' | 'list' | 'tag' | 'home' | 'menu' | 'journal';
+  icon: 'dashboard' | 'trades' | 'calendar' | 'settings' | 'list' | 'tag' | 'home' | 'menu' | 'journal' | 'card';
 }
 
 /**
@@ -102,6 +102,12 @@ export interface MobileNavItem {
                   <line x1="3" y1="12" x2="21" y2="12"/>
                   <line x1="3" y1="6" x2="21" y2="6"/>
                   <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+              }
+              @case ('card') {
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
                 </svg>
               }
             }
