@@ -127,22 +127,22 @@ Forecast ~450 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: `AttachmentSweepAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `AttachmentSweepRepositoryIntegrationTests` (5 scenarios: `SoftDeleteBatchAsync` with N ids emits N audit rows (one per id, not one batch) with `EntityType = "TradeAttachment"`, `ChangesJson = { "IsActive": { "before": true, "after": false } }`; cross-tenant id in the batch emits `Denied` for that id + throws `UnauthorizedAccessException` for the whole batch; `GetExpiredBatchAsync` + `GetUserAggregateAsync` + `GetActiveUserIdsAsync` are not audited; `InsertAuditAsync` is not audited; `ChangesJson` for soft-deleted attachments includes the `IsActive` diff).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AttachmentSweepAuditDecorator.cs` (~150 LOC; bespoke batch soft-delete — wraps `SoftDeleteBatchAsync` only; emits 1 audit row per id in the batch with `EntityType = "TradeAttachment"`; cross-tenant `IsOwner` check per id via loaded `attachment.UserId`; `InsertAuditAsync` forwarded without audit; 3 reads forwarded without audit). NEW pattern — first "1-call-many-audit-rows" decorator in the codebase.
+- [x] 1.1 RED test `AttachmentSweepRepositoryIntegrationTests` (5 scenarios: `SoftDeleteBatchAsync` with N ids emits N audit rows (one per id, not one batch) with `EntityType = "TradeAttachment"`, `ChangesJson = { "IsActive": { "before": true, "after": false } }`; cross-tenant id in the batch emits `Denied` for that id + throws `UnauthorizedAccessException` for the whole batch; `GetExpiredBatchAsync` + `GetUserAggregateAsync` + `GetActiveUserIdsAsync` are not audited; `InsertAuditAsync` is not audited; `ChangesJson` for soft-deleted attachments includes the `IsActive` diff).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AttachmentSweepAuditDecorator.cs` (~150 LOC; bespoke batch soft-delete — wraps `SoftDeleteBatchAsync` only; emits 1 audit row per id in the batch with `EntityType = "TradeAttachment"`; cross-tenant `IsOwner` check per id via loaded `attachment.UserId`; `InsertAuditAsync` forwarded without audit; 3 reads forwarded without audit). NEW pattern — first "1-call-many-audit-rows" decorator in the codebase.
 
 **Phase 2: DI wiring**
 
-- [ ] 2.1 `services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 2.1 `services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>()` in `TradingModuleRegistration.cs`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~AttachmentSweepAudit|AttachmentSweepRepositoryIntegration"` → **5/5 new tests pass**.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 3.3 Full BE suite (1371 + 5 = **1376**) → zero regression. The `AttachmentLifecycleService.RunOnceAsync` (the only caller of `SoftDeleteBatchAsync`) is unchanged — the decorator wraps transparently.
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~AttachmentSweepAudit|AttachmentSweepRepositoryIntegration"` → **5/5 new tests pass**.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 3.3 Full BE suite (1376 + 5 = **1381**) → zero regression. The `AttachmentLifecycleService.RunOnceAsync` (the only caller of `SoftDeleteBatchAsync`) is unchanged — the decorator wraps transparently.
 
 **Phase 4: Apply-progress doc**
 
-- [ ] 4.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-3.md` written.
+- [x] 4.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-3.md` written.
 
 **Dependencies**: 9a.2 must be merged (shares `TestTradingDbContext` fixture pattern).
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for TradeAttachment. The inner repo's `SoftDeleteBatchAsync` still works without audit.
