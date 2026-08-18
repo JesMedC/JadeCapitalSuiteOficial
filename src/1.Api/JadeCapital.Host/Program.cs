@@ -379,6 +379,11 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// Slice 6c.2 — enforce tenant_id JWT claim on authenticated requests.
+// Sits AFTER auth so the principal is populated, but BEFORE endpoint
+// resolution so a missing/malformed tenant_id short-circuits with 401
+// before any handler runs. Public endpoints (anonymous) pass through.
+app.UseMiddleware<JadeCapital.Identity.Infrastructure.MultiTenancy.TenantContextMiddleware>();
 
 // ===== Health =====
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

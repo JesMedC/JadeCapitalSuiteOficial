@@ -101,7 +101,7 @@ public sealed class RefreshTokenHandler : IRequestHandler<RefreshTokenCommand, R
         await _refresh.AddAsync(newRtResult.Value, ct);
         await _uow.SaveChangesAsync(ct);
 
-        var access = _tokens.CreateAccessToken(user.Id, user.Email, user.Role.ToString());
+        var access = _tokens.CreateAccessToken(user.Id, user.Email, user.Role.ToString(), tenantId: user.TenantId);
 
         _logger.LogInformation("Refresh rotated for {UserId}.", user.Id);
 
