@@ -318,6 +318,44 @@ public class PreTradeChecklistRepositoryIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAsync_CrossTenant_DeniesAndThrows_AndWritesAuditEventWithActionDenied()
+    {
+        // Phase 2 #4: cross-tenant IsOwner denial. The caller (currentUserId)
+        // is DIFFERENT from the checklist's UserId → decorator MUST emit
+        // AuditAction.Denied, MUST throw UnauthorizedAccessException, and
+        // MUST NOT actually insert the checklist (the inner.AddAsync is
+        // gated behind the IsOwner check).
+        var callerUserId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var tradeId = Guid.NewGuid();
+        var (sp, tenant, clock, _) = BuildServices(currentUserId: callerUserId);
+        using var scope = sp.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IPreTradeChecklistRepository>();
+        var checklistDb = scope.ServiceProvider.GetRequiredService<TestPreTradeChecklistDbContext>();
+        var auditDb = NewAuditDbContext();
+
+        var checklist = CreateChecklist(tradeId, otherUserId, clock);
+
+        var act = () => repo.AddAsync(checklist, CancellationToken.None);
+        await act.Should().ThrowAsync<UnauthorizedAccessException>(
+            "the IsOwner cross-tenant check MUST throw on UserId mismatch.");
+        await checklistDb.SaveChangesAsync();
+        await auditDb.SaveChangesAsync();
+
+        var denied = await auditDb.AuditEvents.SingleAsync();
+        denied.EntityType.Should().Be(nameof(PreTradeChecklist));
+        denied.EntityId.Should().Be(checklist.Id);
+        denied.Action.Should().Be(AuditAction.Denied);
+        denied.UserId.Should().Be(callerUserId,
+            "the audit row's UserId is the caller's id, not the checklist's owner.");
+        denied.ChangesJson.Should().Contain("cross-tenant mutation attempt");
+
+        var dbChecklists = await checklistDb.PreTradeChecklists.ToListAsync();
+        dbChecklists.Should().BeEmpty(
+            "the inner.AddAsync is gated behind the IsOwner check — no row is inserted on denial.");
+    }
+
+    [Fact]
     public void IPreTradeChecklistRepository_HasNoUpdateOrDeleteMethods_WriteOnceContractPin()
     {
         // Phase 2 #3 (contract pin): reflection asserts that

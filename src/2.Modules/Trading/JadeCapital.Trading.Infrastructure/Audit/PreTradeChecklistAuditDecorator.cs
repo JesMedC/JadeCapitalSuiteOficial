@@ -32,15 +32,13 @@ namespace JadeCapital.Trading.Infrastructure.Audit;
 /// </para>
 ///
 /// <para>
-/// <b>Why no IsOwner / cross-tenant check on AddAsync</b>: <c>AddAsync</c>
-/// always inserts a NEW row (no read-then-update race), so the only
-/// meaningful cross-tenant check would be on the foreign keys (<c>TradeId</c>
-/// + <c>UserId</c>) — but those are guaranteed consistent by the
-/// production <c>OpenTradeHandler</c> which passes the tradeId from the
-/// same UoW and the userId from the authenticated context. The interface
-/// contract + handler invariant makes cross-tenant <c>AddAsync</c> impossible
-/// at the application layer. The decorator emits Created unconditionally
-/// — the <c>audit.events</c> row records the new checklist + who created it.
+/// <b>IsOwner / cross-tenant check on AddAsync</b> (per spec requirement):
+/// compares <c>checklist.UserId</c> to <see cref="ITenantContext.CurrentUserId"/>.
+/// On mismatch, emits <see cref="AuditAction.Denied"/> with reason
+/// "cross-tenant mutation attempt" and throws <see cref="UnauthorizedAccessException"/>.
+/// The check is defense-in-depth — production handlers always pass
+/// <c>UserId</c> from the authenticated context, but the decorator
+/// enforces the invariant at the audit layer for compliance.
 /// </para>
 ///
 /// <list type="bullet">
@@ -100,6 +98,19 @@ public sealed class PreTradeChecklistAuditDecorator : IPreTradeChecklistReposito
 
     public async Task AddAsync(PreTradeChecklist checklist, CancellationToken ct)
     {
+        // IsOwner / cross-tenant check (spec requirement): the audit decorator
+        // is the last line of defense for the write-once invariant. If the
+        // checklist's UserId doesn't match the caller's tenant context, emit
+        // AuditAction.Denied + throw UnauthorizedAccessException. The actual
+        // insert never happens — the inner.AddAsync is gated behind the check.
+        var currentUserId = _tenant.CurrentUserId;
+        if (currentUserId.HasValue && checklist.UserId != currentUserId.Value)
+        {
+            await TryAuditAsync(BuildDeniedEntry(checklist, currentUserId.Value), ct);
+            throw new UnauthorizedAccessException(
+                $"Cross-tenant PreTradeChecklist write attempt: caller={currentUserId.Value}, checklist.UserId={checklist.UserId}.");
+        }
+
         await _inner.AddAsync(checklist, ct);
         await TryAuditAsync(BuildEntry(checklist), ct);
     }
@@ -142,5 +153,20 @@ public sealed class PreTradeChecklistAuditDecorator : IPreTradeChecklistReposito
             TenantId: _tenant.Current?.Value,
             UserId: _tenant.CurrentUserId,
             ChangesJson: null,
+            OccurredAt: _clock.UtcNow);
+
+    /// <summary>
+    /// Builds the <see cref="AuditEventEntry"/> for a cross-tenant denial.
+    /// Records <c>AuditAction.Denied</c> with <c>ChangesJson</c> capturing the
+    /// attempted-vs-actual user mismatch for the compliance trail.
+    /// </summary>
+    private AuditEventEntry BuildDeniedEntry(PreTradeChecklist checklist, Guid callerUserId)
+        => new(
+            EntityType: nameof(PreTradeChecklist),
+            EntityId: checklist.Id,
+            Action: AuditAction.Denied,
+            TenantId: _tenant.Current?.Value,
+            UserId: callerUserId,
+            ChangesJson: "{\"reason\":{\"before\":null,\"after\":\"cross-tenant mutation attempt\"}}",
             OccurredAt: _clock.UtcNow);
 }
