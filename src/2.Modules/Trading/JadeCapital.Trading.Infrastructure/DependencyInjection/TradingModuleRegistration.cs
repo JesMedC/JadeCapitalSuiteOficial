@@ -206,6 +206,29 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         // child entity of the review, not a separately-audited aggregate).
         services.Decorate<JadeCapital.Trading.Application.Abstractions.ITradeReviewRepository,
                   JadeCapital.Trading.Infrastructure.Audit.TradeReviewAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPlannerSessionRepository.
+        // BESPOKE (does NOT use DecoratedRepository<PlannerSession> because
+        // IPlannerSessionRepository is bespoke with ListByUserAndWeekAsync +
+        // ExistsForDateAsync + GetWeekComparisonAsync — cross-user-scoped read
+        // methods that don't fit the generic IRepository<T> shape).
+        // CRITICAL deviation: UpdateAsync emits AuditAction.Updated by default
+        // but is upgraded to AuditAction.Deleted when the session's Status ==
+        // PlannerStatus.Cancelled via the bespoke IsTerminated reflection
+        // check (re-implemented locally for the single terminated value in
+        // PlannerStatus — mirrors the Wave 7 7b.1 TradeAuditDecorator pattern
+        // for bespoke-shape decorators). Cross-tenant IsOwner check on
+        // PlannerSession.UserId for UpdateAsync.
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPlannerSessionRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PlannerSessionAuditDecorator>();
+        // Wave 8 slice 8a.3 — typed audit decorator over IPreTradeChecklistRepository.
+        // BESPOKE WRITE-ONCE — only AddAsync wraps (no UpdateAsync or DeleteAsync
+        // on the interface — the checklist is write-once per the entity
+        // docstring; cleanup cascades via FK to trading.trades with ON DELETE
+        // CASCADE). Mirrors a simplified TenantAuditDecorator shape (Wave 6
+        // 6d.2). ListByUserIdAsync forwarded without audit (matches Wave 6 +
+        // 7 + 8a.1 + 8a.2 + 8a.3 PlannerSession precedent).
+        services.Decorate<JadeCapital.Trading.Application.Abstractions.IPreTradeChecklistRepository,
+                  JadeCapital.Trading.Infrastructure.Audit.PreTradeChecklistAuditDecorator>();
         services.AddScoped<JadeCapital.Trading.Application.Abstractions.IImportRowDedupeService,
                   JadeCapital.Trading.Infrastructure.Persistence.ImportRowDedupeService>();
 
