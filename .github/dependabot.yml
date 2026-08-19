@@ -1,0 +1,88 @@
+# .github/dependabot.yml — Jade Capital Suite dependency updates
+#
+# Wave 10 slice 10.1 — three ecosystems, weekly schedule, auto-PR enabled.
+# Major-version updates still require human review (no auto-merge configured
+# in this slice — Wave 10.2 / Wave 11 territory).
+
+version: 2
+
+updates:
+  # -----------------------------------------------------------------------
+  # NuGet — backend modules under src/2.Modules + src/1.Api.
+  # -----------------------------------------------------------------------
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+      - nuget
+    assignees:
+      - JesMedC
+    groups:
+      patches:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    ignore:
+      # .NET runtime — handled by global.json + mise, not by NuGet bumps.
+      - dependency-name: "Microsoft.NETCore.App*"
+
+  # -----------------------------------------------------------------------
+  # npm — Angular 19 frontend under frontend/.
+  # -----------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+      - npm
+    assignees:
+      - JesMedC
+    groups:
+      patches:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # -----------------------------------------------------------------------
+  # GitHub Actions — keep actions/setup-dotnet / checkout / cache pinned.
+  # -----------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+      - github-actions
+    assignees:
+      - JesMedC
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
