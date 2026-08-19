@@ -30,5 +30,9 @@ export const traderRoutes: Routes = [
   { path: 'billing', loadChildren: () => import('./billing/billing.routes').then((m) => m.BILLING_ROUTES) },
   { path: 'calendar', loadComponent: () => import('./calendar/calendar.page').then((m) => m.CalendarPage) },
   { path: 'settings', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
+  // Wave 11 slice 11.2b — GDPR Art. 17 account deletion. Lazy-loaded from
+  // the shared `features/settings/` module so the page is reachable without
+  // disturbing the existing `/settings` tabs (accounts / instruments / risk).
+  { path: 'settings/delete-account', loadChildren: () => import('@features/settings/account-deletion.routes').then((m) => m.SETTINGS_ROUTES) },
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
 ];
