@@ -76,8 +76,16 @@ public sealed class AuditRetentionBackgroundService : BackgroundService
             await RunOnceAsync(stoppingToken);
             if (stoppingToken.IsCancellationRequested) break;
 
+            // Re-read options per cycle so config changes take effect
+            // without restart (IOptionsMonitor contract). The total delay
+            // is base + jitter: base = CleanupIntervalHours (e.g., 24h),
+            // jitter = [0, +30min] random (per spec + AttachmentLifecycleService
+            // precedent). ApplyJitter returns ONLY the jitter offset, so
+            // we must add it to the base here — otherwise the loop would
+            // run every 0-30min instead of every CleanupIntervalHours.
             var next = _options.CurrentValue;
-            var intervalWithJitter = ApplyJitter(Random.Shared);
+            var baseInterval = TimeSpan.FromHours(next.CleanupIntervalHours);
+            var intervalWithJitter = baseInterval + ApplyJitter(Random.Shared);
 
             try
             {

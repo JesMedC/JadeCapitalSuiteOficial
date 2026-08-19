@@ -2,6 +2,7 @@ using JadeCapital.Admin.Api.Authorization;
 using JadeCapital.Admin.Api.Endpoints;
 using JadeCapital.Billing.Infrastructure.DependencyInjection;
 using JadeCapital.Billing.PublicApi.Endpoints;
+using JadeCapital.Admin.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -132,6 +133,15 @@ builder.Services.AddHttpClient<IAIProvider, OllamaHttpClient>((sp, client) =>
 // created the EF Core DbContext + configurations + migration; slice 0f wires
 // the application abstractions so the Admin API can resolve the handlers.
 builder.Services.AddBillingInfrastructure(builder.Configuration);
+
+// ===== Admin module (Wave 9 slice 9b.1) =====
+// Slice 9b.1 — Admin query surface (IAuditEventQueryStore +
+// ListAuditEventsHandler for GET /api/admin/audit/events). Registers
+// the IAuditEventQueryStore implementation + the MediatR handler so the
+// endpoint can resolve its dependencies. Without this call, the
+// endpoint returns 500 in production because IAuditEventQueryStore is
+// not in the DI container.
+builder.Services.AddAdminInfrastructure();
 
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
