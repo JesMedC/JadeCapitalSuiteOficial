@@ -1,0 +1,42 @@
+# .github/CODEOWNERS — Jade Capital Suite ownership rules
+#
+# Wave 10 slice 10.1 — single-owner repo at v1 readiness; explicit overrides
+# document that sensitive surfaces are gated to the same owner until a
+# co-maintainer is added.
+#
+# Format reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Order matters: the LAST matching pattern wins. Path-specific overrides
+# therefore come AFTER the catch-all rule below.
+
+# Default owner for everything in the repository.
+# Keep this line first so subsequent overrides can narrow the surface.
+*                                       @JesMedC
+
+# ---------------------------------------------------------------------------
+# Sensitive surfaces — explicit overrides for review accountability.
+# ---------------------------------------------------------------------------
+
+# Identity module — auth, JWT, password reset, refresh tokens, audit.
+# Highest blast-radius surface: a regression here is a security incident.
+/src/2.Modules/Identity/                 @JesMedC
+
+# Billing module — Stripe, ledger, decimal-only money paths.
+/src/2.Modules/Billing/                  @JesMedC
+
+# Infrastructure — Dockerfiles, nginx/Caddy, deploy runbooks, secrets adapter.
+/infrastructure/                         @JesMedC
+
+# CI/CD workflows — Dependabot + nightly scan + ci.yml + composite actions.
+/.github/workflows/                      @JesMedC
+
+# ---------------------------------------------------------------------------
+# Frontend + tests — same owner for now (single-maintainer repo).
+# ---------------------------------------------------------------------------
+
+/frontend/                               @JesMedC
+/tests/                                  @JesMedC
+/docs/                                   @JesMedC
+
+# OpenSpec change artifacts — owner reviews for traceability.
+/openspec/                               @JesMedC
