@@ -302,3 +302,7 @@ Forecast ~50 lines (1 XML doc comment block + spec REMOVED Requirements section 
 | **#34** | `feature/wave9-skip-reconciliation` (9b.2) | `feature/wave9-audit-query-retention` | Slice 9b.2 — Reconciliation doc: SKIP `ITradeAttachmentUsageRepository` |
 
 Chain integrity: 5 PRs total. Each PR targets the previous PR's branch. Order matches slice order. No PR targets `main` directly. Per-slice `size:exception` per Wave 5/6/7/8 precedent.
+
+## Slice archive
+
+- [x] Archive phase complete: 2026-08-18. Specs promoted to canonical `openspec/specs/` (soft-delete-audit extended with 4 new + 1 MODIFIED + 1 REMOVED; audit-query-api + audit-retention-policy NEW). Archive report written at `archive-report.md`. Change folder moved to `openspec/changes/archive/2026-08-19-wave9-audit-finalization/` via `git mv`. Single conventional commit `chore(sdd): archive 2026-08-19-wave9-audit-finalization + merge delta into soft-delete-audit spec` pushed directly to `feature/0a-identity-model` tracker (no PR — archive pattern). 1389 BE unit tests cumulative (Wave 8 baseline 1365 + Wave 9 +24), zero regression. 3 CRITICAL sdd-verify findings from Wave 9 chain remediated in PR #36 before archive.
