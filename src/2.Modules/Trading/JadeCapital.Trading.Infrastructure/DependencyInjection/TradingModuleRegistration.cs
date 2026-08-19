@@ -5,6 +5,7 @@ using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
 using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Application.Features.Realtime;
+using JadeCapital.Trading.Infrastructure.Audit;
 using JadeCapital.Trading.Infrastructure.BackgroundServices;
 using JadeCapital.Trading.Infrastructure.Persistence;
 using JadeCapital.Trading.Infrastructure.Queries;
@@ -54,6 +55,18 @@ public static class TradingModuleRegistration
         services.AddScoped<IPlannerSessionRepository, PlannerSessionRepository>();
         // Slice 4a — scanner filters persistence + stub data source.
         services.AddScoped<IScannerFilterRepository, ScannerFilterRepository>();
+        // Wave 9 slice 9a.2 — typed audit decorator over IScannerFilterRepository.
+        // Sub-scope A: BESPOKE CRUD-WITHOUT-DELETE — wraps AddAsync + UpdateAsync
+        // with the cross-tenant IsOwner check + audit logging; reads forwarded
+        // without audit. The interface was extended in 9a.2 Phase 1 to inherit
+        // from IRepository<ScannerFilter> (gaining DeleteAsync as a defensive
+        // stub) — the decorator emits AuditAction.Failed + throws
+        // NotSupportedException before the inner is reached, mirroring the
+        // Wave 7 7b.1 StrategyAuditDecorator + 7a.1 UserAuditDecorator
+        // precedent for non-deletable aggregates. The canonical mutation
+        // surface is ScannerFilter.Deactivate(IClock) (flips IsActive = false)
+        // + UpdateAsync, NOT a hard delete.
+        services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>();
         services.AddScoped<IScannerDataSource, InMemoryScannerDataSource>();
         // Slice 4b — market data quote cache + deterministic in-memory provider.
         services.AddScoped<IQuoteCacheRepository, QuoteCacheRepository>();

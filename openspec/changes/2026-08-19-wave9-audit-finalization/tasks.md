@@ -83,28 +83,28 @@ Forecast ~600 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: Interface surgery — `IScannerFilterRepository` extends `IRepository<ScannerFilter>` with defensive `DeleteAsync` stub**
 
-- [ ] 1.1 RED test `IScannerFilterRepositoryContractTests` (1 scenario: `DeleteAsync_IsNotOnInterface_DefensiveStub_Throws` — pins the `DeleteAsync(ScannerFilter, ct)` defensive stub behavior; matches Wave 7 7a.1 `UserAuditDecorator` precedent for non-deletable aggregates).
-- [ ] 1.2 GREEN: extend `IScannerFilterRepository` to `IRepository<ScannerFilter>` (gaining `DeleteAsync` defensive stub throwing `NotSupportedException` with message `"ScannerFilter deletion is not supported — use Deactivate (IsActive = false)"`) in `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/IScannerFilterRepository.cs`. Add `<remarks>` XML doc on the interface documenting the deactivation-via-`IsActive` rationale.
-- [ ] 1.3 Verify NO handler calls `IScannerFilterRepository.DeleteAsync` BEFORE extending (`git grep -n "_scannerFilter.DeleteAsync\|IScannerFilterRepository.*Delete" src/` → 0 matches expected).
+- [x] 1.1 RED test `IScannerFilterRepositoryContractTests` (1 scenario: `DeleteAsync_IsNotOnInterface_DefensiveStub_Throws` — pins the `DeleteAsync(ScannerFilter, ct)` defensive stub behavior; matches Wave 7 7a.1 `UserAuditDecorator` precedent for non-deletable aggregates).
+- [x] 1.2 GREEN: extend `IScannerFilterRepository` to `IRepository<ScannerFilter>` (gaining `DeleteAsync` defensive stub throwing `NotSupportedException` with message `"ScannerFilter deletion is not supported — use Deactivate (IsActive = false)"`) in `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/IScannerFilterRepository.cs`. Add `<remarks>` XML doc on the interface documenting the deactivation-via-`IsActive` rationale.
+- [x] 1.3 Verify NO handler calls `IScannerFilterRepository.DeleteAsync` BEFORE extending (`git grep -n "_scannerFilter.DeleteAsync\|IScannerFilterRepository.*Delete" src/` → 0 matches expected).
 
 **Phase 2: `ScannerFilterAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `ScannerFilterRepositoryIntegrationTests` (4 scenarios: `AddAsync` writes Created + `IsOwner` on `filter.UserId`; `UpdateAsync` writes Updated with diff + `IsOwner`; cross-tenant `UpdateAsync` emits Denied + throws `UnauthorizedAccessException`; `GetByIdAsync` + `GetByUserAndNameAsync` + `ListByUserAsync` are not audited; `DeleteAsync` throws `NotSupportedException` + emits `Failed` — combined with the `Deactivate` transition test).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/ScannerFilterAuditDecorator.cs` (~180 LOC; bespoke — implements `IScannerFilterRepository` directly; wraps `AddAsync` + `UpdateAsync`; `DeleteAsync` defensive stub emits `Failed` + throws; reads forwarded without audit; `IsOwner` cross-tenant check on `filter.UserId`).
+- [x] 2.1 RED test `ScannerFilterRepositoryIntegrationTests` (4 scenarios: `AddAsync` writes Created + `IsOwner` on `filter.UserId`; `UpdateAsync` writes Updated with diff + `IsOwner`; cross-tenant `UpdateAsync` emits Denied + throws `UnauthorizedAccessException`; `GetByIdAsync` + `GetByUserAndNameAsync` + `ListByUserAsync` are not audited; `DeleteAsync` throws `NotSupportedException` + emits `Failed` — combined with the `Deactivate` transition test).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/ScannerFilterAuditDecorator.cs` (~180 LOC; bespoke — implements `IScannerFilterRepository` directly; wraps `AddAsync` + `UpdateAsync`; `DeleteAsync` defensive stub emits `Failed` + throws; reads forwarded without audit; `IsOwner` cross-tenant check on `filter.UserId`).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.1 `services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>()` in `TradingModuleRegistration.cs`.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~ScannerFilterAudit|ScannerFilterRepositoryIntegration|IScannerFilterRepositoryContractTests"` → **5/5 new tests pass** (4 integration + 1 contract).
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1365 + 6 = **1371**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~ScannerFilterAudit|ScannerFilterRepositoryIntegration|IScannerFilterRepositoryContractTests"` → **5/5 new tests pass** (4 integration + 1 contract).
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 4.3 Full BE suite (1371 + 5 = **1376**) → zero regression.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-2.md` written.
+- [x] 5.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-2.md` written.
 
 **Dependencies**: 9a.1 must be merged (shares `TestTradingDbContext` fixture pattern).
 **Rollback**: `git revert` the slice. The `DeleteAsync` defensive stub on `IScannerFilterRepository` reverts (interface goes back to original shape). DI registration removed. `audit.events` has no rows for ScannerFilter.
