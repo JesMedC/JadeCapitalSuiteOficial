@@ -3,10 +3,12 @@ using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Identity.Infrastructure.BackgroundServices;
 using JadeCapital.Identity.Infrastructure.Cascade;
+using JadeCapital.Identity.Infrastructure.Configuration;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Xunit;
 
@@ -199,8 +201,18 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = new TestScopeFactory(serviceProvider);
 
+        // Wave 11 slice 11.3 — constructor now takes
+        // `IOptionsMonitor<HardDeleteSweepOptions>` so the per-cycle
+        // cadence can be tuned via appsettings. Tests drive a default
+        // options instance whose values match Wave 10.5's hardcoded
+        // values so this assertion (column-mapping LINQ vs real
+        // migration 0033) continues to hold without behavioural drift.
+        var optionsMonitor = new TestOptionsMonitor<HardDeleteSweepOptions>(
+            new HardDeleteSweepOptions());
+
         var sut = new HardDeleteSweepBackgroundService(
             scopeFactory,
+            optionsMonitor,
             NullLogger<HardDeleteSweepBackgroundService>.Instance);
 
         return (sut, deletors);
@@ -331,5 +343,19 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
     {
         public Task<int> AnonymizeUserAsync(Guid userId, CancellationToken ct)
             => Task.FromResult(0);
+    }
+
+    /// <summary>
+    /// Test-only <see cref="IOptionsMonitor{T}"/> for the Wave 11
+    /// slice 11.3 options integration. Returns a fixed
+    /// <c>CurrentValue</c>; the on-change hook is not exercised by
+    /// this fixture.
+    /// </summary>
+    private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        public TestOptionsMonitor(T value) { CurrentValue = value; }
+        public T CurrentValue { get; }
+        public T Get(string? name) => CurrentValue;
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 }

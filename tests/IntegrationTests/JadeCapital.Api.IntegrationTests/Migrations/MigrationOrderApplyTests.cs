@@ -167,11 +167,13 @@ public sealed class MigrationOrderApplyTests
         files.Should().NotBeEmpty("the repo must contain at least one migration file");
 
         // Pull the 4-digit prefix off each filename. Wave 11.2a added 3
-        // migrations (0033 + 0034 + 0035) so the expected count is 35
-        // (32 baseline + 3 new). The numbering must be consecutive.
-        const int ExpectedCount = 35;
+        // migrations (0033 + 0034 + 0035) → 35 total. Wave 11.3
+        // slice 11.3 adds 0036_add_welcome_email_sent_at for a total of
+        // 36. The numbering must be consecutive.
+        const int ExpectedCount = 36;
         files.Length.Should().Be(ExpectedCount,
-            $"Wave 11.2a adds 3 migrations (0033, 0034, 0035) for a total of {ExpectedCount}.");
+            $"Wave 11.2a (3 migrations) + Wave 11.3 slice 11.3 (1 migration = 0036_add_welcome_email_sent_at): "
+            + $"{ExpectedCount} total.");
 
         for (int i = 0; i < files.Length; i++)
         {

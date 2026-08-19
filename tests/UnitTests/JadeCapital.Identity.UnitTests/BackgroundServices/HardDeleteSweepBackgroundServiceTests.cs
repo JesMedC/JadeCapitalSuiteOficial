@@ -2,12 +2,14 @@ using FluentAssertions;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Identity.Infrastructure.BackgroundServices;
 using JadeCapital.Identity.Infrastructure.Cascade;
+using JadeCapital.Identity.Infrastructure.Configuration;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Shared.Kernel.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using NSubstitute;
 using Respawn;
@@ -176,16 +178,14 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
                 owner_user_id UUID
             )",
             @"CREATE UNIQUE INDEX IF NOT EXISTS ux_tenants_slug ON identity.tenants(slug)",
-            // IMPORTANT: EF's UserConfiguration maps TenantId via a
-            // ValueConverter and Status via HasConversion<string>();
-            // it does NOT map the ScheduledHardDeleteAt property at
-            // all (a Wave 10.5 production defect — discovered in this
-            // slice — see apply-progress for the dev note). Without
-            // an explicit mapping, EF expects the column to match the
-            // C# property name. We name the column
-            // "ScheduledHardDeleteAt" here so the production's
-            // u.ScheduledHardDeleteAt LINQ expression translates
-            // against this schema.
+            // IMPORTANT — Wave 11 slice 11.3 schema fix: production EF Core now
+            // maps `User.ScheduledHardDeleteAt` to the snake_case column
+            // `scheduled_hard_delete_at` (added in slice 11.2a bug
+            // fix; the Wave 10.5 schema here was PascalCase because
+            // there was NO explicit mapping back then). The production
+            // BackgroundService's LINQ `u.ScheduledHardDeleteAt` now
+            // translates to `scheduled_hard_delete_at`, so this test
+            // schema MUST match.
             @"CREATE TABLE IF NOT EXISTS identity.users (
                 id UUID PRIMARY KEY,
                 tenant_id UUID REFERENCES identity.tenants(id) ON DELETE RESTRICT,
@@ -202,7 +202,7 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
                 session_version INT NOT NULL DEFAULT 1,
                 attachment_quota_bytes BIGINT NOT NULL DEFAULT 0,
                 attachment_used_bytes BIGINT NOT NULL DEFAULT 0,
-                ""ScheduledHardDeleteAt"" TIMESTAMPTZ,
+                scheduled_hard_delete_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )",
@@ -226,10 +226,10 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
     /// <see cref="IServiceProvider"/> resolves both the DbContext +
     /// the orchestrator from a shared <see cref="IServiceCollection"/>.
     /// </summary>
-    private (HardDeleteSweepBackgroundService Sut,
-             IUserCascadeDeletor[] Deletors,
-             UserCascadeDeleterOrchestrator Orchestrator)
-        BuildSut(List<(LogLevel Level, string Message)> capturedLogs)
+    private static (HardDeleteSweepBackgroundService Sut,
+                    IUserCascadeDeletor[] Deletors,
+                    UserCascadeDeleterOrchestrator Orchestrator)
+        BuildSut(string connectionString, IClock clock, List<(LogLevel Level, string Message)> capturedLogs)
     {
         var deletors = new[]
         {
@@ -247,13 +247,8 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
             anonymizer,
             orchLogger);
 
-        var clock = Substitute.For<IClock>();
-        var fixedNow = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
-        clock.UtcNow.Returns(fixedNow);
-        _clock = clock;
-
         var dbOptions = new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql(_connectionString)
+            .UseNpgsql(connectionString)
             .Options;
 
         var services = new ServiceCollection();
@@ -265,28 +260,35 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = new TestScopeFactory(serviceProvider);
 
+        // Wave 11 slice 11.3 — tests now drive the options monitor with
+        // defaults that match Wave 10.5 behaviour so the existing
+        // assertions (3 due users + every-deletor-called-once + LogError
+        // on per-user failure) continue to hold without an appsettings.
+        var optionsMonitor = new TestOptionsMonitor<HardDeleteSweepOptions>(new HardDeleteSweepOptions());
         var bgLogger = new CapturingLogger<HardDeleteSweepBackgroundService>(capturedLogs);
-        var sut = new HardDeleteSweepBackgroundService(scopeFactory, bgLogger);
+        var sut = new HardDeleteSweepBackgroundService(scopeFactory, optionsMonitor, bgLogger);
 
         return (sut, deletors, orchestrator);
     }
 
-    /// <summary>
+/// <summary>
     /// Inserts a <see cref="User"/> row directly via Npgsql SQL —
     /// bypasses EF mapping (which differs slightly per provider) and
-    /// exercises the production schema's columns verbatim. Mirrors
-    /// the <c>GdprAuditAnonymizerTests</c> seeding pattern.
+    /// exercises the production schema's columns verbatim. Mirrors the
+    /// <c>GdprAuditAnonymizerTests</c> seeding pattern.
     /// </summary>
     private async Task SeedUserAsync(Guid userId, Guid tenantId, UserStatus status, DateTimeOffset? scheduledHardDeleteAt)
     {
-        // EF expects the column to match the C# property name
-        // "ScheduledHardDeleteAt" because there's no explicit mapping.
-        // We insert into the PascalCase column here so EF's LINQ
-        // translator finds the column for the WHERE clause.
+        // Wave 11 slice 11.3 — production EF maps
+        // `User.ScheduledHardDeleteAt` to the snake_case column
+        // `scheduled_hard_delete_at` (added in slice 11.2a bug fix).
+        // The Wave 10.5 seed used the PascalCase column name; we now
+        // write to the snake_case column so the LINQ translator resolves
+        // the WHERE clause against the production schema.
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO identity.users (id, tenant_id, email, display_name, password_hash, role, status,
                 failed_login_count, session_version, attachment_quota_bytes, attachment_used_bytes,
-                ""ScheduledHardDeleteAt"", created_at, updated_at)
+                scheduled_hard_delete_at, created_at, updated_at)
               VALUES (@id, @tid, @email, @dn, 'x', 1, @status, 0, 1, 0, 0, @sched, @now, @now)",
             _seedConnection);
         cmd.Parameters.AddWithValue("@id", userId);
@@ -326,7 +328,11 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
         // then invokes the orchestrator's CascadeHardDeleteAsync for each
         // match. Only due users are invoked.
         var capturedLogs = new List<(LogLevel Level, string Message)>();
-        var (sut, deletors, orchestrator) = BuildSut(capturedLogs);
+        var clock = Substitute.For<IClock>();
+        var fixedNow = new DateTimeOffset(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+        clock.UtcNow.Returns(fixedNow);
+        _clock = clock;
+        var (sut, deletors, orchestrator) = BuildSut(_connectionString, clock, capturedLogs);
         var tenantId = await EnsureTenantAsync();
         var dueUserId = Guid.NewGuid();
         var futureUserId = Guid.NewGuid();
@@ -384,7 +390,10 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
         // none are due), RunOnceAsync returns immediately. The
         // deletors are never invoked. No audit row is written.
         var capturedLogs = new List<(LogLevel Level, string Message)>();
-        var (sut, deletors, _) = BuildSut(capturedLogs);
+        var clock = Substitute.For<IClock>();
+        var fixedNow = new DateTimeOffset(2026, 2, 1, 9, 0, 0, TimeSpan.Zero);
+        clock.UtcNow.Returns(fixedNow);
+        var (sut, deletors, _) = BuildSut(_connectionString, clock, capturedLogs);
         var tenantId = await EnsureTenantAsync();
         var futureUserId = Guid.NewGuid();
 
@@ -414,15 +423,26 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
         // to the next user. The second user's cascade MUST still run.
         // The host MUST NOT crash from the retention / cascade failure.
         var capturedLogs = new List<(LogLevel Level, string Message)>();
-        var (sut, deletors, _) = BuildSut(capturedLogs);
+        var clock = Substitute.For<IClock>();
+        var fixedNow = new DateTimeOffset(2026, 3, 10, 8, 30, 0, TimeSpan.Zero);
+        clock.UtcNow.Returns(fixedNow);
+        _clock = clock;
+        var (sut, deletors, _) = BuildSut(_connectionString, clock, capturedLogs);
         var tenantId = await EnsureTenantAsync();
         var firstDueUserId = Guid.NewGuid();
         var secondDueUserId = Guid.NewGuid();
 
+        // Slice 11.3 note: this test seeds "due" timestamps relative to
+        // a FIXED clock (2026-03-10), which is in the past relative to
+        // real today (~2026-08-19). The production cycle filters by
+        // `DateTimeOffset.UtcNow` (real time), so the seeds naturally
+        // qualify as "due" — the test clock here is only consumed by
+        // logic that reads from the orchestrator/IUnitOfWork seed paths
+        // and is therefore inert for the BackgroundService query.
         await SeedUserAsync(firstDueUserId, tenantId, UserStatus.ScheduledHardDelete,
-            _clock!.UtcNow.AddDays(-1));
+            DateTimeOffset.UtcNow.AddDays(-1));
         await SeedUserAsync(secondDueUserId, tenantId, UserStatus.ScheduledHardDelete,
-            _clock!.UtcNow.AddDays(-2));
+            DateTimeOffset.UtcNow.AddDays(-2));
 
         // First call (any deletor) throws; subsequent calls return 1.
         var callCount = 0;
@@ -508,4 +528,18 @@ internal sealed class TestScopeFactory : IServiceScopeFactory
         public IServiceProvider ServiceProvider { get; }
         public void Dispose() { }
     }
+}
+
+/// <summary>Test-only <see cref="IOptionsMonitor{T}"/> for the
+/// Wave 11 slice 11.3 options integration. Returns a fixed
+/// <c>CurrentValue</c> so the existing 3 test scenarios (which
+/// verify cycle behavior, NOT hot-reload) keep their original
+/// assertions unchanged. Hot-reload coverage lives in
+/// <c>HardDeleteSweepBackgroundServiceOptionsTests</c>.</summary>
+internal sealed class TestOptionsMonitor<T> : IOptionsMonitor<T>
+{
+    public TestOptionsMonitor(T value) { CurrentValue = value; }
+    public T CurrentValue { get; }
+    public T Get(string? name) => CurrentValue;
+    public IDisposable? OnChange(Action<T, string?> listener) => null;
 }
