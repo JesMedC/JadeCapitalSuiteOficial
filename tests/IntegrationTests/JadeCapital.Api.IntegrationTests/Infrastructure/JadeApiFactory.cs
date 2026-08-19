@@ -192,8 +192,16 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
         foreach (var file in files)
         {
             var sql = await File.ReadAllTextAsync(file);
-            await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
-            await cmd.ExecuteNonQueryAsync();
+            try
+            {
+                await using var cmd = new Npgsql.NpgsqlCommand(sql, conn);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Npgsql.PostgresException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Migration {Path.GetFileName(file)} failed: {ex.Message} (SQL state {ex.SqlState})", ex);
+            }
         }
     }
 }

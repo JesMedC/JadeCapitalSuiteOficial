@@ -167,7 +167,7 @@ public class StripeCustomerRepositoryIntegrationTests : IDisposable
                 b.Property(e => e.Action).HasColumnName("action").HasConversion<byte>().IsRequired();
                 b.Property(e => e.TenantId).HasColumnName("tenant_id");
                 b.Property(e => e.UserId).HasColumnName("user_id");
-                b.Property(e => e.ChangesJson).HasColumnName("changes");
+                b.Property(e => e.ChangesJson).HasColumnName("changes_json");
                 b.Property(e => e.OccurredAt).HasColumnName("occurred_at").IsRequired();
                 b.Ignore(e => e.CreatedAt);
                 b.Ignore(e => e.UpdatedAt);
@@ -224,7 +224,7 @@ public class StripeCustomerRepositoryIntegrationTests : IDisposable
                     action INTEGER NOT NULL,
                     tenant_id BLOB NULL,
                     user_id BLOB NULL,
-                    changes TEXT NULL,
+                    changes_json TEXT NULL,
                     occurred_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ix_audit_events_entity

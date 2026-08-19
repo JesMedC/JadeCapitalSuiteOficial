@@ -41,6 +41,21 @@
 
 BEGIN;
 
+-- Wave 11.2a hotfix: create the audit schema BEFORE referencing
+-- `audit.events` in the CREATE TABLE below. The original 0030 did NOT
+-- include `CREATE SCHEMA IF NOT EXISTS audit;` — Postgres does NOT
+-- implicitly create schemas on `CREATE TABLE schema.table` references.
+-- The result: fresh-DB apply fails at 0030 with
+-- `3F000: schema "audit" does not exist`, blocking every subsequent
+-- migration that touches audit.events (0031, 0032, 0033, 0034, 0035)
+-- AND every GDPR anonymizer sweep in production (the
+-- `GdprAuditAnonymizer` SQL references `audit.events`).
+--
+-- This is a forward-only fix: existing DBs that already have the
+-- schema (if any) see IF NOT EXISTS as a no-op. New DBs see the
+-- schema created.
+CREATE SCHEMA IF NOT EXISTS audit;
+
 CREATE TABLE IF NOT EXISTS audit.events (
     id              UUID PRIMARY KEY,
     entity_type     VARCHAR(80) NOT NULL,

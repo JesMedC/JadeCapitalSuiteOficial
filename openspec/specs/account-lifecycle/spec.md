@@ -47,7 +47,12 @@ A CHECK constraint MUST enforce `scheduled_for_hard_delete_at IS NOT NULL` when 
 - WHEN `HardDeleteSweepBackgroundService.RunOnceAsync` runs
 - THEN NO row in `identity.users` with `id = U1.Id` MUST exist after the sweep
 - AND every row in `trading.trades WHERE user_id = U1.Id` MUST be physically deleted (no soft-delete flag — purge)
-- AND `audit.events` MUST contain exactly 1 pseudonymized row: `user_id = NULL`, `entity_id = U1.Id`, `entity_type = "User"`, `action = "Deleted"`, `changes = { "hardDeletedAt": { "before": null, "after": "<UtcNow>" }, "originalStatus": { "before": null, "after": "ScheduledHardDelete" } }`
+- AND `audit.events` MUST contain exactly 1 pseudonymized row with the following deterministic shape:
+  - `user_id = NULL` — the actor is no longer attributed to the original user
+  - `entity_id = new Guid(Sha256Bytes(U1.Id.ToByteArray()).AsSpan(0, 16))` — a **UUID-shaped pseudonym** derived from the first 16 bytes of the SHA-256 hash of U1.Id, packed into a Guid (deterministic, non-reversible without brute-force). This pseudonym is the same on every re-run for the same U1.Id, preserving the audit chain's queryability by `entity_id`. The column is UUID (NOT string) — the pseudonym is a UUID-shaped identifier, not a string like `deleted_user_<sha256>`.
+  - `entity_type = "User"`
+  - `action = "Deleted"`
+  - `changes = { "hardDeletedAt": { "before": null, "after": "<UtcNow>" }, "originalStatus": { "before": null, "after": "ScheduledHardDelete" } }`
 
 ### Requirement: HardDeleteSweepBackgroundService runs daily + idempotent
 

@@ -6,11 +6,12 @@ namespace JadeCapital.Identity.Infrastructure.Persistence.Configurations;
 
 /// <summary>
 /// EF fluent configuration for the <see cref="AuditEvent"/> aggregate
-/// (Wave 6, slice 6d.1).
+/// (Wave 6, slice 6d.1 + Wave 11.2a hotfix — column rename).
 ///
 /// <para>
 /// Mirrors <c>audit.events</c> (8 columns + 3 indexes + 1 CHECK constraint)
-/// declared in migration 0027_audit_events.sql. The table lives in the
+/// declared in migration 0027_audit_events.sql + 0034 (rename
+/// <c>changes</c> → <c>changes_json</c>). The table lives in the
 /// <c>audit</c> schema (NOT <c>identity</c>) — the dedicated
 /// <c>AuditDbContext</c> registers it there.
 /// </para>
@@ -20,6 +21,20 @@ namespace JadeCapital.Identity.Infrastructure.Persistence.Configurations;
 /// <c>AuditDbContext.OnModelCreating</c> + <c>ApplyConfiguration</c>. There
 /// is no duplicate registration through DI (per the Wave 4 lesson — see
 /// <c>ImportJobConfiguration</c> 5a.1 comment).
+/// </para>
+///
+/// <para>
+/// <b>Wave 11.2a hotfix (Bug #1)</b>: the column was originally named
+/// <c>changes</c> (snake_case per the migration's own convention) but
+/// the GDPR spec canon + production anonymizer + 11.1 tests all use
+/// <c>changes_json</c>. Migration 0034 renames the column to match the
+/// canon. The mapping below was updated to point at <c>changes_json</c>
+/// in lock-step so EF's Npgsql provider reads + writes the renamed
+/// column. Without this update, EF would attempt to read/write to the
+/// old <c>changes</c> column (which no longer exists) and fail with
+/// `42703: column "changes" of relation "events" does not exist` on
+/// every audit insert. The migration + the EF config MUST ship
+/// together — neither is safe without the other.
 /// </para>
 /// </summary>
 internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEvent>
@@ -45,8 +60,13 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
             .IsRequired();
         b.Property(e => e.TenantId).HasColumnName("tenant_id");
         b.Property(e => e.UserId).HasColumnName("user_id");
+        // Wave 11.2a hotfix (Bug #1): column was renamed `changes` →
+        // `changes_json` by migration 0034 to align with the GDPR spec
+        // canon + production anonymizer + 11.1 test fixtures. The
+        // property name on the C# side stays `ChangesJson` (the C#
+        // PascalCase identifier is unrelated to the DB snake_case name).
         b.Property(e => e.ChangesJson)
-            .HasColumnName("changes")
+            .HasColumnName("changes_json")
             .HasColumnType("jsonb");
         b.Property(e => e.OccurredAt)
             .HasColumnName("occurred_at")
