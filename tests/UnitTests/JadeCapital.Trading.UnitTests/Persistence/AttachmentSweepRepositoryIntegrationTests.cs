@@ -453,13 +453,19 @@ public class AttachmentSweepRepositoryIntegrationTests : IDisposable
             "one audit row per id in the batch — the 1-call-many-audit-rows pattern requires " +
             "N rows for N ids, NOT 1 row per batch call.");
 
-        // Each row's EntityType = "TradeAttachment" + EntityId = att.Id + Action = Updated.
+        // Each row's EntityType = "TradeAttachment" + EntityId = att.Id + Action = Deleted.
+        // Per spec §"Batch soft-delete emits N audit rows per id" — the
+        // soft-delete is a user-impacting removal of the TradeAttachment
+        // from the active set, so the action MUST be Deleted (byte 2),
+        // NOT Updated (byte 1). Compliance officers query
+        // `WHERE action = 2 AND entity_type = "TradeAttachment"` to
+        // surface these events; emitting Updated silently misses them.
         saved.Should().AllSatisfy(row =>
         {
             row.EntityType.Should().Be(nameof(TradeAttachment),
                 "the audit row's entity is the TradeAttachment being soft-deleted, NOT the sweep operation.");
-            row.Action.Should().Be(AuditAction.Updated,
-                "the soft-delete is a state change, NOT a Created event — IsActive flips from true to false.");
+            row.Action.Should().Be(AuditAction.Deleted,
+                "the soft-delete emits action = Deleted per spec; emitting Updated silently breaks compliance queries.");
             row.TenantId.Should().Be(tenant.Current!.Value);
             row.UserId.Should().Be(tenant.CurrentUserId);
         });

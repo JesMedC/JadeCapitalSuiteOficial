@@ -279,7 +279,14 @@ public sealed class AttachmentSweepAuditDecorator : IAttachmentSweepRepository
                 isActive = new { before = isActiveBefore, after = false }
             });
 
-            await TryAuditAsync(BuildEntry(attachment, AuditAction.Updated, diff), ct);
+            // Emit AuditAction.Deleted (NOT Updated) — per spec
+            // §"Batch soft-delete emits N audit rows per id" which mandates
+            // `action = "Deleted"` for the soft-delete semantic. Compliance
+            // officers query audit.events WHERE action = 2 (Deleted) AND
+            // entity_type = "TradeAttachment" to surface user-impacting
+            // attachment deletions; emitting Updated would silently miss
+            // every batch soft-delete row.
+            await TryAuditAsync(BuildEntry(attachment, AuditAction.Deleted, diff), ct);
         }
 
         return count;

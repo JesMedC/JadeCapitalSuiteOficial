@@ -22,6 +22,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\2.Modules\Admin\JadeCapital.Admin.Api\JadeCapital.Admin.Api.csproj" />
+    <ProjectReference Include="..\..\2.Modules\Admin\JadeCapital.Admin.Infrastructure\JadeCapital.Admin.Infrastructure.csproj" />
     <ProjectReference Include="..\..\2.Modules\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
     <ProjectReference Include="..\..\2.Modules\Billing\JadeCapital.Billing.Infrastructure\JadeCapital.Billing.Infrastructure.csproj" />
     <ProjectReference Include="..\..\2.Modules\Billing\JadeCapital.Billing.PublicApi\JadeCapital.Billing.PublicApi.csproj" />
