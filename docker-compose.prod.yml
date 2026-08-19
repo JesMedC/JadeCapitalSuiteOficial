@@ -175,6 +175,26 @@ services:
     # down doesn't kill the loop before the cron sleeps.
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $!; done'"
 
+  migrate:
+    # Wave 10.4 slice — order-agnostic migration runner. Applies every
+    # `*.sql` in `./infrastructure/postgres/migrations/` in `ls | sort`
+    # order. Re-running is safe because every migration is idempotent.
+    build:
+      context: ./infrastructure/postgres
+      dockerfile: migrate.Dockerfile
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jade}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-jadecapital}
+    secrets:
+      - postgres_password
+    volumes:
+      - ./infrastructure/postgres/migrations:/migrations:ro
+
 secrets:
   postgres_password:
     file: ./infrastructure/secrets/postgres_password.txt

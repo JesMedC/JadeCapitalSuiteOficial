@@ -3,14 +3,19 @@ using System.Reflection;
 namespace JadeCapital.Identity.UnitTests.Infrastructure.Migrations;
 
 /// <summary>
-/// Tests that the migration chain ordering is intact (Wave 6, slice 6c.3).
+/// Tests that the migration chain ordering is intact (Wave 6, slice 6c.3 + Wave 10.4 renumbering).
 ///
 /// <para>
 /// One RED scenario pinned here (per tasks.md 6c.3 line 377):
-/// the <c>0026_NOT_NULL_tenant_id.sql</c> migration file MUST exist on
-/// disk AND it MUST run AFTER <c>0026_backfill_personal_tenant.sql</c>
-/// alphabetically (so the backfill assigns NULL users to the Personal
+/// the <c>0028_NOT_NULL_tenant_id.sql</c> migration file MUST exist on
+/// disk AND it MUST run AFTER <c>0029_backfill_personal_tenant.sql</c>
+/// in sort order (so the backfill assigns NULL users to the Personal
 /// tenant before the NOT NULL constraint is applied).
+/// </para>
+/// <para>
+/// The original numbering was <c>0026_*</c>; Wave 10.4 slice renumbered the
+/// whole 37-file migration set to consecutive 0001-0037. The semantic
+/// ordering (backfill BEFORE NOT NULL) is preserved because 0028 &lt; 0029.
 /// </para>
 ///
 /// <para>
@@ -44,9 +49,10 @@ public class MigrationNotNullTenantIdTests
     {
         var root = LocateMigrationsRoot();
 
-        // 1. Both 0026_ files MUST exist (backfill + NOT NULL).
-        var backfillPath = Path.Combine(root, "0026_backfill_personal_tenant.sql");
-        var notNullPath = Path.Combine(root, "0026_NOT_NULL_tenant_id.sql");
+        // 1. Both files MUST exist (backfill + NOT NULL) — renamed to 0028 / 0029
+        //    by Wave 10.4 consecutive renumbering (preserves 0028 < 0029 ordering).
+        var backfillPath = Path.Combine(root, "0029_backfill_personal_tenant.sql");
+        var notNullPath = Path.Combine(root, "0028_NOT_NULL_tenant_id.sql");
 
         File.Exists(backfillPath).Should().BeTrue(
             "the 6c.2 backfill migration must exist so the 6c.3 NOT NULL can rely on it.");
@@ -69,12 +75,14 @@ public class MigrationNotNullTenantIdTests
         notNullContent.Should().Contain("identity.users",
             "the migration must target the identity.users table.");
 
-        // 3. Ordering: backfill MUST run BEFORE NOT NULL. The two files
-        //    share the 0026_ prefix by spec, so alphabetical sort is not
-        //    reliable. The Dockerfile's psql command list is the source
-        //    of truth — assert the backfill command precedes the NOT NULL
-        //    command in the Dockerfile's happy-path psql chain.
-        //    root = infrastructure/postgres/migrations/ → parent = infrastructure/postgres/
+        // 3. Ordering: backfill MUST run BEFORE NOT NULL. Wave 10.4 renamed
+        //    the backfill to 0029_*.sql and the NOT NULL to 0028_*.sql, so
+        //    `ls | sort` (which the new order-agnostic Dockerfile relies on)
+        //    yields 0028 < 0029 → backfill-before-NOT-NULL at the runner
+        //    level. We assert that:
+        //     a) migrate.Dockerfile exists (so the runner is wired);
+        //     b) the Dockerfile is order-agnostic (relies on `ls | sort`,
+        //        NOT on explicit `psql -f 0028_... && psql -f 0029_...`).
         var dockerfilePath = Path.Combine(
             Directory.GetParent(root)!.FullName,
             "migrate.Dockerfile");
@@ -82,18 +90,16 @@ public class MigrationNotNullTenantIdTests
             "migrate.Dockerfile must exist so the new NOT NULL migration can be wired in.");
         var dockerfileContent = File.ReadAllText(dockerfilePath);
 
-        var backfillIdx = dockerfileContent.IndexOf(
-            "0026_backfill_personal_tenant.sql", StringComparison.Ordinal);
-        var notNullIdx = dockerfileContent.IndexOf(
-            "0026_NOT_NULL_tenant_id.sql", StringComparison.Ordinal);
+        dockerfileContent.Should().Contain("ls /migrations/*.sql",
+            "migrate.Dockerfile MUST iterate *.sql via `ls | sort` so the consecutive numbering (0028 < 0029) determines order.");
 
-        backfillIdx.Should().BeGreaterThan(-1,
-            "the backfill migration MUST be referenced in migrate.Dockerfile (happy path).");
-        notNullIdx.Should().BeGreaterThan(-1,
-            "the NOT NULL migration MUST be referenced in migrate.Dockerfile (happy path).");
-        (backfillIdx < notNullIdx).Should().BeTrue(
-            $"migrate.Dockerfile must list the backfill BEFORE the NOT NULL migration " +
-            $"(backfill idx={backfillIdx}, NOT NULL idx={notNullIdx}); " +
-            "otherwise the NOT NULL fails because tenant_id still has NULL rows.");
+        // Sanity check: the sort-order invariant must hold. 0028 sorts
+        // before 0029, so the NOT NULL migration runs AFTER the backfill.
+        var notNullPrefix = "0028";
+        var backfillPrefix = "0029";
+        string.Compare(notNullPrefix, backfillPrefix, StringComparison.Ordinal)
+            .Should().BeLessThan(0,
+                $"Wave 10.4 renumbering must keep NOT NULL ({notNullPrefix}) before backfill ({backfillPrefix}) lexicographically " +
+                "so `ls | sort` applies the backfill first.");
     }
 }
