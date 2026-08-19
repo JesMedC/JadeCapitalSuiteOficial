@@ -78,11 +78,21 @@ public sealed class GdprAuditAnonymizer : IGdprAuditAnonymizer
         //   2) ALL rows where user_id = @userId
         //      (these are rows the user authored — null out user_id, reset changes_json)
         // The single UPDATE handles both via OR-of-WHERE on user_id.
+        // The {0} parameter is a JSONB-shaped string (built from a
+        // C# string interpolation). The column `changes_json` is JSONB
+        // (migration 0030 + 0034 renamed from `changes`). Without the
+        // explicit `::jsonb` cast, Postgres rejects the assignment
+        // with `42804: column "changes_json" is of type jsonb but
+        // expression is of type text`. The cast is inline in the
+        // interpolated SQL so it travels with the parameter binding
+        // (no SQL injection surface — `ExecuteSqlInterpolatedAsync`
+        // parameterizes the {0}/{1}/{2} slots; the `::jsonb` syntax
+        // is a Postgres type cast, not a parameter).
         var sql = """
             UPDATE audit.events
             SET user_id = NULL,
                 entity_id = CASE WHEN entity_type = 'User' AND entity_id = {1} THEN {2} ELSE entity_id END,
-                changes_json = {0}
+                changes_json = {0}::jsonb
             WHERE user_id = {1}
             """;
 

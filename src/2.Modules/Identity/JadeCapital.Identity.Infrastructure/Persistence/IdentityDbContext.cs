@@ -60,6 +60,32 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(u => u.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(u => u.UpdatedAt).HasColumnName("updated_at");
 
+        // Wave 11.2a hotfix (Bug #2): map the Wave 10.5 lifecycle +
+        // consent properties to the snake_case columns declared in
+        // migration 0033 + (future) consent migrations. Without these
+        // mappings, EF would attempt to read/write PascalCase columns
+        // (`"SoftDeletedAt"`, `"ScheduledHardDeleteAt"`, etc.) that do
+        // NOT exist in the DB schema. Production HotDeleteSweep LINQ
+        // (`u.ScheduledHardDeleteAt <= cutoff`) throws at translation
+        // time with `42703: column u.ScheduledHardDeleteAt does not
+        // exist` on the very first cycle — this fix closes that gap.
+        //
+        // Column names + nullability:
+        //   - soft_deleted_at              TIMESTAMPTZ NULL
+        //   - scheduled_hard_delete_at     TIMESTAMPTZ NULL  (0033)
+        //   - accepted_terms_version       VARCHAR(64) NULL  (future 0039)
+        //   - accepted_privacy_version     VARCHAR(64) NULL  (future 0039)
+        //   - accepted_at                  TIMESTAMPTZ NULL  (future 0039)
+        //
+        // The 3 consent columns (0039 / 0040) are mapped now so the EF
+        // model is consistent with the User aggregate — the migrations
+        // themselves land in slice 11.4 (consent acceptance + ToS).
+        b.Property(u => u.SoftDeletedAt).HasColumnName("soft_deleted_at");
+        b.Property(u => u.ScheduledHardDeleteAt).HasColumnName("scheduled_hard_delete_at");
+        b.Property(u => u.AcceptedTermsVersion).HasColumnName("accepted_terms_version").HasMaxLength(64);
+        b.Property(u => u.AcceptedPrivacyVersion).HasColumnName("accepted_privacy_version").HasMaxLength(64);
+        b.Property(u => u.AcceptedAt).HasColumnName("accepted_at");
+
         // Wave 6, slice 6c.1 — tenant membership. Column is NULLABLE
         // (per the "ONE migration atómica" user decision). NOT NULL
         // lands in slice 6c.3 after the 6c.2 backfill. The FK is

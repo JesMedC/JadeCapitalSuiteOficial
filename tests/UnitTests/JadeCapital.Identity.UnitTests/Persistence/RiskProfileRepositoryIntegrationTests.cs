@@ -91,7 +91,7 @@ public class RiskProfileRepositoryIntegrationTests : IDisposable
                     action INTEGER NOT NULL,
                     tenant_id BLOB NULL,
                     user_id BLOB NULL,
-                    changes TEXT NULL,
+                    changes_json TEXT NULL,
                     occurred_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS ix_audit_events_entity

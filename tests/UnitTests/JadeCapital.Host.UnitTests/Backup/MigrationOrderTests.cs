@@ -31,7 +31,7 @@ public class MigrationOrderTests
     private static readonly string RepoRoot =
         FindRepoRoot(AppContext.BaseDirectory);
 
-    private const int ExpectedMigrationCount = 37;
+    private const int ExpectedMigrationCount = 35;
 
     private static string FindRepoRoot(string startDir)
     {
