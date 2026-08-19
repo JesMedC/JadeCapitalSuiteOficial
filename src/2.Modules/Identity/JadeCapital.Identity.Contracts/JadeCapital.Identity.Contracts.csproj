@@ -3,6 +3,7 @@
     <RootNamespace>JadeCapital.Identity.Contracts</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
   </ItemGroup>
 </Project>
