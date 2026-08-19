@@ -75,6 +75,16 @@ public static class IdentityDomainErrors
             Error.Validation("user.accepted_privacy_version_required",
                 "Privacy Policy version is required on registration.");
 
+        // ===== Wave 11 slice 11.4 — Consent ledger validation =====
+
+        public static readonly Error ConsentIpInvalid =
+            Error.Validation("user.consent_ip_invalid",
+                "Consent IP must be a non-empty IPv4 or IPv6 address (max 45 chars).");
+
+        public static readonly Error CookieConsentChoiceInvalid =
+            Error.Validation("user.cookie_consent_choice_invalid",
+                "Cookie consent choice must be a non-empty tier (max 16 chars).");
+
         public static readonly Error ClockRequired =
             Error.Validation("user.clock_required",
                 "IClock is required for GDPR lifecycle transitions.");

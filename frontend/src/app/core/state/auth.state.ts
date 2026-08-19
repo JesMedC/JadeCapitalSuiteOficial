@@ -55,9 +55,36 @@ export class AuthState {
 
   private refreshInProgress$: Observable<boolean> | null = null;
 
-  async register(email: string, displayName: string, password: string): Promise<void> {
-    await firstValueFrom(this.http.post('/api/auth/register', { email, displayName, password }));
+  async register(
+    email: string,
+    displayName: string,
+    password: string,
+    acceptTerms: boolean,
+    acceptPrivacy: boolean,
+  ): Promise<void> {
+    const consentIp = await this.detectClientIp();
+    await firstValueFrom(
+      this.http.post('/api/auth/register', {
+        email,
+        displayName,
+        password,
+        acceptTerms,
+        acceptPrivacy,
+        consentIp,
+      }),
+    );
     await this.login(email, password);
+  }
+
+  private async detectClientIp(): Promise<string> {
+    try {
+      const resp = await firstValueFrom(
+        this.http.get<{ ip?: string }>('/api/util/client-ip'),
+      );
+      return resp.ip ?? '0.0.0.0';
+    } catch {
+      return '0.0.0.0';
+    }
   }
 
   async login(email: string, password: string): Promise<void> {

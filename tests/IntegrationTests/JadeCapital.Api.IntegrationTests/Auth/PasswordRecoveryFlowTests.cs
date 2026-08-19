@@ -185,5 +185,11 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
         // only used by the recovery path, so the invite method is a no-op.
         public Task SendTenantInviteAsync(JadeCapital.Shared.Infrastructure.Email.TenantInviteEmailMessage message, CancellationToken ct = default)
             => throw new InvalidOperationException("SMTP transport failure (simulated).");
+
+        // Slice 11.4 — the welcome email path swallows failures so the
+        // registration can complete. Simulating a failure here is exactly
+        // what the post-registration recovery test validates.
+        public Task SendWelcomeEmailAsync(JadeCapital.Shared.Infrastructure.Email.WelcomeEmailMessage message, CancellationToken ct = default)
+            => throw new InvalidOperationException("SMTP transport failure (simulated).");
     }
 }

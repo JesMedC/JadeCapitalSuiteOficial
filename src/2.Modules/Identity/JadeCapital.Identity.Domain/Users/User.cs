@@ -110,6 +110,62 @@ public sealed class User : AggregateRoot<Guid>
     public TenantId? TenantId { get; private set; }
 
     /// <summary>
+    /// Wave 11 slice 11.4 — UTC offset at which the user accepted the Terms
+    /// of Service during registration. NULL for legacy users (pre-slice
+    /// 11.4) and for accounts created before consent tracking was
+    /// enforced. Mirrors the slice-10.5 <see cref="AcceptedTermsVersion"/>
+    /// but persists the TIMESTAMP rather than the version string. Stored
+    /// at <c>identity.users.terms_accepted_at</c> (migration 0037).
+    /// </summary>
+    public DateTimeOffset? TermsAcceptedAt { get; private set; }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — UTC offset at which the user accepted the
+    /// Privacy Policy during registration. See <see cref="TermsAcceptedAt"/>
+    /// for the pre-existing version pointer. Stored at
+    /// <c>identity.users.privacy_accepted_at</c> (migration 0037).
+    /// </summary>
+    public DateTimeOffset? PrivacyAcceptedAt { get; private set; }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Client IP (IPv4 or IPv6) recorded at the time
+    /// the user accepted the ToS + Privacy Policy. Persisted in the same
+    /// wire as the consent timestamps so a DSAR intake can correlate the
+    /// "when" with the "from where". Stored at
+    /// <c>identity.users.consent_ip</c> (migration 0037).
+    /// </summary>
+    public string? ConsentIp { get; private set; }
+
+    /// <summary>
+    /// Wave 11 slice 11.3 — UTC offset at which the post-registration
+    /// welcome email was sent. NULL until the registration handler fires
+    /// the first successful send. The 7-day suppression window + the
+    /// "send-once" contract live in <c>RegisterUserHandler</c>; this
+    /// property is the persistent flag the handler reads/writes.
+    /// Stored at <c>identity.users.welcome_email_sent_at</c>
+    /// (migration 0036).
+    /// </summary>
+    public DateTimeOffset? WelcomeEmailSentAt { get; private set; }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — UTC offset at which the user last interacted
+    /// with the cookie banner. NULL until the first banner interaction.
+    /// Re-written on every subsequent choice change. Stored at
+    /// <c>identity.users.cookie_consent_accepted_at</c> (migration 0038).
+    /// </summary>
+    public DateTimeOffset? CookieConsentAcceptedAt { get; private set; }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Cookie tier chosen by the user ('all' or
+    /// 'essential'). NULL until the first banner interaction. Stored at
+    /// <c>identity.users.cookie_consent_choice</c> (migration 0038). The
+    /// application-layer validator enforces the canonical set; this
+    /// column accepts the raw string to keep the schema forward-
+    /// compatible if the taxonomy grows.
+    /// </summary>
+    public string? CookieConsentChoice { get; private set; }
+
+    /// <summary>
     /// Ordered (changed_at DESC, id DESC) list of the user's previous
     /// password hashes. Backing storage is the EF-mapped list; the public
     /// surface returns the newest-first projection.
@@ -385,6 +441,67 @@ public sealed class User : AggregateRoot<Guid>
         Timezone = string.IsNullOrWhiteSpace(timezone) ? null : timezone;
         Touch();
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Records GDPR Art. 7 consent capture at
+    /// registration time. The caller (<c>RegisterUserHandler</c>) must
+    /// have already validated the user clicked both checkboxes; this
+    /// method only persists the timestamps + IP. Idempotent: re-calling
+    /// does NOT bump <see cref="TermsAcceptedAt"/> if the column is
+    /// already populated (preserves audit immutability).
+    /// </summary>
+    public Result RecordConsent(DateTimeOffset termsAcceptedAt, DateTimeOffset privacyAcceptedAt, string consentIp)
+    {
+        if (string.IsNullOrWhiteSpace(consentIp) || consentIp.Length > 45)
+            return Result.Failure(IdentityDomainErrors.User.ConsentIpInvalid);
+
+        // First-write wins on the timestamps. This protects the audit
+        // trail from inadvertent double-calls (a future "resend"
+        // endpoint, a typo in a test) silently bumping the legal record.
+        if (TermsAcceptedAt is null) TermsAcceptedAt = termsAcceptedAt;
+        if (PrivacyAcceptedAt is null) PrivacyAcceptedAt = privacyAcceptedAt;
+        ConsentIp = consentIp.Trim();
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Persists the user's cookie-banner choice. The
+    /// caller (<c>ConsentHandler</c>) enforces the canonical choice set
+    /// at the application boundary; this method only writes the row.
+    /// Idempotent: re-calling with the same choice does NOT bump
+    /// <see cref="CookieConsentAcceptedAt"/> (avoids audit churn from
+    /// background services that re-emit the banner).
+    /// </summary>
+    public Result RecordCookieConsent(DateTimeOffset acceptedAt, string choice)
+    {
+        if (string.IsNullOrWhiteSpace(choice) || choice.Length > 16)
+            return Result.Failure(IdentityDomainErrors.User.CookieConsentChoiceInvalid);
+
+        var trimmed = choice.Trim();
+        if (CookieConsentChoice == trimmed)
+        {
+            // Same choice — keep the original timestamp (audit immutability).
+            return Result.Success();
+        }
+
+        CookieConsentChoice = trimmed;
+        CookieConsentAcceptedAt = acceptedAt;
+        Touch();
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Wave 11 slice 11.3/11.4 — Marks that the post-registration welcome
+    /// email was successfully sent. The 7-day idempotency window lives in
+    /// the handler (the handler reads the column and decides whether to
+    /// re-fire), this method only writes the timestamp.
+    /// </summary>
+    public void MarkWelcomeEmailSent(DateTimeOffset sentAt)
+    {
+        WelcomeEmailSentAt = sentAt;
+        Touch();
     }
 
     public Result ChangeRole(UserRole newRole)

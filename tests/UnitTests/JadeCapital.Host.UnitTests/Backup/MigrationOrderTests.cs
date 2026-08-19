@@ -31,12 +31,15 @@ public class MigrationOrderTests
     private static readonly string RepoRoot =
         FindRepoRoot(AppContext.BaseDirectory);
 
-    // Wave 11 slice 11.3 — 0036_add_welcome_email_sent_at.sql adds the
-    // idempotent-welcome-email tracking column. The behavioral side of
-    // this change (RegisterUserHandler populating the column with a
-    // 7-day suppression window) ships in slice 11.4; this slice only
-    // adds the schema preparation.
-    private const int ExpectedMigrationCount = 36;
+    // Wave 11 slice 11.4 — 0037_add_consent_columns.sql + 0038_add_cookie_consent_columns.sql
+    // extend the GDPR Art. 7 consent ledger (terms_accepted_at, privacy_accepted_at,
+    // consent_ip) + the ePrivacy Directive cookie consent columns
+    // (cookie_consent_accepted_at, cookie_consent_choice). Schema-only here; the
+    // behavioral side (RegisterUserHandler + ConsentHandler) lands alongside in
+    // the same slice, but the migrations stay forward-only and idempotent so
+    // production deploy order is `[0036 → 0037 → 0038]` against the 36 baseline
+    // (0001-0036).
+    private const int ExpectedMigrationCount = 38;
 
     private static string FindRepoRoot(string startDir)
     {
@@ -110,7 +113,8 @@ public class MigrationOrderTests
     {
         var files = EnumerateMigrationFiles();
         files.Count.Should().Be(ExpectedMigrationCount,
-            $"Wave 10.4 narrower scope + Wave 11.2a (3 migrations) + Wave 11.3 (1 migration = 0036_add_welcome_email_sent_at): "
+            $"Wave 10.4 narrower scope + Wave 11.2a (3 migrations) + Wave 11.3 (1 migration = 0036_add_welcome_email_sent_at) "
+            + $"+ Wave 11.4 (2 migrations = 0037_add_consent_columns + 0038_add_cookie_consent_columns): "
             + $"{ExpectedMigrationCount} migrations verified");
     }
 

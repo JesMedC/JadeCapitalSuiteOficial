@@ -73,18 +73,30 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // Column names + nullability:
         //   - soft_deleted_at              TIMESTAMPTZ NULL
         //   - scheduled_hard_delete_at     TIMESTAMPTZ NULL  (0033)
-        //   - accepted_terms_version       VARCHAR(64) NULL  (future 0039)
-        //   - accepted_privacy_version     VARCHAR(64) NULL  (future 0039)
-        //   - accepted_at                  TIMESTAMPTZ NULL  (future 0039)
-        //
-        // The 3 consent columns (0039 / 0040) are mapped now so the EF
-        // model is consistent with the User aggregate — the migrations
-        // themselves land in slice 11.4 (consent acceptance + ToS).
+        //   - accepted_terms_version       VARCHAR(64) NULL  (slice 10.5)
+        //   - accepted_privacy_version     VARCHAR(64) NULL  (slice 10.5)
+        //   - accepted_at                  TIMESTAMPTZ NULL  (slice 10.5)
+        //   - welcome_email_sent_at        TIMESTAMPTZ NULL  (0036)
+        //   - terms_accepted_at            TIMESTAMPTZ NULL  (0037)
+        //   - privacy_accepted_at          TIMESTAMPTZ NULL  (0037)
+        //   - consent_ip                   VARCHAR(45) NULL  (0037)
+        //   - cookie_consent_accepted_at   TIMESTAMPTZ NULL  (0038)
+        //   - cookie_consent_choice        VARCHAR(16) NULL  (0038)
         b.Property(u => u.SoftDeletedAt).HasColumnName("soft_deleted_at");
         b.Property(u => u.ScheduledHardDeleteAt).HasColumnName("scheduled_hard_delete_at");
         b.Property(u => u.AcceptedTermsVersion).HasColumnName("accepted_terms_version").HasMaxLength(64);
         b.Property(u => u.AcceptedPrivacyVersion).HasColumnName("accepted_privacy_version").HasMaxLength(64);
         b.Property(u => u.AcceptedAt).HasColumnName("accepted_at");
+        // Slice 11.3 schema-only addition (0036) — now mapped in 11.4
+        // so RegisterUserHandler can persist the idempotency flag.
+        b.Property(u => u.WelcomeEmailSentAt).HasColumnName("welcome_email_sent_at");
+        // Slice 11.4 — GDPR Art. 7 consent ledger (0037) + ePrivacy
+        // Directive cookie consent (0038).
+        b.Property(u => u.TermsAcceptedAt).HasColumnName("terms_accepted_at");
+        b.Property(u => u.PrivacyAcceptedAt).HasColumnName("privacy_accepted_at");
+        b.Property(u => u.ConsentIp).HasColumnName("consent_ip").HasMaxLength(45);
+        b.Property(u => u.CookieConsentAcceptedAt).HasColumnName("cookie_consent_accepted_at");
+        b.Property(u => u.CookieConsentChoice).HasColumnName("cookie_consent_choice").HasMaxLength(16);
 
         // Wave 6, slice 6c.1 — tenant membership. Column is NULLABLE
         // (per the "ONE migration atómica" user decision). NOT NULL

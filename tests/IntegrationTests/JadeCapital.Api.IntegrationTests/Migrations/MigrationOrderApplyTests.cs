@@ -169,10 +169,17 @@ public sealed class MigrationOrderApplyTests
         // Pull the 4-digit prefix off each filename. Wave 11.2a added 3
         // migrations (0033 + 0034 + 0035) → 35 total. Wave 11.3
         // slice 11.3 adds 0036_add_welcome_email_sent_at for a total of
-        // 36. The numbering must be consecutive.
-        const int ExpectedCount = 36;
+        // 36. Wave 11.4 adds 0037_add_consent_columns +
+        // 0038_add_cookie_consent_columns for a total of 38. The
+        // canonical tasks.md spec referenced 0039 + 0040 file numbers —
+        // those are forward-only renames: the canonical SQL body in the
+        // spec was preserved verbatim (idempotent
+        // `ADD COLUMN IF NOT EXISTS`) but the file numbers were
+        // rebased so the sequence stays consecutive (the
+        // MigrationOrderTests.EnsureConsecutiveNumbering contract).
+        const int ExpectedCount = 38;
         files.Length.Should().Be(ExpectedCount,
-            $"Wave 11.2a (3 migrations) + Wave 11.3 slice 11.3 (1 migration = 0036_add_welcome_email_sent_at): "
+            $"Wave 11.2a (3 migrations) + Wave 11.3 (1 migration) + Wave 11.4 (2 migrations = 0037 + 0038): "
             + $"{ExpectedCount} total.");
 
         for (int i = 0; i < files.Length; i++)
