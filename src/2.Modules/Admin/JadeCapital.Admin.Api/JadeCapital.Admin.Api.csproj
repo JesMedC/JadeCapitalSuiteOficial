@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
+    <ProjectReference Include="..\JadeCapital.Admin.Application\JadeCapital.Admin.Application.csproj" />
     <ProjectReference Include="..\..\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
     <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Contracts\JadeCapital.Identity.Contracts.csproj" />
   </ItemGroup>

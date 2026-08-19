@@ -2,7 +2,9 @@ using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Application.Features.SoftDelete;
 using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Identity.Infrastructure.Audit;
+using JadeCapital.Identity.Infrastructure.Audit.Configuration;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
+using JadeCapital.Identity.Infrastructure.BackgroundServices;
 using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Identity.Infrastructure.Projections;
@@ -158,6 +160,23 @@ public static class IdentityModuleRegistration
 
         // ===== Background services =====
         services.AddHostedService<RefreshTokenCleanupService>();
+
+        // ===== Slice 9b.1 — Audit retention BackgroundService (90-day purge) =====
+        // Section name: "AuditRetention" with RetentionDays=90, CleanupIntervalHours=24,
+        // BatchLimit=10000, InitialDelaySeconds=120. Validator ensures all positive.
+        services.Configure<AuditRetentionOptions>(configuration.GetSection(AuditRetentionOptions.SectionName));
+        services.AddOptions<AuditRetentionOptions>()
+            .Bind(configuration.GetSection(AuditRetentionOptions.SectionName))
+            .Validate(o => o.RetentionDays > 0
+                && o.CleanupIntervalHours > 0
+                && o.BatchLimit > 0
+                && o.InitialDelaySeconds >= 0,
+                "AuditRetention: RetentionDays/CleanupIntervalHours/BatchLimit must be > 0; InitialDelaySeconds must be >= 0.")
+            .ValidateOnStart();
+        // Scoped (NOT Singleton) to avoid captive DbContext — BackgroundService.RunOnceAsync
+        // creates its own scope via IServiceScopeFactory per cycle.
+        services.AddScoped<IAuditRetentionService, AuditRetentionService>();
+        services.AddHostedService<AuditRetentionBackgroundService>();
 
         return services;
     }

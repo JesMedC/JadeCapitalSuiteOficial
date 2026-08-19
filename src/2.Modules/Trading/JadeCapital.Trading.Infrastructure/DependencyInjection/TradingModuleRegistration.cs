@@ -5,6 +5,7 @@ using JadeCapital.Trading.Application.Alerts;
 using JadeCapital.Trading.Application.Alerts.Rules;
 using JadeCapital.Trading.Application.Attachments;
 using JadeCapital.Trading.Application.Features.Realtime;
+using JadeCapital.Trading.Infrastructure.Audit;
 using JadeCapital.Trading.Infrastructure.BackgroundServices;
 using JadeCapital.Trading.Infrastructure.Persistence;
 using JadeCapital.Trading.Infrastructure.Queries;
@@ -54,6 +55,18 @@ public static class TradingModuleRegistration
         services.AddScoped<IPlannerSessionRepository, PlannerSessionRepository>();
         // Slice 4a — scanner filters persistence + stub data source.
         services.AddScoped<IScannerFilterRepository, ScannerFilterRepository>();
+        // Wave 9 slice 9a.2 — typed audit decorator over IScannerFilterRepository.
+        // Sub-scope A: BESPOKE CRUD-WITHOUT-DELETE — wraps AddAsync + UpdateAsync
+        // with the cross-tenant IsOwner check + audit logging; reads forwarded
+        // without audit. The interface was extended in 9a.2 Phase 1 to inherit
+        // from IRepository<ScannerFilter> (gaining DeleteAsync as a defensive
+        // stub) — the decorator emits AuditAction.Failed + throws
+        // NotSupportedException before the inner is reached, mirroring the
+        // Wave 7 7b.1 StrategyAuditDecorator + 7a.1 UserAuditDecorator
+        // precedent for non-deletable aggregates. The canonical mutation
+        // surface is ScannerFilter.Deactivate(IClock) (flips IsActive = false)
+        // + UpdateAsync, NOT a hard delete.
+        services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>();
         services.AddScoped<IScannerDataSource, InMemoryScannerDataSource>();
         // Slice 4b — market data quote cache + deterministic in-memory provider.
         services.AddScoped<IQuoteCacheRepository, QuoteCacheRepository>();
@@ -101,7 +114,26 @@ services.AddSingleton<JadeCapital.Shared.Kernel.Storage.IVirusScanner,
 // Usage repository — one SUM + COUNT query per request; cheap.
 services.AddScoped<ITradeAttachmentUsageRepository, TradeAttachmentUsageRepository>();
 // Sweep repository — used only by AttachmentLifecycleService; bounded-batch pages.
-services.AddScoped<IAttachmentSweepRepository, AttachmentSweepRepository>();
+        services.AddScoped<IAttachmentSweepRepository, AttachmentSweepRepository>();
+        // Wave 9 slice 9a.3 — typed audit decorator over IAttachmentSweepRepository.
+        // Sub-scope A: NEW BESPOKE BATCH SOFT-DELETE PATTERN — wraps
+        // SoftDeleteBatchAsync with the cross-tenant IsOwner check per id +
+        // emits 1 audit row per id with EntityType = "TradeAttachment" (the
+        // child aggregate, NOT the sweep operation) + a
+        // isActive: { before: true, after: false } diff JSON. The decorator
+        // loads each attachment via the scoped DbContext to read attachment.UserId
+        // for IsOwner + capture the pre-mutation IsActive for the diff. The
+        // 1-call-many-audit-rows pattern: 1 batch call → N audit rows (one per
+        // id in the batch), NOT 1 row per batch. Cross-tenant id in the batch
+        // emits AuditAction.Denied for THAT id + throws
+        // UnauthorizedAccessException for the WHOLE batch (transaction abort —
+        // inner is NEVER reached). 3 reads (GetExpiredBatchAsync +
+        // GetUserAggregateAsync + GetActiveUserIdsAsync) are forwarded without
+        // audit. InsertAuditAsync is forwarded WITHOUT audit — it IS the write
+        // to trading.attachments_quota_audit (the sweep's own audit log);
+        // auditing it would create an infinite loop. Mirrors the Wave 8 8b.2
+        // IStripeWebhookEventRepository SKIP rationale.
+        services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>();
 // Thumbnail generator — wraps the MinIO SDK presigned-GET call + transform params.
 services.AddScoped<IAttachmentThumbnailGenerator, MinioThumbnailGenerator>();
 

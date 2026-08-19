@@ -83,28 +83,28 @@ Forecast ~600 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: Interface surgery — `IScannerFilterRepository` extends `IRepository<ScannerFilter>` with defensive `DeleteAsync` stub**
 
-- [ ] 1.1 RED test `IScannerFilterRepositoryContractTests` (1 scenario: `DeleteAsync_IsNotOnInterface_DefensiveStub_Throws` — pins the `DeleteAsync(ScannerFilter, ct)` defensive stub behavior; matches Wave 7 7a.1 `UserAuditDecorator` precedent for non-deletable aggregates).
-- [ ] 1.2 GREEN: extend `IScannerFilterRepository` to `IRepository<ScannerFilter>` (gaining `DeleteAsync` defensive stub throwing `NotSupportedException` with message `"ScannerFilter deletion is not supported — use Deactivate (IsActive = false)"`) in `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/IScannerFilterRepository.cs`. Add `<remarks>` XML doc on the interface documenting the deactivation-via-`IsActive` rationale.
-- [ ] 1.3 Verify NO handler calls `IScannerFilterRepository.DeleteAsync` BEFORE extending (`git grep -n "_scannerFilter.DeleteAsync\|IScannerFilterRepository.*Delete" src/` → 0 matches expected).
+- [x] 1.1 RED test `IScannerFilterRepositoryContractTests` (1 scenario: `DeleteAsync_IsNotOnInterface_DefensiveStub_Throws` — pins the `DeleteAsync(ScannerFilter, ct)` defensive stub behavior; matches Wave 7 7a.1 `UserAuditDecorator` precedent for non-deletable aggregates).
+- [x] 1.2 GREEN: extend `IScannerFilterRepository` to `IRepository<ScannerFilter>` (gaining `DeleteAsync` defensive stub throwing `NotSupportedException` with message `"ScannerFilter deletion is not supported — use Deactivate (IsActive = false)"`) in `src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/IScannerFilterRepository.cs`. Add `<remarks>` XML doc on the interface documenting the deactivation-via-`IsActive` rationale.
+- [x] 1.3 Verify NO handler calls `IScannerFilterRepository.DeleteAsync` BEFORE extending (`git grep -n "_scannerFilter.DeleteAsync\|IScannerFilterRepository.*Delete" src/` → 0 matches expected).
 
 **Phase 2: `ScannerFilterAuditDecorator` (TDD)**
 
-- [ ] 2.1 RED test `ScannerFilterRepositoryIntegrationTests` (4 scenarios: `AddAsync` writes Created + `IsOwner` on `filter.UserId`; `UpdateAsync` writes Updated with diff + `IsOwner`; cross-tenant `UpdateAsync` emits Denied + throws `UnauthorizedAccessException`; `GetByIdAsync` + `GetByUserAndNameAsync` + `ListByUserAsync` are not audited; `DeleteAsync` throws `NotSupportedException` + emits `Failed` — combined with the `Deactivate` transition test).
-- [ ] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/ScannerFilterAuditDecorator.cs` (~180 LOC; bespoke — implements `IScannerFilterRepository` directly; wraps `AddAsync` + `UpdateAsync`; `DeleteAsync` defensive stub emits `Failed` + throws; reads forwarded without audit; `IsOwner` cross-tenant check on `filter.UserId`).
+- [x] 2.1 RED test `ScannerFilterRepositoryIntegrationTests` (4 scenarios: `AddAsync` writes Created + `IsOwner` on `filter.UserId`; `UpdateAsync` writes Updated with diff + `IsOwner`; cross-tenant `UpdateAsync` emits Denied + throws `UnauthorizedAccessException`; `GetByIdAsync` + `GetByUserAndNameAsync` + `ListByUserAsync` are not audited; `DeleteAsync` throws `NotSupportedException` + emits `Failed` — combined with the `Deactivate` transition test).
+- [x] 2.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/ScannerFilterAuditDecorator.cs` (~180 LOC; bespoke — implements `IScannerFilterRepository` directly; wraps `AddAsync` + `UpdateAsync`; `DeleteAsync` defensive stub emits `Failed` + throws; reads forwarded without audit; `IsOwner` cross-tenant check on `filter.UserId`).
 
 **Phase 3: DI wiring**
 
-- [ ] 3.1 `services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 3.1 `services.Decorate<IScannerFilterRepository, ScannerFilterAuditDecorator>()` in `TradingModuleRegistration.cs`.
 
 **Phase 4: Validate**
 
-- [ ] 4.1 `dotnet test --filter "FullyQualifiedName~ScannerFilterAudit|ScannerFilterRepositoryIntegration|IScannerFilterRepositoryContractTests"` → **5/5 new tests pass** (4 integration + 1 contract).
-- [ ] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 4.3 Full BE suite (1365 + 6 = **1371**) → zero regression.
+- [x] 4.1 `dotnet test --filter "FullyQualifiedName~ScannerFilterAudit|ScannerFilterRepositoryIntegration|IScannerFilterRepositoryContractTests"` → **5/5 new tests pass** (4 integration + 1 contract).
+- [x] 4.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 4.3 Full BE suite (1371 + 5 = **1376**) → zero regression.
 
 **Phase 5: Apply-progress doc**
 
-- [ ] 5.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-2.md` written.
+- [x] 5.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-2.md` written.
 
 **Dependencies**: 9a.1 must be merged (shares `TestTradingDbContext` fixture pattern).
 **Rollback**: `git revert` the slice. The `DeleteAsync` defensive stub on `IScannerFilterRepository` reverts (interface goes back to original shape). DI registration removed. `audit.events` has no rows for ScannerFilter.
@@ -127,22 +127,22 @@ Forecast ~450 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: `AttachmentSweepAuditDecorator` (TDD)**
 
-- [ ] 1.1 RED test `AttachmentSweepRepositoryIntegrationTests` (5 scenarios: `SoftDeleteBatchAsync` with N ids emits N audit rows (one per id, not one batch) with `EntityType = "TradeAttachment"`, `ChangesJson = { "IsActive": { "before": true, "after": false } }`; cross-tenant id in the batch emits `Denied` for that id + throws `UnauthorizedAccessException` for the whole batch; `GetExpiredBatchAsync` + `GetUserAggregateAsync` + `GetActiveUserIdsAsync` are not audited; `InsertAuditAsync` is not audited; `ChangesJson` for soft-deleted attachments includes the `IsActive` diff).
-- [ ] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AttachmentSweepAuditDecorator.cs` (~150 LOC; bespoke batch soft-delete — wraps `SoftDeleteBatchAsync` only; emits 1 audit row per id in the batch with `EntityType = "TradeAttachment"`; cross-tenant `IsOwner` check per id via loaded `attachment.UserId`; `InsertAuditAsync` forwarded without audit; 3 reads forwarded without audit). NEW pattern — first "1-call-many-audit-rows" decorator in the codebase.
+- [x] 1.1 RED test `AttachmentSweepRepositoryIntegrationTests` (5 scenarios: `SoftDeleteBatchAsync` with N ids emits N audit rows (one per id, not one batch) with `EntityType = "TradeAttachment"`, `ChangesJson = { "IsActive": { "before": true, "after": false } }`; cross-tenant id in the batch emits `Denied` for that id + throws `UnauthorizedAccessException` for the whole batch; `GetExpiredBatchAsync` + `GetUserAggregateAsync` + `GetActiveUserIdsAsync` are not audited; `InsertAuditAsync` is not audited; `ChangesJson` for soft-deleted attachments includes the `IsActive` diff).
+- [x] 1.2 GREEN: `src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/Audit/AttachmentSweepAuditDecorator.cs` (~150 LOC; bespoke batch soft-delete — wraps `SoftDeleteBatchAsync` only; emits 1 audit row per id in the batch with `EntityType = "TradeAttachment"`; cross-tenant `IsOwner` check per id via loaded `attachment.UserId`; `InsertAuditAsync` forwarded without audit; 3 reads forwarded without audit). NEW pattern — first "1-call-many-audit-rows" decorator in the codebase.
 
 **Phase 2: DI wiring**
 
-- [ ] 2.1 `services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>()` in `TradingModuleRegistration.cs`.
+- [x] 2.1 `services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>()` in `TradingModuleRegistration.cs`.
 
 **Phase 3: Validate**
 
-- [ ] 3.1 `dotnet test --filter "FullyQualifiedName~AttachmentSweepAudit|AttachmentSweepRepositoryIntegration"` → **5/5 new tests pass**.
-- [ ] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 3.3 Full BE suite (1371 + 5 = **1376**) → zero regression. The `AttachmentLifecycleService.RunOnceAsync` (the only caller of `SoftDeleteBatchAsync`) is unchanged — the decorator wraps transparently.
+- [x] 3.1 `dotnet test --filter "FullyQualifiedName~AttachmentSweepAudit|AttachmentSweepRepositoryIntegration"` → **5/5 new tests pass**.
+- [x] 3.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 3.3 Full BE suite (1376 + 5 = **1381**) → zero regression. The `AttachmentLifecycleService.RunOnceAsync` (the only caller of `SoftDeleteBatchAsync`) is unchanged — the decorator wraps transparently.
 
 **Phase 4: Apply-progress doc**
 
-- [ ] 4.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-3.md` written.
+- [x] 4.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9a-3.md` written.
 
 **Dependencies**: 9a.2 must be merged (shares `TestTradingDbContext` fixture pattern).
 **Rollback**: `git revert` the slice. DI registration removed. `audit.events` has no rows for TradeAttachment. The inner repo's `SoftDeleteBatchAsync` still works without audit.
@@ -165,43 +165,43 @@ Forecast ~350 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: Query store (TDD)**
 
-- [ ] 1.1 RED test `AuditEventQueryStoreTests` (3 scenarios: `ListAsync` with no filters returns newest-first; `ListAsync` with `entity_type` filter applies `ix_audit_events_entity`; `ListAsync` with `user_id` + `tenant_id` compound filter applies ix_audit_events_user + ix_audit_events_tenant_time).
-- [ ] 1.2 GREEN: `IAuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Abstractions/` + `AuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/Persistence/` (~150 LOC; EF query against `AuditDbContext.AuditEvents`).
-- [ ] 1.3 Verify `<ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />` exists in `Admin.Infrastructure.csproj`; add if missing.
+- [x] 1.1 RED test `AuditEventQueryStoreTests` (3 scenarios: `ListAsync` with no filters returns newest-first; `ListAsync` with `entity_type` filter applies `ix_audit_events_entity`; `ListAsync` with `user_id` + `tenant_id` compound filter applies ix_audit_events_user + ix_audit_events_tenant_time).
+- [x] 1.2 GREEN: `IAuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Abstractions/` + `AuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/Persistence/` (~150 LOC; EF query against `AuditDbContext.AuditEvents`).
+- [x] 1.3 Verify `<ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />` exists in `Admin.Infrastructure.csproj`; add if missing.
 
 **Phase 2: Query handler + DTOs (TDD)**
 
-- [ ] 2.1 RED test `ListAuditEventsHandlerTests` (1 scenario: DTO mapping + cursor encoding/decoding round-trip + limit clamping to [1, 200]).
-- [ ] 2.2 GREEN: `ListAuditEventsQuery` + `ListAuditEventsHandler` + `AuditEventDto` + `PagedAuditEventsDto` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Features/Audit/ListAuditEvents/` (~150 LOC). Cursor = `base64("{occurred_at_ticks}:{id_guid}")`.
+- [x] 2.1 RED test `ListAuditEventsHandlerTests` (1 scenario: DTO mapping + cursor encoding/decoding round-trip + limit clamping to [1, 200]).
+- [x] 2.2 GREEN: `ListAuditEventsQuery` + `ListAuditEventsHandler` + `AuditEventDto` + `PagedAuditEventsDto` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Features/Audit/ListAuditEvents/` (~150 LOC). Cursor = `base64("{occurred_at_ticks}:{id_guid}")`.
 
 **Phase 3: Endpoint (TDD — WebApplicationFactory + Testcontainers Postgres)**
 
-- [ ] 3.1 RED test `AdminAuditEndpointsIntegrationTests` (1 scenario: anonymous returns 401; trader role returns 403; admin role with filters returns 200 + paginated payload).
-- [ ] 3.2 GREEN: `src/2.Modules/Admin/JadeCapital.Admin.Api/Endpoints/AdminAuditEndpoints.cs` (~120 LOC; `MapGroup("/api/admin/audit/events").RequireAuthorization("AdminOnly").MapGet("/", ListAsync).RequireRateLimiting("api-general")`).
+- [x] 3.1 RED test `AdminAuditEndpointsIntegrationTests` (1 scenario: anonymous returns 401; trader role returns 403; admin role with filters returns 200 + paginated payload).
+- [x] 3.2 GREEN: `src/2.Modules/Admin/JadeCapital.Admin.Api/Endpoints/AdminAuditEndpoints.cs` (~120 LOC; `MapGroup("/api/admin/audit/events").RequireAuthorization("AdminOnly").MapGet("/", ListAsync).RequireRateLimiting("api-general")`).
 
 **Phase 4: Retention BackgroundService (TDD — frozen clock)**
 
-- [ ] 4.1 RED test `AuditRetentionServiceTests` (1 scenario: `PurgeOldAsync(cutoff, batchLimit)` deletes only rows with `occurred_at < cutoff`; idempotent re-run returns 0 rows; `BatchLimit` caps the delete).
-- [ ] 4.2 RED test `AuditRetentionBackgroundServiceTests` (1 scenario: first run after `InitialDelay`; exception in `RunOnceAsync` is logged + does not crash host).
-- [ ] 4.3 GREEN: `IAuditRetentionService` + `AuditRetentionService` + `AuditRetentionBackgroundService` + `AuditRetentionOptions` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Audit/` + `Configuration/AuditRetentionOptions.cs` (~200 LOC).
+- [x] 4.1 RED test `AuditRetentionServiceTests` (1 scenario: `PurgeOldAsync(cutoff, batchLimit)` deletes only rows with `occurred_at < cutoff`; idempotent re-run returns 0 rows; `BatchLimit` caps the delete).
+- [x] 4.2 RED test `AuditRetentionBackgroundServiceTests` (1 scenario: first run after `InitialDelay`; exception in `RunOnceAsync` is logged + does not crash host).
+- [x] 4.3 GREEN: `IAuditRetentionService` + `AuditRetentionService` + `AuditRetentionBackgroundService` + `AuditRetentionOptions` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Audit/` + `Configuration/AuditRetentionOptions.cs` (~200 LOC).
 
 **Phase 5: DI + config wiring**
 
-- [ ] 5.1 `services.Configure<AuditRetentionOptions>(Configuration.GetSection("AuditRetention"))` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/DependencyInjection/IdentityModuleRegistration.cs` (with `ValidateOnStart`).
-- [ ] 5.2 `services.AddHostedService<AuditRetentionBackgroundService>()` in the same file.
-- [ ] 5.3 `services.AddScoped<IAuditEventQueryStore, AuditEventQueryStore>()` + `services.AddMediatR(...)` handler registration in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/DependencyInjection/AdminModuleRegistration.cs` (NEW file).
-- [ ] 5.4 `app.MapAdminAuditEndpoints()` in `src/2.Modules/Host/JadeCapital.Host/Program.cs` (after `app.UseAuthentication()` + `app.UseAuthorization()`).
-- [ ] 5.5 Add `"AuditRetention": { "RetentionDays": 90, "CleanupIntervalHours": 24, "BatchLimit": 10000 }` to `appsettings.json`.
+- [x] 5.1 `services.Configure<AuditRetentionOptions>(Configuration.GetSection("AuditRetention"))` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/DependencyInjection/IdentityModuleRegistration.cs` (with `ValidateOnStart`).
+- [x] 5.2 `services.AddHostedService<AuditRetentionBackgroundService>()` in the same file.
+- [x] 5.3 `services.AddScoped<IAuditEventQueryStore, AuditEventQueryStore>()` + `services.AddMediatR(...)` handler registration in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/DependencyInjection/AdminModuleRegistration.cs` (NEW file).
+- [x] 5.4 `app.MapAdminAuditEndpoints()` in `src/2.Modules/Host/JadeCapital.Host/Program.cs` (after `app.UseAuthentication()` + `app.UseAuthorization()`).
+- [x] 5.5 Add `"AuditRetention": { "RetentionDays": 90, "CleanupIntervalHours": 24, "BatchLimit": 10000 }` to `appsettings.json`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~AuditEventQueryStore|ListAuditEventsHandler|AdminAuditEndpoints|AuditRetentionService|AuditRetentionBackgroundService"` → **8/8 new tests pass** (3 store + 1 handler + 1 endpoint + 1 retention service + 2 retention background).
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 6.3 Full BE suite (1376 + 8 = **1384**) → zero regression.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~AuditEventQueryStore|ListAuditEventsHandler|AdminAuditEndpoints|AuditRetentionService|AuditRetentionBackgroundService"` → **8/8 new tests pass** (3 store + 1 handler + 1 endpoint + 1 retention service + 2 retention background).
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 6.3 Full BE suite (1381 + 8 = **1389**) → zero regression.
 
 **Phase 7: Apply-progress doc**
 
-- [ ] 7.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9b-1.md` written.
+- [x] 7.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9b-1.md` written.
 
 **Dependencies**: 9a.3 must be merged.
 **Rollback**: `git revert` the slice. Endpoint unmapped; `MapAdminAuditEndpoints()` not called in `Program.cs`. BackgroundService not registered. `audit.events` continues to grow unbounded (operational risk documented in Wave 10 backlog drain).
@@ -226,19 +226,19 @@ Doc-only slice. NO code changes; NO new tests; just the rationale baked into `ta
 
 **Phase 1: Verification (2 commands)**
 
-- [ ] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/ITradeAttachmentUsageRepository.cs` → no matches (proves SKIP: no mutations to audit).
-- [ ] 1.2 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave9-audit-finalization/specs/soft-delete-audit/spec.md` with `Reason:` block for `ITradeAttachmentUsageRepository`.
+- [x] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/ITradeAttachmentUsageRepository.cs` → no matches (proves SKIP: no mutations to audit).
+- [x] 1.2 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave9-audit-finalization/specs/soft-delete-audit/spec.md` with `Reason:` block for `ITradeAttachmentUsageRepository`.
 
 **Phase 2: Inline rationale comments (1 LOC per skipped interface)**
 
-- [ ] 2.1 Add `<remarks>` XML doc block to `ITradeAttachmentUsageRepository.cs` pointing to the spec REMOVED Requirements entry (rationale: read-only; `TradeAttachment` aggregate mutations audited via `IAttachmentSweepRepository.SoftDeleteBatchAsync` per Wave 9 9a.3).
+- [x] 2.1 Add `<remarks>` XML doc block to `ITradeAttachmentUsageRepository.cs` pointing to the spec REMOVED Requirements entry (rationale: read-only; `TradeAttachment` aggregate mutations audited via `IAttachmentSweepRepository.SoftDeleteBatchAsync` per Wave 9 9a.3).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 2 verification commands pass.
-- [ ] 3.2 Inline `<remarks>` XML doc block added.
-- [ ] 3.3 Spec REMOVED Requirements section present.
-- [ ] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 1 XML doc addition; no logic changes).
+- [x] 3.1 2 verification commands pass.
+- [x] 3.2 Inline `<remarks>` XML doc block added.
+- [x] 3.3 Spec REMOVED Requirements section present.
+- [x] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 1 XML doc addition; no logic changes).
 
 **Dependencies**: 9b.1 must be merged.
 **Rollback**: `git revert` the slice. Doc-only changes revert. Zero behavior change.
