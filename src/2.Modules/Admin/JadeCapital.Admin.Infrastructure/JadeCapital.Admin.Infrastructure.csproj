@@ -11,5 +11,12 @@
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Admin.Application\JadeCapital.Admin.Application.csproj" />
+    <!-- Wave 9 slice 9b.1 — Admin.Infrastructure needs Identity.Infrastructure
+         for the AuditDbContext (read-only query side). This is the new
+         cross-module DI edge documented in design.md §"Module Dependency
+         Diagram". No circular dep: Admin.Infrastructure does NOT register
+         Identity.Infrastructure's services — it only CONSUMES the
+         AuditDbContext for SELECT queries. -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

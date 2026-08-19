@@ -155,7 +155,9 @@ builder.Services.AddMediatR(cfg =>
         // Wave-1.3 — Billing public catalog query (GetPublicPlansHandler) so
         // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
         // BillingPublicEndpoints minimal-api delegate.
-        typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly));
+        typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly,
+        // Wave 9 slice 9b.1 — Admin audit query handler (ListAuditEventsHandler).
+        typeof(JadeCapital.Admin.Application.Features.Audit.ListAuditEventsHandler).Assembly));
 
 // ===== SignalR (slice 4c — realtime quote broadcast) =====
 builder.Services.AddSignalR(options =>
@@ -443,6 +445,8 @@ app.MapHub<QuoteHub>("/hubs/quotes");
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
 app.MapAdminSubscriptionEndpoints();
+// Wave 9 slice 9b.1 — admin audit query endpoint (GET /api/admin/audit/events).
+app.MapAdminAuditEndpoints();
 // Wave-1.3 — Public Billing catalog endpoints (AllowAnonymous; pricing page
 // must load the plan list before the visitor authenticates).
 app.MapBillingPublicEndpoints();

@@ -165,43 +165,43 @@ Forecast ~350 lines, Wave 5/6/7/8 precedent → `size:exception` likely. Justifi
 
 **Phase 1: Query store (TDD)**
 
-- [ ] 1.1 RED test `AuditEventQueryStoreTests` (3 scenarios: `ListAsync` with no filters returns newest-first; `ListAsync` with `entity_type` filter applies `ix_audit_events_entity`; `ListAsync` with `user_id` + `tenant_id` compound filter applies ix_audit_events_user + ix_audit_events_tenant_time).
-- [ ] 1.2 GREEN: `IAuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Abstractions/` + `AuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/Persistence/` (~150 LOC; EF query against `AuditDbContext.AuditEvents`).
-- [ ] 1.3 Verify `<ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />` exists in `Admin.Infrastructure.csproj`; add if missing.
+- [x] 1.1 RED test `AuditEventQueryStoreTests` (3 scenarios: `ListAsync` with no filters returns newest-first; `ListAsync` with `entity_type` filter applies `ix_audit_events_entity`; `ListAsync` with `user_id` + `tenant_id` compound filter applies ix_audit_events_user + ix_audit_events_tenant_time).
+- [x] 1.2 GREEN: `IAuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Abstractions/` + `AuditEventQueryStore` in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/Persistence/` (~150 LOC; EF query against `AuditDbContext.AuditEvents`).
+- [x] 1.3 Verify `<ProjectReference Include="..\..\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />` exists in `Admin.Infrastructure.csproj`; add if missing.
 
 **Phase 2: Query handler + DTOs (TDD)**
 
-- [ ] 2.1 RED test `ListAuditEventsHandlerTests` (1 scenario: DTO mapping + cursor encoding/decoding round-trip + limit clamping to [1, 200]).
-- [ ] 2.2 GREEN: `ListAuditEventsQuery` + `ListAuditEventsHandler` + `AuditEventDto` + `PagedAuditEventsDto` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Features/Audit/ListAuditEvents/` (~150 LOC). Cursor = `base64("{occurred_at_ticks}:{id_guid}")`.
+- [x] 2.1 RED test `ListAuditEventsHandlerTests` (1 scenario: DTO mapping + cursor encoding/decoding round-trip + limit clamping to [1, 200]).
+- [x] 2.2 GREEN: `ListAuditEventsQuery` + `ListAuditEventsHandler` + `AuditEventDto` + `PagedAuditEventsDto` in `src/2.Modules/Admin/JadeCapital.Admin.Application/Features/Audit/ListAuditEvents/` (~150 LOC). Cursor = `base64("{occurred_at_ticks}:{id_guid}")`.
 
 **Phase 3: Endpoint (TDD — WebApplicationFactory + Testcontainers Postgres)**
 
-- [ ] 3.1 RED test `AdminAuditEndpointsIntegrationTests` (1 scenario: anonymous returns 401; trader role returns 403; admin role with filters returns 200 + paginated payload).
-- [ ] 3.2 GREEN: `src/2.Modules/Admin/JadeCapital.Admin.Api/Endpoints/AdminAuditEndpoints.cs` (~120 LOC; `MapGroup("/api/admin/audit/events").RequireAuthorization("AdminOnly").MapGet("/", ListAsync).RequireRateLimiting("api-general")`).
+- [x] 3.1 RED test `AdminAuditEndpointsIntegrationTests` (1 scenario: anonymous returns 401; trader role returns 403; admin role with filters returns 200 + paginated payload).
+- [x] 3.2 GREEN: `src/2.Modules/Admin/JadeCapital.Admin.Api/Endpoints/AdminAuditEndpoints.cs` (~120 LOC; `MapGroup("/api/admin/audit/events").RequireAuthorization("AdminOnly").MapGet("/", ListAsync).RequireRateLimiting("api-general")`).
 
 **Phase 4: Retention BackgroundService (TDD — frozen clock)**
 
-- [ ] 4.1 RED test `AuditRetentionServiceTests` (1 scenario: `PurgeOldAsync(cutoff, batchLimit)` deletes only rows with `occurred_at < cutoff`; idempotent re-run returns 0 rows; `BatchLimit` caps the delete).
-- [ ] 4.2 RED test `AuditRetentionBackgroundServiceTests` (1 scenario: first run after `InitialDelay`; exception in `RunOnceAsync` is logged + does not crash host).
-- [ ] 4.3 GREEN: `IAuditRetentionService` + `AuditRetentionService` + `AuditRetentionBackgroundService` + `AuditRetentionOptions` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Audit/` + `Configuration/AuditRetentionOptions.cs` (~200 LOC).
+- [x] 4.1 RED test `AuditRetentionServiceTests` (1 scenario: `PurgeOldAsync(cutoff, batchLimit)` deletes only rows with `occurred_at < cutoff`; idempotent re-run returns 0 rows; `BatchLimit` caps the delete).
+- [x] 4.2 RED test `AuditRetentionBackgroundServiceTests` (1 scenario: first run after `InitialDelay`; exception in `RunOnceAsync` is logged + does not crash host).
+- [x] 4.3 GREEN: `IAuditRetentionService` + `AuditRetentionService` + `AuditRetentionBackgroundService` + `AuditRetentionOptions` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Audit/` + `Configuration/AuditRetentionOptions.cs` (~200 LOC).
 
 **Phase 5: DI + config wiring**
 
-- [ ] 5.1 `services.Configure<AuditRetentionOptions>(Configuration.GetSection("AuditRetention"))` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/DependencyInjection/IdentityModuleRegistration.cs` (with `ValidateOnStart`).
-- [ ] 5.2 `services.AddHostedService<AuditRetentionBackgroundService>()` in the same file.
-- [ ] 5.3 `services.AddScoped<IAuditEventQueryStore, AuditEventQueryStore>()` + `services.AddMediatR(...)` handler registration in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/DependencyInjection/AdminModuleRegistration.cs` (NEW file).
-- [ ] 5.4 `app.MapAdminAuditEndpoints()` in `src/2.Modules/Host/JadeCapital.Host/Program.cs` (after `app.UseAuthentication()` + `app.UseAuthorization()`).
-- [ ] 5.5 Add `"AuditRetention": { "RetentionDays": 90, "CleanupIntervalHours": 24, "BatchLimit": 10000 }` to `appsettings.json`.
+- [x] 5.1 `services.Configure<AuditRetentionOptions>(Configuration.GetSection("AuditRetention"))` in `src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/DependencyInjection/IdentityModuleRegistration.cs` (with `ValidateOnStart`).
+- [x] 5.2 `services.AddHostedService<AuditRetentionBackgroundService>()` in the same file.
+- [x] 5.3 `services.AddScoped<IAuditEventQueryStore, AuditEventQueryStore>()` + `services.AddMediatR(...)` handler registration in `src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/DependencyInjection/AdminModuleRegistration.cs` (NEW file).
+- [x] 5.4 `app.MapAdminAuditEndpoints()` in `src/2.Modules/Host/JadeCapital.Host/Program.cs` (after `app.UseAuthentication()` + `app.UseAuthorization()`).
+- [x] 5.5 Add `"AuditRetention": { "RetentionDays": 90, "CleanupIntervalHours": 24, "BatchLimit": 10000 }` to `appsettings.json`.
 
 **Phase 6: Validate**
 
-- [ ] 6.1 `dotnet test --filter "FullyQualifiedName~AuditEventQueryStore|ListAuditEventsHandler|AdminAuditEndpoints|AuditRetentionService|AuditRetentionBackgroundService"` → **8/8 new tests pass** (3 store + 1 handler + 1 endpoint + 1 retention service + 2 retention background).
-- [ ] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
-- [ ] 6.3 Full BE suite (1376 + 8 = **1384**) → zero regression.
+- [x] 6.1 `dotnet test --filter "FullyQualifiedName~AuditEventQueryStore|ListAuditEventsHandler|AdminAuditEndpoints|AuditRetentionService|AuditRetentionBackgroundService"` → **8/8 new tests pass** (3 store + 1 handler + 1 endpoint + 1 retention service + 2 retention background).
+- [x] 6.2 `dotnet build JadeCapital.slnx --nologo --verbosity minimal` → 0 errors, 0 new warnings.
+- [x] 6.3 Full BE suite (1381 + 8 = **1389**) → zero regression.
 
 **Phase 7: Apply-progress doc**
 
-- [ ] 7.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9b-1.md` written.
+- [x] 7.1 `apply-progress-2026-08-19-wave9-audit-finalization-slice-9b-1.md` written.
 
 **Dependencies**: 9a.3 must be merged.
 **Rollback**: `git revert` the slice. Endpoint unmapped; `MapAdminAuditEndpoints()` not called in `Program.cs`. BackgroundService not registered. `audit.events` continues to grow unbounded (operational risk documented in Wave 10 backlog drain).
