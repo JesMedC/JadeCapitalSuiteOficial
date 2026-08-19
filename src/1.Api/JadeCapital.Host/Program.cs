@@ -3,6 +3,7 @@ using JadeCapital.Admin.Api.Endpoints;
 using JadeCapital.Billing.Infrastructure.DependencyInjection;
 using JadeCapital.Billing.PublicApi.Endpoints;
 using JadeCapital.Admin.Infrastructure.DependencyInjection;
+using JadeCapital.Host.Configuration;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -26,6 +27,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -33,6 +35,15 @@ using Serilog;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ===== Wave 10 slice 10.2 — Docker Secrets adapter =====
+// Mounted secrets (read by docker compose `secrets:` blocks at
+// /run/secrets/<name>) become configuration keys under `__Secret:<name>`.
+// MUST be added BEFORE Configure<JwtOptions>(...) so the bound JwtOptions
+// instance can resolve `JWT__AccessTokenSecret__File` -> secret content -> JwtOptions.AccessTokenSecret.
+// Disambiguates against MVC's ApplicationModelConventionExtensions.Add
+// which is also in scope via implicit usings.
+((IConfigurationBuilder)builder.Configuration).Add(new DockerSecretConfigurationSource());
 
 // ===== Logging =====
 builder.Host.UseSerilog((ctx, services, cfg) =>

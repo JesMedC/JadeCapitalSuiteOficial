@@ -1,0 +1,100 @@
+# Wave 10 slice 10.2 — production Dockerfile for the API host.
+#
+# Architecture:
+#   * Stage `restore` copies ONLY *.csproj + Directory.Packages.props + global.json
+#     so the NuGet layer caches on dependency changes (not source edits).
+#   * Stage `build` adds the source tree on top of the restore cache and publishes.
+#   * Stage `runtime` uses the official ASP.NET Core 10 runtime image,
+#     creates an unprivileged `jade` user (uid/gid 1001) and runs the
+#     published app via `dotnet` (no shell wrapper, no curl probe).
+#   * HEALTHCHECK uses `wget` (already present in the runtime image) against
+#     `/health/live` — matches the /health/live endpoint in Program.cs.
+#
+# TLS / secrets / backups:
+#   * No plaintext secrets are baked into the image; the API reads Docker
+#     Secrets from /run/secrets/<name> at runtime (compose wires the mount).
+
+# =============================================================
+# Stage 1 — restore NuGet packages (layer-cached)
+# =============================================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
+WORKDIR /src
+
+# Central package management + TFM pinning
+COPY Directory.Build.props ./
+COPY Directory.Packages.props ./
+COPY global.json ./
+COPY NuGet.config ./
+
+# Copy every csproj the Host build needs. dotnet restore walks the project
+# graph; listing them explicitly keeps the cache layer stable when only
+# source code inside a project changes.
+COPY src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj                    src/1.Api/JadeCapital.Host/
+COPY src/2.Modules/Identity/JadeCapital.Identity.Domain/JadeCapital.Identity.Domain.csproj                src/2.Modules/Identity/JadeCapital.Identity.Domain/
+COPY src/2.Modules/Identity/JadeCapital.Identity.Application/JadeCapital.Identity.Application.csproj    src/2.Modules/Identity/JadeCapital.Identity.Application/
+COPY src/2.Modules/Identity/JadeCapital.Identity.Contracts/JadeCapital.Identity.Contracts.csproj        src/2.Modules/Identity/JadeCapital.Identity.Contracts/
+COPY src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/JadeCapital.Identity.Infrastructure.csproj src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/
+COPY src/2.Modules/Identity/JadeCapital.Identity.Api/JadeCapital.Identity.Api.csproj                    src/2.Modules/Identity/JadeCapital.Identity.Api/
+COPY src/2.Modules/Trading/JadeCapital.Trading.Domain/JadeCapital.Trading.Domain.csproj                src/2.Modules/Trading/JadeCapital.Trading.Domain/
+COPY src/2.Modules/Trading/JadeCapital.Trading.Application/JadeCapital.Trading.Application.csproj    src/2.Modules/Trading/JadeCapital.Trading.Application/
+COPY src/2.Modules/Trading/JadeCapital.Trading.Contracts/JadeCapital.Trading.Contracts.csproj        src/2.Modules/Trading/JadeCapital.Trading.Contracts/
+COPY src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/JadeCapital.Trading.Infrastructure.csproj src/2.Modules/Trading/JadeCapital.Trading.Infrastructure/
+COPY src/2.Modules/Trading/JadeCapital.Trading.Api/JadeCapital.Trading.Api.csproj                    src/2.Modules/Trading/JadeCapital.Trading.Api/
+COPY src/2.Modules/Billing/JadeCapital.Billing.Domain/JadeCapital.Billing.Domain.csproj                src/2.Modules/Billing/JadeCapital.Billing.Domain/
+COPY src/2.Modules/Billing/JadeCapital.Billing.Application/JadeCapital.Billing.Application.csproj    src/2.Modules/Billing/JadeCapital.Billing.Application/
+COPY src/2.Modules/Billing/JadeCapital.Billing.Contracts/JadeCapital.Billing.Contracts.csproj        src/2.Modules/Billing/JadeCapital.Billing.Contracts/
+COPY src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/JadeCapital.Billing.Infrastructure.csproj src/2.Modules/Billing/JadeCapital.Billing.Infrastructure/
+COPY src/2.Modules/Billing/JadeCapital.Billing.PublicApi/JadeCapital.Billing.PublicApi.csproj            src/2.Modules/Billing/JadeCapital.Billing.PublicApi/
+COPY src/2.Modules/Admin/JadeCapital.Admin.Application/JadeCapital.Admin.Application.csproj                src/2.Modules/Admin/JadeCapital.Admin.Application/
+COPY src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/JadeCapital.Admin.Infrastructure.csproj        src/2.Modules/Admin/JadeCapital.Admin.Infrastructure/
+COPY src/2.Modules/Admin/JadeCapital.Admin.Api/JadeCapital.Admin.Api.csproj                            src/2.Modules/Admin/JadeCapital.Admin.Api/
+COPY src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Application/JadeCapital.PublicPortal.Application.csproj        src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Application/
+COPY src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Infrastructure/JadeCapital.PublicPortal.Infrastructure.csproj src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Infrastructure/
+COPY src/3.Shared/JadeCapital.Shared.Kernel/JadeCapital.Shared.Kernel.csproj                src/3.Shared/JadeCapital.Shared.Kernel/
+COPY src/3.Shared/JadeCapital.Shared.Infrastructure/JadeCapital.Shared.Infrastructure.csproj    src/3.Shared/JadeCapital.Shared.Infrastructure/
+
+RUN dotnet restore src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj --locked-mode
+
+# =============================================================
+# Stage 2 — copy source + publish
+# =============================================================
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY . .
+RUN dotnet publish src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj \
+        -c Release \
+        -o /app/publish \
+        --no-restore \
+        /p:UseAppHost=false
+
+# =============================================================
+# Stage 3 — runtime (non-root)
+# =============================================================
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+# Create an unprivileged user. uid/gid 1001 is the project-wide convention
+# (also used by the dev compose's `jade:` service). `appsettings*.json` are
+# kept read-only at the publish layer; we override everything sensitive
+# via Docker Secrets / env at runtime.
+RUN groupadd --gid 1001 jade \
+    && useradd  --uid 1001 \
+                --gid jade \
+                --shell /bin/bash \
+                --create-home \
+                jade
+
+COPY --from=build --chown=jade:jade /app/publish /app/publish
+
+USER jade
+EXPOSE 8080
+
+# HEALTHCHECK matches the /health/live endpoint exposed in Program.cs.
+# The runtime image ships `wget`; `dotnet` itself is the ENTRYPOINT below
+# so we don't need a shell wrapper.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget -qO- http://localhost:8080/health/live || exit 1
+
+# Direct dll invocation: no shell, no entrypoint script. ASPNETCORE_URLS
+# is overridden by the compose file to bind 8080.
+ENTRYPOINT ["dotnet", "/app/publish/JadeCapital.Host.dll"]
