@@ -3,10 +3,10 @@
     <RootNamespace>JadeCapital.Trading.Application</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MediatR" Version="12.4.1" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-    <PackageReference Include="FluentValidation" Version="11.10.0" />
+    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.19" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.19" />
+    <PackageReference Include="FluentValidation" Version="11.12.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />

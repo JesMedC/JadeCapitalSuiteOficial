@@ -17,9 +17,9 @@
   <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.19" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.19" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
          so the Identity.Infrastructure ProjectReference is no longer needed.

@@ -11,9 +11,9 @@
     <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.19" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
-    <PackageReference Include="Stripe.net" Version="47.0.0" />
+    <PackageReference Include="Stripe.net" Version="47.4.0" />
     <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
          so the Identity.Infrastructure ProjectReference is no longer needed.
          Scrutor's Decorate<> is now an explicit PackageReference (was transitive
