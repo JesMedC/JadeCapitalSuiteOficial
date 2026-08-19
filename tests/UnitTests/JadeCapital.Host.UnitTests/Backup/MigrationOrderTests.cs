@@ -31,7 +31,12 @@ public class MigrationOrderTests
     private static readonly string RepoRoot =
         FindRepoRoot(AppContext.BaseDirectory);
 
-    private const int ExpectedMigrationCount = 35;
+    // Wave 11 slice 11.3 — 0036_add_welcome_email_sent_at.sql adds the
+    // idempotent-welcome-email tracking column. The behavioral side of
+    // this change (RegisterUserHandler populating the column with a
+    // 7-day suppression window) ships in slice 11.4; this slice only
+    // adds the schema preparation.
+    private const int ExpectedMigrationCount = 36;
 
     private static string FindRepoRoot(string startDir)
     {
@@ -105,7 +110,8 @@ public class MigrationOrderTests
     {
         var files = EnumerateMigrationFiles();
         files.Count.Should().Be(ExpectedMigrationCount,
-            $"Wave 10.4 narrower scope: {ExpectedMigrationCount} migrations verified by the prior attempt");
+            $"Wave 10.4 narrower scope + Wave 11.2a (3 migrations) + Wave 11.3 (1 migration = 0036_add_welcome_email_sent_at): "
+            + $"{ExpectedMigrationCount} migrations verified");
     }
 
     [Fact]

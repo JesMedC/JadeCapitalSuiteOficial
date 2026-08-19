@@ -6,6 +6,7 @@ using JadeCapital.Identity.Infrastructure.Audit.Configuration;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
 using JadeCapital.Identity.Infrastructure.BackgroundServices;
 using JadeCapital.Identity.Infrastructure.Cascade;
+using JadeCapital.Identity.Infrastructure.Configuration;
 using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Identity.Infrastructure.Projections;
@@ -16,6 +17,7 @@ using JadeCapital.Shared.Kernel.SoftDelete;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JadeCapital.Identity.Infrastructure.DependencyInjection;
 
@@ -193,6 +195,16 @@ public static class IdentityModuleRegistration
             sp.GetRequiredService<UserCascadeDeleterOrchestrator>());
         // HardDeleteSweepBackgroundService picks up ScheduledHardDelete users daily
         // and runs CascadeHardDeleteAsync + audit anonymization.
+        // Wave 11 slice 11.3 — bind HardDeleteSweepOptions so per-env tuning is an
+        // appsettings change, not a recompile. The slice duplicates the existing
+        // AuditRetentionOptions pattern (slice 9b.1): `Configure + AddOptions + Bind
+        // + ValidateOnStart`. The validator (IValidateOptions<>) is registered as
+        // a singleton below so `ValidateOnStart` can find it at host-start time.
+        services.Configure<HardDeleteSweepOptions>(configuration.GetSection(HardDeleteSweepOptions.SectionName));
+        services.AddOptions<HardDeleteSweepOptions>()
+            .Bind(configuration.GetSection(HardDeleteSweepOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<HardDeleteSweepOptions>, HardDeleteSweepOptionsValidator>();
         services.AddHostedService<JadeCapital.Identity.Infrastructure.BackgroundServices.HardDeleteSweepBackgroundService>();
 
         return services;

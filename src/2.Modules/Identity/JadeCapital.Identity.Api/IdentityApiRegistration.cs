@@ -36,6 +36,8 @@ public static class IdentityApiRegistration
         app.MapTenantEndpoints();
         // Wave 11 slice 11.2b — /api/users/me (DELETE → GDPR right-to-be-forgotten).
         app.MapUserEndpoints();
+        // Wave 11 slice 11.3 — /api/users/me/export (GET → GDPR Art. 20 portability).
+        app.MapExportAccountDataEndpoint();
         return app;
     }
 
