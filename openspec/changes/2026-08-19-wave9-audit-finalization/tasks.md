@@ -226,19 +226,19 @@ Doc-only slice. NO code changes; NO new tests; just the rationale baked into `ta
 
 **Phase 1: Verification (2 commands)**
 
-- [ ] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/ITradeAttachmentUsageRepository.cs` → no matches (proves SKIP: no mutations to audit).
-- [ ] 1.2 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave9-audit-finalization/specs/soft-delete-audit/spec.md` with `Reason:` block for `ITradeAttachmentUsageRepository`.
+- [x] 1.1 `git grep -E "Task (Add|Update|Delete)Async" src/2.Modules/Trading/JadeCapital.Trading.Application/Abstractions/ITradeAttachmentUsageRepository.cs` → no matches (proves SKIP: no mutations to audit).
+- [x] 1.2 Verify spec REMOVED Requirements section present in `openspec/changes/2026-08-19-wave9-audit-finalization/specs/soft-delete-audit/spec.md` with `Reason:` block for `ITradeAttachmentUsageRepository`.
 
 **Phase 2: Inline rationale comments (1 LOC per skipped interface)**
 
-- [ ] 2.1 Add `<remarks>` XML doc block to `ITradeAttachmentUsageRepository.cs` pointing to the spec REMOVED Requirements entry (rationale: read-only; `TradeAttachment` aggregate mutations audited via `IAttachmentSweepRepository.SoftDeleteBatchAsync` per Wave 9 9a.3).
+- [x] 2.1 Add `<remarks>` XML doc block to `ITradeAttachmentUsageRepository.cs` pointing to the spec REMOVED Requirements entry (rationale: read-only; `TradeAttachment` aggregate mutations audited via `IAttachmentSweepRepository.SoftDeleteBatchAsync` per Wave 9 9a.3).
 
 **Phase 3: Validate**
 
-- [ ] 3.1 2 verification commands pass.
-- [ ] 3.2 Inline `<remarks>` XML doc block added.
-- [ ] 3.3 Spec REMOVED Requirements section present.
-- [ ] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 1 XML doc addition; no logic changes).
+- [x] 3.1 2 verification commands pass.
+- [x] 3.2 Inline `<remarks>` XML doc block added.
+- [x] 3.3 Spec REMOVED Requirements section present.
+- [x] 3.4 Zero behavior change verified via `git diff --stat` on `.cs` files (only 1 XML doc addition; no logic changes).
 
 **Dependencies**: 9b.1 must be merged.
 **Rollback**: `git revert` the slice. Doc-only changes revert. Zero behavior change.

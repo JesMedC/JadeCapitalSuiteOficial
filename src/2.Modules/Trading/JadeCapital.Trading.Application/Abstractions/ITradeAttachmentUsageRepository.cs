@@ -13,6 +13,31 @@ namespace JadeCapital.Trading.Application.Abstractions;
 /// <c>SUM(bytes) + COUNT(*)</c> over <c>trade_attachments</c> filtered
 /// by <c>user_id</c> AND <c>status = 'uploaded'</c> AND <c>is_active = true</c>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>SKIP rationale — no audit decorator needed (Wave 9 9b.2 reconciliation).</b>
+/// </para>
+/// <para>
+/// This interface exposes ONLY a read-side aggregate query
+/// (<see cref="GetUsageAsync"/>) — no <c>AddAsync</c>, <c>UpdateAsync</c>,
+/// or <c>DeleteAsync</c> exists on the surface. Wrapping it with an
+/// audit decorator would be a no-op: the audit-write path is empty,
+/// and the Wave 6/7/8 precedent (mirrored in the existing
+/// "GetById is NOT audited" scenario across every decorator) is that
+/// reads are never audited.
+/// </para>
+/// <para>
+/// The right seam for <c>TradeAttachment</c> audit IS
+/// <c>IAttachmentSweepRepository.SoftDeleteBatchAsync</c> (Wave 9 9a.3 —
+/// see <c>AttachmentSweepAuditDecorator</c>). User-impacting soft-delete
+/// happens there, not at this usage projection.
+/// </para>
+/// <para>
+/// See <c>openspec/changes/2026-08-19-wave9-audit-finalization/specs/soft-delete-audit/spec.md</c>
+/// § "REMOVED Requirements" for the full rationale + the
+/// <c>git grep</c> verification that pinned the SKIP.
+/// </para>
+/// </remarks>
 public interface ITradeAttachmentUsageRepository
 {
     /// <summary>
