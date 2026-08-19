@@ -32,5 +32,11 @@
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Application\JadeCapital.Trading.Application.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Domain\JadeCapital.Trading.Domain.csproj" />
+    <!-- Wave 10 slice 10.5: TradingUserCascadeDeletor implements
+         IUserCascadeDeletor (Identity.Application.Abstractions). The
+         reference is one-way (Trading.Infrastructure → Identity.Application)
+         to avoid the circular-dep trap that Identity.Infrastructure →
+         Trading.Infrastructure → Identity.Infrastructure would create. -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
   </ItemGroup>
 </Project>

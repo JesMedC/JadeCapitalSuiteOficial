@@ -64,6 +64,36 @@ public static class IdentityDomainErrors
         public static readonly Error CrossTenantReassignRequiresAdmin =
             Error.Forbidden("user.cross_tenant_reassign_requires_admin",
                 "Re-assigning to a different tenant requires the Admin role.");
+
+        // ===== Wave 10 slice 10.5 — GDPR Art. 17 lifecycle errors =====
+
+        public static readonly Error AcceptedTermsVersionRequired =
+            Error.Validation("user.accepted_terms_version_required",
+                "Terms of Service version is required on registration.");
+
+        public static readonly Error AcceptedPrivacyVersionRequired =
+            Error.Validation("user.accepted_privacy_version_required",
+                "Privacy Policy version is required on registration.");
+
+        public static readonly Error ClockRequired =
+            Error.Validation("user.clock_required",
+                "IClock is required for GDPR lifecycle transitions.");
+
+        public static readonly Error AlreadyDeleted =
+            Error.Conflict("user.already_deleted",
+                "User is already in the GDPR soft-delete cascade.");
+
+        public static readonly Error AlreadyHardDeleted =
+            Error.Conflict("user.already_hard_deleted",
+                "User has already been hard-deleted.");
+
+        public static readonly Error NotSoftDeleted =
+            Error.Conflict("user.not_soft_deleted",
+                "User is not in the SoftDeleted state.");
+
+        public static readonly Error NotScheduledForHardDelete =
+            Error.Conflict("user.not_scheduled_for_hard_delete",
+                "User is not in the ScheduledHardDelete state.");
     }
 
     public static class RefreshToken

@@ -313,6 +313,12 @@ services.AddScoped<JadeCapital.Trading.Application.Features.Imports.GetImportSta
         services.AddScoped<JadeCapital.Shared.Kernel.SoftDelete.ISoftDeleteProvider,
             ImportJobSoftDeleteProvider>();
 
+        // ===== Slice 10.5 — GDPR Art. 17 cascade deletor (Trading side) =====
+        // Auto-collected by the Identity-side orchestrator as
+        // IEnumerable<IUserCascadeDeletor>. Purges 13 trading aggregates.
+        services.AddScoped<JadeCapital.Identity.Application.Abstractions.IUserCascadeDeletor,
+            JadeCapital.Trading.Infrastructure.Cascade.TradingUserCascadeDeletor>();
+
 return services;
     }
 }
