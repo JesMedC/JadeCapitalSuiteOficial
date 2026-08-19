@@ -15,6 +15,19 @@
          the unit tests exercise EF-level behavior without a real Postgres
          or Testcontainers dependency. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <!-- Wave 11 slice 11.1 — Testcontainers + Respawn for the
+         GdprAuditAnonymizer test fixture. The anonymizer's raw SQL
+         uses the unquoted `audit.events` schema-qualified reference
+         which SQLite rejects as "unknown database audit" (the
+         Anonymizer is a Postgres-only artifact per Wave 10.5). Adding
+         Testcontainers.PostgreSql + Respawn + Npgsql lets us exercise
+         the real anonymizer SQL against a real Postgres instance.
+         Mirrors the `JadeApiFactory` pattern from
+         tests/IntegrationTests/JadeCapital.Api.IntegrationTests. -->
+    <PackageReference Include="Testcontainers" Version="4.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.0.0" />
+    <PackageReference Include="Respawn" Version="6.2.1" />
+    <PackageReference Include="Npgsql" Version="9.0.3" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="coverlet.msbuild" Version="6.0.2">
