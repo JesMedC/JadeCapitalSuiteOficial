@@ -576,3 +576,9 @@ Forecast ~800 lines (per design.md §2.6), Wave 5/6/7/8 precedent → `size:exce
 **`v1.0.0` tag**: lands after PR #42 merges AND ops team's first successful deployment + smoke-test pass.
 
 **Pairing**: 10.5 is the largest slice (heaviest review load). PR #41 should NOT be merged at end-of-week (no rollback on a Friday per Wave 9 9b.1 precedent). Other slices are reviewable on any day.
+
+---
+
+## Slice archive
+
+- [x] Archive phase complete: 2026-08-19. Specs promoted to canonical `openspec/specs/` (8 NEW). Archive report written. v1.0.0-rc1 release target.
