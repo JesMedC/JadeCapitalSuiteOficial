@@ -20,6 +20,12 @@
          that injects role claims via the X-Test-Role header so the test does not
          need real Postgres for the 401/403 paths or Testcontainers for the 200 path. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.9" />
+    <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Modules\Admin\JadeCapital.Admin.Application\JadeCapital.Admin.Application.csproj" />

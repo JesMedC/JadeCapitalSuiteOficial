@@ -63,6 +63,15 @@ builder.Services.AddOptions<JwtOptions>()
         "Jwt.AccessTokenSecret must be >= 32 chars.")
     .ValidateOnStart();
 
+// Wave 10 slice 10.6 — Stripe options + validator at the host boundary.
+// Mirrors the Wave 9 9b.1 AuditRetentionOptions pattern: bind + ValidateOnStart
+// so misconfiguration fails fast at startup, NOT at first webhook receive.
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
+builder.Services.AddOptions<StripeOptions>()
+    .Bind(builder.Configuration.GetSection(StripeOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<StripeOptions>, StripeOptionsValidator>();
+
 // ===== JWT Auth =====
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
