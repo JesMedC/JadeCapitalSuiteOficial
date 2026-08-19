@@ -19,13 +19,14 @@
 //      StubStripeGateway) or sk_test_* / sk_live_*. Rejects unrecognised
 //      values so typos like "sk_text_..." don't quietly live in .env.
 //
-// LEGACY ALIAS
-//   Existing docker-compose.yml uses Stripe__SecretKey for the API key
-//   while StripeOptions (Billing) declares ApiKey. To avoid breaking
-//   the prod deploy, the validator also reads Stripe:SecretKey from the
-//   raw IConfiguration as a fallback. Wave 11+ should align the two
-//   (either add Stripe__ApiKey to compose, or rename StripeOptions.ApiKey
-//   to StripeOptions.SecretKey — pick one).
+// LEGACY ALIAS (Wave 11 slice 11.4)
+//   The canonical wire name is `SecretKey` — matching `Stripe__SecretKey`
+//   in docker-compose. The Billing-side class still uses `ApiKey` (which
+//   is the Stripe.NET SDK convention) and is untouched here. The
+//   validator reads `Stripe:SecretKey` first and falls back to
+//   `Stripe:ApiKey` for backwards compatibility with environments that
+//   haven't migrated yet. Wave 11.4 ships the property rename + the
+//   [Obsolete] alias bridge so the migration is forward-compat.
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -43,8 +44,41 @@ public class StripeOptions
     /// <summary>Configuration section name (matches Billing-side for consistency).</summary>
     public const string SectionName = "Stripe";
 
-    /// <summary>Stripe API key. Empty in dev means "use StubStripeGateway".</summary>
-    public string ApiKey { get; set; } = string.Empty;
+    private string _secretKey = string.Empty;
+
+    /// <summary>
+    /// Stripe API key (canonical name). Empty in dev means "use
+    /// StubStripeGateway". Wave 11.4 — this property replaces the
+    /// previous <c>ApiKey</c> name; the validator reads either one
+    /// (the legacy alias is preserved via the [Obsolete] bridge
+    /// property below).
+    /// </summary>
+    public string SecretKey
+    {
+        get => _secretKey;
+        set => _secretKey = value ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Legacy alias for <see cref="SecretKey"/>. Wave 11.4 — kept for
+    /// backwards compatibility with environments that bind
+    /// <c>Stripe:ApiKey</c> via env-var <c>Stripe__ApiKey</c>. New
+    /// deploys should bind <c>Stripe:SecretKey</c> directly. Marked
+    /// [Obsolete] so the IDE + compiler flag the legacy usage; the
+    /// property still serialises/deserialises so the bridge works.
+    /// </summary>
+    [Obsolete("Use SecretKey instead — StripeOptions.SecretKey matches the docker-compose Stripe__SecretKey convention. The ApiKey alias is preserved for backwards compatibility and will be removed in Wave 12.")]
+    public string? ApiKey
+    {
+        get => _secretKey;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                _secretKey = value;
+            }
+        }
+    }
 
     /// <summary>Webhook signing secret. Required in Production/Staging.</summary>
     public string WebhookSecret { get; set; } = string.Empty;
@@ -67,8 +101,8 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
 
     /// <summary>
     /// Constructor takes <see cref="IConfiguration"/> so the validator can
-    /// fall back to <c>Stripe:SecretKey</c> (legacy alias) when
-    /// <c>Stripe:ApiKey</c> is not bound. See file-level comment for
+    /// fall back to <c>Stripe:ApiKey</c> (legacy alias) when
+    /// <c>Stripe:SecretKey</c> is not bound. See file-level comment for
     /// why the alias exists.
     /// </summary>
     public StripeOptionsValidator(IConfiguration configuration)
@@ -91,17 +125,29 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
         var isProdLike = env == "Production" || env == "Staging";
 
-        // Legacy alias: docker-compose uses Stripe__SecretKey while
-        // StripeOptions declares ApiKey. Fall back to raw config when
-        // ApiKey is empty so the existing prod deploy validates clean.
-        var apiKey = !string.IsNullOrWhiteSpace(options.ApiKey)
-            ? options.ApiKey
-            : _configuration["Stripe:SecretKey"] ?? string.Empty;
+        // Wave 11.4 — prefer the canonical `Stripe:SecretKey`. The
+        // legacy `Stripe:ApiKey` (via Obsolete bridge) still works,
+        // so an un-migrated environment doesn't fail validation.
+#pragma warning disable CS0618 // ApiKey is the legacy alias bridge
+        var apiKey = !string.IsNullOrWhiteSpace(options.SecretKey)
+            ? options.SecretKey
+            : (options.ApiKey ?? string.Empty);
+#pragma warning restore CS0618
+
+        // Belt-and-braces: also probe the raw configuration in case
+        // the binder did not pick up the section at all (e.g., legacy
+        // compose with only `Stripe__ApiKey`).
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            apiKey = _configuration["Stripe:SecretKey"]
+                ?? _configuration["Stripe:ApiKey"]
+                ?? string.Empty;
+        }
 
         if (isProdLike)
         {
             if (string.IsNullOrWhiteSpace(apiKey) || !apiKey.StartsWith("sk_live_", StringComparison.Ordinal))
-                failures.Add("Stripe:ApiKey must be a live key (sk_live_*) in Production/Staging");
+                failures.Add("Stripe:SecretKey must be a live key (sk_live_*) in Production/Staging");
             if (string.IsNullOrWhiteSpace(options.WebhookSecret))
                 failures.Add("Stripe:WebhookSecret must be set in Production/Staging");
         }
@@ -113,7 +159,7 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
                 && !apiKey.StartsWith("sk_test_", StringComparison.Ordinal)
                 && !apiKey.StartsWith("sk_live_", StringComparison.Ordinal))
             {
-                failures.Add("Stripe:ApiKey must be a test key (sk_test_*) or live key (sk_live_*)");
+                failures.Add("Stripe:SecretKey must be a test key (sk_test_*) or live key (sk_live_*)");
             }
         }
 
