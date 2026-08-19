@@ -98,6 +98,13 @@ public static class BillingModuleRegistration
         // Wave 6a.2 — Append-only webhook event repository.
         services.AddScoped<IStripeWebhookEventRepository, Persistence.StripeWebhookEventRepository>();
 
+        // ===== Slice 10.5 — GDPR Art. 17 cascade deletor (Billing side) =====
+        // Auto-collected by the Identity-side orchestrator as
+        // IEnumerable<IUserCascadeDeletor>. Cancels subscriptions +
+        // anonymizes StripeCustomer records.
+        services.AddScoped<JadeCapital.Identity.Application.Abstractions.IUserCascadeDeletor,
+                  JadeCapital.Billing.Infrastructure.Cascade.BillingUserCascadeDeletor>();
+
         return services;
     }
 }

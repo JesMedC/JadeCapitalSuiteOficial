@@ -1,0 +1,219 @@
+# Wave 10 slice 10.2 — production compose.
+#
+# Architectural intent:
+#   * `expose:` only for databases (no host port mapping for postgres / redis).
+#   * Every secret is a Docker Secret file mount (`/run/secrets/<name>.txt`).
+#   * `restart: unless-stopped` + per-service `healthcheck:` so the swarm can
+#     roll the stack cleanly without racing the API on startup.
+#   * `nginx` is the single public-facing edge; `certbot` runs as a sidecar
+#     that issues + renews Let's Encrypt certs (legacy fallback — slice 10.3
+#     migrates this to Caddy auto-TLS).
+#   * `Mail__Provider` env switch defaults to mailgun (override per env);
+#     SMTP credentials also come from a Docker Secret to avoid env leakage.
+#
+# All secrets MUST live in `./infrastructure/secrets/<name>.txt`. No
+# plaintext credentials are permitted as env vars (the validator script
+# `scripts/validate-10-2.py` enforces this).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jadecapital}
+      POSTGRES_USER: ${POSTGRES_USER:-jade}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jade}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # NO host port mapping — postgres is reached via `postgres:5432` over the
+    # internal Compose network only.
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    expose:
+      - "6379"
+
+  minio:
+    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Console (9001) and S3 API (9000) are internal-only; the nginx edge
+    # proxies the public asset paths to `minio:9000` if/when needed.
+    expose:
+      - "9000"
+      - "9001"
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.api.prod
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      Postgres__ConnectionString__Provider: postgresql
+      Postgres__ConnectionString__Server: postgres
+      Postgres__ConnectionString__Port: "5432"
+      Postgres__ConnectionString__Database: ${POSTGRES_DB:-jadecapital}
+      Postgres__ConnectionString__Username: ${POSTGRES_USER:-jade}
+      Postgres__ConnectionString__PasswordFile: /run/secrets/postgres_password
+      Redis__ConnectionString: redis:6379
+      Minio__Endpoint: minio:9000
+      Minio__AccessKeyFile: /run/secrets/minio_root_user
+      Minio__SecretKeyFile: /run/secrets/minio_root_password
+      JWT__AccessTokenSecret__File: /run/secrets/jwt_access_token_secret
+      JWT__RefreshTokenSecret__File: /run/secrets/jwt_refresh_token_secret
+      Mail__Provider: ${MAIL_PROVIDER:-mailgun}
+      Mail__Mailgun__ApiKey__File: /run/secrets/mailgun_api_key
+      Stripe__ApiKey__File: /run/secrets/stripe_api_key
+      Stripe__WebhookSecret__File: /run/secrets/stripe_webhook_secret
+      Cors__Origins__0: ${CORS_ORIGIN}
+    secrets:
+      - postgres_password
+      - minio_root_user
+      - minio_root_password
+      - jwt_access_token_secret
+      - jwt_refresh_token_secret
+      - mailgun_api_key
+      - stripe_api_key
+      - stripe_webhook_secret
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health/live || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/Dockerfile.frontend.prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/certs:/etc/nginx/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/certbot/conf:/etc/letsencrypt:ro
+      - ./infrastructure/certbot/www:/var/www/certbot:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/certbot/conf:/etc/letsencrypt:rw
+      - ./infrastructure/certbot/www:/var/www/certbot:rw
+    # Renewal loop: every 12h check + renew. SIGTERM trap so docker compose
+    # down doesn't kill the loop before the cron sleeps.
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $!; done'"
+
+  migrate:
+    # Wave 10.4 slice — order-agnostic migration runner. Applies every
+    # `*.sql` in `./infrastructure/postgres/migrations/` in `ls | sort`
+    # order. Re-running is safe because every migration is idempotent.
+    build:
+      context: ./infrastructure/postgres
+      dockerfile: migrate.Dockerfile
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jade}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB:-jadecapital}
+    secrets:
+      - postgres_password
+    volumes:
+      - ./infrastructure/postgres/migrations:/migrations:ro
+
+secrets:
+  postgres_password:
+    file: ./infrastructure/secrets/postgres_password.txt
+  minio_root_user:
+    file: ./infrastructure/secrets/minio_root_user.txt
+  minio_root_password:
+    file: ./infrastructure/secrets/minio_root_password.txt
+  jwt_access_token_secret:
+    file: ./infrastructure/secrets/jwt_access_token_secret.txt
+  jwt_refresh_token_secret:
+    file: ./infrastructure/secrets/jwt_refresh_token_secret.txt
+  mailgun_api_key:
+    file: ./infrastructure/secrets/mailgun_api_key.txt
+  stripe_api_key:
+    file: ./infrastructure/secrets/stripe_api_key.txt
+  stripe_webhook_secret:
+    file: ./infrastructure/secrets/stripe_webhook_secret.txt
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

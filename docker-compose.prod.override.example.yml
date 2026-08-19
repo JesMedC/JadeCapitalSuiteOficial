@@ -1,0 +1,38 @@
+# Wave 10 slice 10.2 — production override example.
+#
+# This file is a TEMPLATE only. Copy it to `docker-compose.prod.override.yml`
+# on the production VM and fill in real values; the real override is
+# `.gitignore`d. The base `docker-compose.prod.yml` does NOT publish
+# ports except for nginx, so any host-side port remap should happen here.
+#
+# Use cases covered:
+#   * Per-environment domain + CORS origin.
+#   * Per-host volume paths (e.g. /srv/jadecapital/data vs /var/lib/... ).
+#   * Optional backup cron / extra sidecar services (10.4 will add these).
+#
+# Invocation:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d
+
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Cors__Origins__0: https://jadecapital.example.com
+    # Optional: bind api to host loopback only (if dev tunnel is required
+    # and nginx is on a different host).
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+
+  postgres:
+    # Move the data volume to a known host path for backup tooling.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  nginx:
+    volumes:
+      - ./infrastructure/certbot/conf:/etc/letsencrypt:ro
+      - ./infrastructure/certbot/www:/var/www/certbot:ro
+
+# Optional: extra sidecars (backup cron, log shipper) can be added here.
+# The base compose stays minimal so a fresh deploy doesn't fail on missing
+# third-party credentials.

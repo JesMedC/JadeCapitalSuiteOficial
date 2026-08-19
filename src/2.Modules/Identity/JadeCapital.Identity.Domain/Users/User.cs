@@ -3,6 +3,7 @@ using JadeCapital.Identity.Domain.Common;
 using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.Time;
 
 namespace JadeCapital.Identity.Domain.Users;
 
@@ -35,6 +36,44 @@ public sealed class User : AggregateRoot<Guid>
     public DateTimeOffset? LastLoginAt { get; private set; }
     public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockedUntil { get; private set; }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — UTC offset at which the soft-delete cascade
+    /// flipped the user into <see cref="UserStatus.SoftDeleted"/>. NULL
+    /// until DELETE /api/users/me fires. Mirrors the IsDeleted soft-delete
+    /// flag's "deleted_at_utc" semantic for the GDPR state machine.
+    /// </summary>
+    public DateTimeOffset? SoftDeletedAt { get; private set; }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — UTC offset at which the row is eligible for
+    /// hard-delete by <c>HardDeleteSweepBackgroundService</c>. Default is
+    /// 30 days after <see cref="SoftDeletedAt"/>. NULL until the cascade
+    /// handler writes it.
+    /// </summary>
+    public DateTimeOffset? ScheduledHardDeleteAt { get; private set; }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — Terms-of-Service version the user accepted
+    /// on registration. NULL for users created before slice 10.5 (no
+    /// backfill — pre-existing users keep the NULL and are treated as
+    /// "not yet accepted"; the GDPR DELETE endpoint is the only path
+    /// that does NOT require re-acceptance for those accounts).
+    /// </summary>
+    public string? AcceptedTermsVersion { get; private set; }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — Privacy Policy version the user accepted
+    /// on registration. Same NULL semantics as
+    /// <see cref="AcceptedTermsVersion"/>.
+    /// </summary>
+    public string? AcceptedPrivacyVersion { get; private set; }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — UTC offset at which the user accepted ToS
+    /// + Privacy Policy on signup. NULL for legacy accounts.
+    /// </summary>
+    public DateTimeOffset? AcceptedAt { get; private set; }
 
     /// <summary>
     /// Incremented on every successful password change. Refresh tokens track the
@@ -127,6 +166,129 @@ public sealed class User : AggregateRoot<Guid>
         var user = new User(id, email.Trim().ToLowerInvariant(), displayName.Trim(), passwordHash, role);
         user.RaiseDomainEvent(new UserRegisteredDomainEvent(user.Id, user.Email, user.Role, DateTimeOffset.UtcNow));
         return Result.Success(user);
+    }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — Crea un nuevo User con consentimiento explicito
+    /// de Terms of Service + Privacy Policy (GDPR Art. 6 + ePrivacy
+    /// directive). El handler de Register exige ambos flags antes de
+    /// invocar esta factory; las versiones aceptadas se persisten en el
+    /// agregado + el evento <see cref="UserRegisteredDomainEvent"/> lleva
+    /// las versiones para audit.
+    /// </summary>
+    public static Result<User> Register(
+        Guid id,
+        string email,
+        string displayName,
+        string passwordHash,
+        UserRole role,
+        string acceptedTermsVersion,
+        string acceptedPrivacyVersion)
+    {
+        if (string.IsNullOrWhiteSpace(acceptedTermsVersion))
+            return Result.Failure<User>(IdentityDomainErrors.User.AcceptedTermsVersionRequired);
+
+        if (string.IsNullOrWhiteSpace(acceptedPrivacyVersion))
+            return Result.Failure<User>(IdentityDomainErrors.User.AcceptedPrivacyVersionRequired);
+
+        var baseResult = Register(id, email, displayName, passwordHash, role);
+        if (baseResult.IsFailure) return baseResult;
+
+        var user = baseResult.Value;
+        var now = DateTimeOffset.UtcNow;
+        user.AcceptedTermsVersion = acceptedTermsVersion.Trim();
+        user.AcceptedPrivacyVersion = acceptedPrivacyVersion.Trim();
+        user.AcceptedAt = now;
+        user.Touch();
+        return Result.Success(user);
+    }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — GDPR Art. 17 (right to be forgotten). Flips
+    /// the user into <see cref="UserStatus.SoftDeleted"/>, anonymizes the
+    /// email + display name, and records the <see cref="SoftDeletedAt"/>
+    /// timestamp. The canonical cascade is:
+    /// Active -> SoftDeleted -> ScheduledHardDelete -> HardDeleted
+    /// (3 separate transitions, 3 separate domain methods).
+    ///
+    /// <para>
+    /// <b>Why an explicit method instead of <c>User.Cancel(reason)</c></b>:
+    /// Cancel is the soft-disabling path (status -> Cancelled, retention
+    /// keeps the row for analytics). GDPR delete is the
+    /// physical-purge-with-grace path. Different intent, different column
+    /// fan-out (Cancel does NOT touch <see cref="ScheduledHardDeleteAt"/>).
+    /// </para>
+    /// </summary>
+    public Result AnonymizeForGdprDelete(IClock clock)
+    {
+        if (clock is null) return Result.Failure(IdentityDomainErrors.User.ClockRequired);
+        if (Status == UserStatus.HardDeleted)
+            return Result.Failure(IdentityDomainErrors.User.AlreadyHardDeleted);
+
+        if (Status == UserStatus.SoftDeleted || Status == UserStatus.ScheduledHardDelete)
+            return Result.Failure(IdentityDomainErrors.User.AlreadyDeleted);
+
+        var now = clock.UtcNow;
+        Status = UserStatus.SoftDeleted;
+        SoftDeletedAt = now;
+        Email = $"deleted-{Id:N}@anonymized.local";
+        DisplayName = "Deleted User";
+        PasswordHash = string.Empty;
+        FailedLoginCount = 0;
+        LockedUntil = null;
+        SessionVersion++;
+        Touch();
+        RaiseDomainEvent(new UserAnonymizedDomainEvent(Id, now));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — Schedules the hard-delete sweep 30 days (default)
+    /// after <see cref="SoftDeletedAt"/>. Called by the GDPR cascade
+    /// orchestrator after the soft-delete cascade succeeds. Idempotent:
+    /// scheduling twice with the same grace does NOT bump the
+    /// <see cref="ScheduledHardDeleteAt"/> (avoids re-extending the grace
+    /// window on accidental double-invocation).
+    /// </summary>
+    public Result ScheduleHardDelete(IClock clock, TimeSpan? gracePeriod = null)
+    {
+        if (clock is null) return Result.Failure(IdentityDomainErrors.User.ClockRequired);
+
+        if (Status != UserStatus.SoftDeleted)
+            return Result.Failure(IdentityDomainErrors.User.NotSoftDeleted);
+
+        if (ScheduledHardDeleteAt is not null)
+            return Result.Success(); // idempotent no-op
+
+        var grace = gracePeriod ?? TimeSpan.FromDays(30);
+        var baseline = SoftDeletedAt ?? clock.UtcNow;
+        ScheduledHardDeleteAt = baseline.Add(grace);
+        Status = UserStatus.ScheduledHardDelete;
+        Touch();
+        RaiseDomainEvent(new UserScheduledHardDeleteDomainEvent(Id, ScheduledHardDeleteAt.Value, clock.UtcNow));
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Wave 10 slice 10.5 — Marks the user as hard-deleted (terminal). The
+    /// actual row DELETE is performed by
+    /// <c>HardDeleteSweepBackgroundService</c>; this method only flips the
+    /// status so the audit trail knows the user is gone before the SQL
+    /// DELETE fires. In practice the sweep deletes the row in the same
+    /// transaction that flips the status — the method is kept for unit
+    /// tests that exercise the state-machine invariants in isolation.
+    /// </summary>
+    public Result MarkHardDeleted(IClock clock)
+    {
+        if (clock is null) return Result.Failure(IdentityDomainErrors.User.ClockRequired);
+
+        if (Status != UserStatus.ScheduledHardDelete)
+            return Result.Failure(IdentityDomainErrors.User.NotScheduledForHardDelete);
+
+        Status = UserStatus.HardDeleted;
+        Touch();
+        RaiseDomainEvent(new UserHardDeletedDomainEvent(Id, clock.UtcNow));
+        return Result.Success();
     }
 
     public Result ChangePassword(string newPasswordHash)

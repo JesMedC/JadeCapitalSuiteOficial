@@ -5,6 +5,7 @@ using JadeCapital.Identity.Infrastructure.Audit;
 using JadeCapital.Identity.Infrastructure.Audit.Configuration;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
 using JadeCapital.Identity.Infrastructure.BackgroundServices;
+using JadeCapital.Identity.Infrastructure.Cascade;
 using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Identity.Infrastructure.Projections;
@@ -177,6 +178,17 @@ public static class IdentityModuleRegistration
         // creates its own scope via IServiceScopeFactory per cycle.
         services.AddScoped<IAuditRetentionService, AuditRetentionService>();
         services.AddHostedService<AuditRetentionBackgroundService>();
+
+        // ===== Slice 10.5 — GDPR Art. 17 cascade deletor =====
+        // Per-module deletors are auto-collected by `IEnumerable<IUserCascadeDeletor>`
+        // (Identity ships its own; Trading + Billing register theirs in their modules).
+        // The orchestrator composes them and runs the cascade + audit anonymization.
+        services.AddScoped<IGdprAuditAnonymizer, GdprAuditAnonymizer>();
+        services.AddScoped<IUserCascadeDeletor, IdentityUserCascadeDeletor>();
+        services.AddScoped<UserCascadeDeleterOrchestrator>();
+        // HardDeleteSweepBackgroundService picks up ScheduledHardDelete users daily
+        // and runs CascadeHardDeleteAsync + audit anonymization.
+        services.AddHostedService<JadeCapital.Identity.Infrastructure.BackgroundServices.HardDeleteSweepBackgroundService>();
 
         return services;
     }

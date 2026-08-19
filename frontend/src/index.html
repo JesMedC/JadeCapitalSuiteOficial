@@ -7,6 +7,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0B1320">
   <meta name="description" content="Plataforma profesional de trading journal.">
+  <!--
+    Wave 10 slice 10.3 — meta CSP fallback (per spec/security-headers/spec.md §"Out of scope").
+    nginx emits the same Content-Security-Policy as an HTTP header in prod, but dev (`ng serve`)
+    + any static-server scenario bypass nginx entirely. The <meta http-equiv> tag is the
+    in-document fallback so the browser enforces CSP regardless of the edge proxy.
+    Mirrors infrastructure/nginx/nginx.conf (relaxed mode for v1.0.0-rc1).
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">
+  <!-- Wave 10 slice 10.3 — SEO / OpenGraph (Wave 10.6 will add sitemap.xml + robots.txt; canonical + OG tags are simple). -->
+  <meta property="og:title" content="Jade Capital — Trading Journal">
+  <meta property="og:description" content="Professional trading journal for Forex and binary options traders. Track, analyze, and improve your trading.">
+  <meta property="og:image" content="https://jadecapital.example.com/assets/og-image.png">
+  <meta property="og:url" content="https://jadecapital.example.com/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://jadecapital.example.com/">
 </head>
 <body>
   <jcs-root></jcs-root>
