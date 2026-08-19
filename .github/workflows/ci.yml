@@ -119,6 +119,29 @@ jobs:
           dotnet test tests/UnitTests/JadeCapital.Admin.UnitTests/JadeCapital.Admin.UnitTests.csproj
           --nologo --verbosity minimal --no-build
 
+      # Wave 10 slice 10.6 — OpenAPI export.
+      # Boots the API in the background, pulls swagger.json from
+      # /swagger/v1/swagger.json (Swashbuckle auto-generates the spec
+      # when AddSwaggerGen() is registered in Program.cs), then uploads
+      # it as a workflow artifact (30-day retention). The `kill $API_PID`
+      # is best-effort — the runner garbage-collects the dotnet process
+      # on job exit even if SIGTERM fails (e.g. mid-startup).
+      - name: Export OpenAPI spec
+        run: |
+          dotnet run --project src/1.Api/JadeCapital.Host --no-build --urls http://localhost:8080 &
+          API_PID=$!
+          sleep 30
+          curl -sS http://localhost:8080/swagger/v1/swagger.json -o openapi.json || true
+          kill $API_PID 2>/dev/null || true
+          ls -la openapi.json
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+          retention-days: 30
+          if-no-uses-found: ignore
+
   # ---------------------------------------------------------------------------
   # Job 3: test-integration — Postgres via GitHub-hosted services block.
   # No Testcontainers: the service hostnames match what Testcontainers
