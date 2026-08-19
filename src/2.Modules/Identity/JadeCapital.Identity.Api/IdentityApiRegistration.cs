@@ -34,6 +34,8 @@ public static class IdentityApiRegistration
         app.MapAuthEndpoints();
         app.MapRiskProfileEndpoints();
         app.MapTenantEndpoints();
+        // Wave 11 slice 11.2b — /api/users/me (DELETE → GDPR right-to-be-forgotten).
+        app.MapUserEndpoints();
         return app;
     }
 

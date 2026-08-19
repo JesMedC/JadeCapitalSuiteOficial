@@ -186,6 +186,11 @@ public static class IdentityModuleRegistration
         services.AddScoped<IGdprAuditAnonymizer, GdprAuditAnonymizer>();
         services.AddScoped<IUserCascadeDeletor, IdentityUserCascadeDeletor>();
         services.AddScoped<UserCascadeDeleterOrchestrator>();
+        // Wave 11 slice 11.2b — DeleteAccountHandler depends on the abstraction
+        // (Application layer must not reference Infrastructure). The concrete
+        // UserCascadeDeleterOrchestrator implements IGdprCascadeOrchestrator.
+        services.AddScoped<IGdprCascadeOrchestrator>(sp =>
+            sp.GetRequiredService<UserCascadeDeleterOrchestrator>());
         // HardDeleteSweepBackgroundService picks up ScheduledHardDelete users daily
         // and runs CascadeHardDeleteAsync + audit anonymization.
         services.AddHostedService<JadeCapital.Identity.Infrastructure.BackgroundServices.HardDeleteSweepBackgroundService>();

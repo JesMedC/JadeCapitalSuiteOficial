@@ -38,7 +38,7 @@ namespace JadeCapital.Identity.Infrastructure.Cascade;
 /// source of truth for the GDPR cascade.
 /// </para>
 /// </summary>
-public sealed class UserCascadeDeleterOrchestrator
+public sealed class UserCascadeDeleterOrchestrator : IGdprCascadeOrchestrator
 {
     private readonly IReadOnlyList<IUserCascadeDeletor> _deletors;
     private readonly IGdprAuditAnonymizer _auditAnonymizer;
