@@ -114,7 +114,26 @@ services.AddSingleton<JadeCapital.Shared.Kernel.Storage.IVirusScanner,
 // Usage repository — one SUM + COUNT query per request; cheap.
 services.AddScoped<ITradeAttachmentUsageRepository, TradeAttachmentUsageRepository>();
 // Sweep repository — used only by AttachmentLifecycleService; bounded-batch pages.
-services.AddScoped<IAttachmentSweepRepository, AttachmentSweepRepository>();
+        services.AddScoped<IAttachmentSweepRepository, AttachmentSweepRepository>();
+        // Wave 9 slice 9a.3 — typed audit decorator over IAttachmentSweepRepository.
+        // Sub-scope A: NEW BESPOKE BATCH SOFT-DELETE PATTERN — wraps
+        // SoftDeleteBatchAsync with the cross-tenant IsOwner check per id +
+        // emits 1 audit row per id with EntityType = "TradeAttachment" (the
+        // child aggregate, NOT the sweep operation) + a
+        // isActive: { before: true, after: false } diff JSON. The decorator
+        // loads each attachment via the scoped DbContext to read attachment.UserId
+        // for IsOwner + capture the pre-mutation IsActive for the diff. The
+        // 1-call-many-audit-rows pattern: 1 batch call → N audit rows (one per
+        // id in the batch), NOT 1 row per batch. Cross-tenant id in the batch
+        // emits AuditAction.Denied for THAT id + throws
+        // UnauthorizedAccessException for the WHOLE batch (transaction abort —
+        // inner is NEVER reached). 3 reads (GetExpiredBatchAsync +
+        // GetUserAggregateAsync + GetActiveUserIdsAsync) are forwarded without
+        // audit. InsertAuditAsync is forwarded WITHOUT audit — it IS the write
+        // to trading.attachments_quota_audit (the sweep's own audit log);
+        // auditing it would create an infinite loop. Mirrors the Wave 8 8b.2
+        // IStripeWebhookEventRepository SKIP rationale.
+        services.Decorate<IAttachmentSweepRepository, AttachmentSweepAuditDecorator>();
 // Thumbnail generator — wraps the MinIO SDK presigned-GET call + transform params.
 services.AddScoped<IAttachmentThumbnailGenerator, MinioThumbnailGenerator>();
 
