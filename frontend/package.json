@@ -14,7 +14,7 @@
     "@angular/core": "^19.0.0",
     "@angular/forms": "^19.0.0",
     "@angular/platform-browser": "^19.0.0",
-    "@angular/platform-browser-dynamic": "^19.0.0",
+    "@angular/platform-browser-dynamic": "^20.0.7",
     "@angular/router": "^19.0.0",
     "@microsoft/signalr": "^8.0.29",
     "@sentry/angular": "^9.47.1",
