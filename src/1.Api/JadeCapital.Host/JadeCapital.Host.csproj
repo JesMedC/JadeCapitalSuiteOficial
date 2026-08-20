@@ -16,6 +16,11 @@
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="1.2.40" />
+    <!-- Wave 12 slice 12.1 — Sentry.AspNetCore 5.x (last release supporting net10.0;
+         newer 6.x packages require net8/net9 but no breaking API changes for
+         the surface we use — Dsn/Environment/TracesSampleRate/AttachStacktrace/SendDefaultPii).
+         Pinned to 5.8.0 because 6.x raises NU1701 on net10.0. -->
+    <PackageReference Include="Sentry.AspNetCore" Version="5.8.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
     <PackageReference Include="MediatR" Version="12.4.1" />

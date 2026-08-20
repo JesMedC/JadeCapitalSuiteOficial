@@ -1,18 +1,18 @@
 // Wave 10 slice 10.6 - Unit tests for StripeOptionsValidator.
+// Wave 12 slice 12.1 — SecretKey replaces the retired ApiKey alias.
 //
 // RED scenarios (matches tasks.md Phase 8.1):
-//   1. Validate_ProductionEnv_EmptyApiKey_Fails
+//   1. Validate_ProductionEnv_EmptySecretKey_Fails
 //   2. Validate_ProductionEnv_NonLiveKey_Fails (sk_test_ in prod)
 //   3. Validate_ProductionEnv_LiveKey_Passes (sk_live_ in prod)
 //   4. Validate_ProductionEnv_MissingWebhookSecret_Fails
-//   5. Validate_DevelopmentEnv_EmptyApiKey_Passes (falls back to StubStripeGateway)
+//   5. Validate_DevelopmentEnv_EmptySecretKey_Passes (falls back to StubStripeGateway)
 //   6. Validate_DevelopmentEnv_TestKey_Passes
 //   7. Validate_DevelopmentEnv_NonStandardKey_Fails (random string in dev)
 //
-// The validator dual-reads Stripe:ApiKey (canonical) AND Stripe:SecretKey
-// (legacy docker-compose alias). This bridges an existing env-var binding
-// mismatch: the compose file uses Stripe__SecretKey while StripeOptions
-// (Billing) reads ApiKey. Failures surface the migration path.
+// Wave 12.1 — the canonical wire name is `SecretKey`; the legacy `ApiKey`
+// alias bridge added in Wave 11.4 is retired in v1.0.0+. All test
+// initialisers target SecretKey directly.
 
 using FluentAssertions;
 using JadeCapital.Host.Configuration;
@@ -49,20 +49,20 @@ public class StripeOptionsValidatorTests : IDisposable
     }
 
     [Fact]
-    public void Validate_ProductionEnv_EmptyApiKey_Fails()
+    public void Validate_ProductionEnv_EmptySecretKey_Fails()
     {
         // Arrange
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
         var sut = BuildValidator(BuildConfig(new Dictionary<string, string?>
         {
-            ["Stripe:ApiKey"] = "",
+            ["Stripe:SecretKey"] = "",
             ["Stripe:WebhookSecret"] = "whsec_xyz"
         }));
 
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = string.Empty,
+            SecretKey = string.Empty,
             WebhookSecret = "whsec_xyz"
         });
 
@@ -82,7 +82,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = "sk_test_abcdef",
+            SecretKey = "sk_test_abcdef",
             WebhookSecret = "whsec_xyz"
         });
 
@@ -101,7 +101,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = "sk_live_REDACTED_long_enough_to_be_real",
+            SecretKey = "sk_live_REDACTED_long_enough_to_be_real",
             WebhookSecret = "whsec_REDACTED"
         });
 
@@ -120,7 +120,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = "sk_live_REDACTED",
+            SecretKey = "sk_live_REDACTED",
             WebhookSecret = ""
         });
 
@@ -130,7 +130,7 @@ public class StripeOptionsValidatorTests : IDisposable
     }
 
     [Fact]
-    public void Validate_DevelopmentEnv_EmptyApiKey_Passes()
+    public void Validate_DevelopmentEnv_EmptySecretKey_Passes()
     {
         // Arrange - empty key in dev means "use StubStripeGateway".
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
@@ -139,7 +139,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = string.Empty,
+            SecretKey = string.Empty,
             WebhookSecret = string.Empty
         });
 
@@ -157,7 +157,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = "sk_test_abcdef",
+            SecretKey = "sk_test_abcdef",
             WebhookSecret = "whsec_xyz"
         });
 
@@ -176,7 +176,7 @@ public class StripeOptionsValidatorTests : IDisposable
         // Act
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = "not-a-stripe-key",
+            SecretKey = "not-a-stripe-key",
             WebhookSecret = "whsec_xyz"
         });
 
@@ -188,11 +188,11 @@ public class StripeOptionsValidatorTests : IDisposable
     [Fact]
     public void Validate_ProductionEnv_SecretKeyAlias_Passes()
     {
-        // Arrange - legacy env var Stripe__SecretKey is mapped to ApiKey via
-        // raw IConfiguration read (it's NOT bound by the options system
-        // because StripeOptions.ApiKey would need Stripe:ApiKey). This bridge
-        // prevents the validator from blocking the existing prod deploy while
-        // we migrate the env var name.
+        // Wave 12.1 — SecretKey is the canonical binding target. Belt-and-
+        // braces: when the bound StripeOptions.SecretKey is empty BUT the
+        // raw configuration carries `Stripe:SecretKey`, the validator
+        // reads it from the raw config (covers the case where the section
+        // wasn't picked up by the options binder).
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production");
         var config = BuildConfig(new Dictionary<string, string?>
         {
@@ -201,10 +201,10 @@ public class StripeOptionsValidatorTests : IDisposable
         });
         var sut = BuildValidator(config);
 
-        // Act - ApiKey NOT populated, but raw config has SecretKey
+        // Act - SecretKey NOT populated, but raw config has SecretKey
         var result = sut.Validate("Stripe", new StripeOptions
         {
-            ApiKey = string.Empty,
+            SecretKey = string.Empty,
             WebhookSecret = "whsec_REDACTED"
         });
 
