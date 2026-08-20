@@ -48,6 +48,7 @@ public class RegisterWelcomeEmailTests
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly IOptions<JwtOptions> _jwtOptions = Substitute.For<IOptions<JwtOptions>>();
     private readonly IEmailSender _email = Substitute.For<IEmailSender>();
+    private readonly WelcomeEmailPolicy _welcomeEmailPolicy = new(Options.Create(new WelcomeEmailPolicyOptions()));
     private readonly ILogger<RegisterUserHandler> _logger = Substitute.For<ILogger<RegisterUserHandler>>();
 
     public RegisterWelcomeEmailTests()
@@ -77,7 +78,7 @@ public class RegisterWelcomeEmailTests
     }
 
     private RegisterUserHandler CreateSut() =>
-        new(_users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _logger);
+        new(_users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _welcomeEmailPolicy, _logger);
 
     [Fact]
     public async Task SendsOnceOnFirstRegister()
@@ -116,10 +117,11 @@ public class RegisterWelcomeEmailTests
 
         var now = sentAt.AddDays(3); // within the 7-day window
 
-        var decision = WelcomeEmailPolicy.ShouldSend(user, now);
+        var policy = new WelcomeEmailPolicy(Options.Create(new WelcomeEmailPolicyOptions()));
+        var decision = policy.ShouldSend(user, now);
 
         decision.Should().Be(WelcomeEmailPolicy.Decision.SuppressedRecentSend);
-        WelcomeEmailPolicy.ShouldSendBool(user, now).Should().BeFalse();
+        policy.ShouldSendBool(user, now).Should().BeFalse();
     }
 
     [Fact]
@@ -131,10 +133,11 @@ public class RegisterWelcomeEmailTests
 
         var now = sentAt.AddDays(8); // beyond the 7-day window
 
-        var decision = WelcomeEmailPolicy.ShouldSend(user, now);
+        var policy = new WelcomeEmailPolicy(Options.Create(new WelcomeEmailPolicyOptions()));
+        var decision = policy.ShouldSend(user, now);
 
         decision.Should().Be(WelcomeEmailPolicy.Decision.SuppressionLapsed);
-        WelcomeEmailPolicy.ShouldSendBool(user, now).Should().BeTrue();
+        policy.ShouldSendBool(user, now).Should().BeTrue();
     }
 
     [Fact]
@@ -142,9 +145,10 @@ public class RegisterWelcomeEmailTests
     {
         var user = User.Register(Guid.NewGuid(), "user" + "@" + "test.com", "Test User", "h", UserRole.Trader).Value;
 
-        var decision = WelcomeEmailPolicy.ShouldSend(user, new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
+        var policy = new WelcomeEmailPolicy(Options.Create(new WelcomeEmailPolicyOptions()));
+        var decision = policy.ShouldSend(user, new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero));
 
         decision.Should().Be(WelcomeEmailPolicy.Decision.SendFirstTime);
-        WelcomeEmailPolicy.ShouldSendBool(user, _clock.UtcNow).Should().BeTrue();
+        policy.ShouldSendBool(user, _clock.UtcNow).Should().BeTrue();
     }
 }

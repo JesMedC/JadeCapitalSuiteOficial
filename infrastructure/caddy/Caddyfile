@@ -52,6 +52,17 @@ jadecapital.com, *.jadecapital.com {
     # is removed from the topology, the security posture is preserved.
     header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
     header X-Content-Type-Options "nosniff"
+    # Wave 12 slice 12.2 — Content-Security-Policy (defense in depth).
+    # The frontend nginx (infrastructure/nginx/nginx.conf) emits the strict
+    # version with `'nonce-{request_nonce}'` (per-request nonce via nginx-njs);
+    # Caddy's equivalent directive is intentionally NONCE-FREE because Caddy
+    # has no native per-request nonce generator that runs before Angular's
+    # bundled JS executes. The static CSP here is the safety net so a direct
+    # Caddy→origin path (no nginx) still rejects cross-origin scripts. The
+    # `<meta http-equiv="Content-Security-Policy">` in frontend/src/index.html
+    # is the dev-mode (`ng serve`) fallback that mirrors this policy with a
+    # per-page-load nonce generated client-side.
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
     # SignalR hubs — explicit reverse proxy to the API host. Caddy 2.x handles
     # the WebSocket upgrade automatically; the `header_up` directive strips the

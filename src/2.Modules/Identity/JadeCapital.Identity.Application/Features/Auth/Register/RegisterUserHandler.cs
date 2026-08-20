@@ -14,17 +14,18 @@ using Microsoft.Extensions.Options;
 namespace JadeCapital.Identity.Application.Features.Auth.Register;
 
 // ============================================================================
-//  RegisterUserHandler — Wave 11 slice 11.4
+//  RegisterUserHandler — Wave 11 slice 11.4 → Wave 12 slice 12.2.
 //
 //  Extended with:
 //    1. GDPR Art. 7 consent persistence (TermsAcceptedAt + PrivacyAcceptedAt
 //       + ConsentIp) via User.RecordConsent BEFORE AddAsync, so the row
 //       is persisted with the audit ledger intact.
 //    2. Idempotent welcome-email send via IEmailSender.SendWelcomeEmailAsync.
-//       The handler reads users.welcome_email_sent_at and enforces a 7-day
-//       suppression window (a re-registration within the window does NOT
-//       re-fire the email). The send is wrapped in try/catch so a flaky
-//       SMTP transport cannot undo the already-committed user row.
+//       Wave 11.4 hard-coded the 7-day suppression window inside a static
+//       WelcomeEmailPolicy. Wave 12.2 swaps that for an injected
+//       WelcomeEmailPolicy instance that reads WelcomeEmailPolicyOptions
+//       (per-environment tunability). The send is wrapped in try/catch so
+//       a flaky SMTP transport cannot undo the already-committed user row.
 //
 //  <para>
 //  <b>Failure isolation for the welcome email</b>: a Transient SMTP failure
@@ -44,6 +45,7 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
     private readonly IClock _clock;
     private readonly JwtOptions _jwtOptions;
     private readonly IEmailSender _email;
+    private readonly WelcomeEmailPolicy _welcomeEmailPolicy;
     private readonly ILogger<RegisterUserHandler> _logger;
 
     public RegisterUserHandler(
@@ -55,6 +57,7 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
         IClock clock,
         IOptions<JwtOptions> jwtOptions,
         IEmailSender email,
+        WelcomeEmailPolicy welcomeEmailPolicy,
         ILogger<RegisterUserHandler> logger)
     {
         _users = users;
@@ -65,6 +68,7 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
         _clock = clock;
         _jwtOptions = jwtOptions.Value;
         _email = email;
+        _welcomeEmailPolicy = welcomeEmailPolicy;
         _logger = logger;
     }
 
@@ -149,24 +153,33 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
     }
 
     /// <summary>
-    /// Idempotent welcome-email send. The 7-day suppression window is
-    /// anchored on <see cref="User.WelcomeEmailSentAt"/>; a re-register
-    /// inside the window is a silent no-op so a flaky network or a
-    /// double-click does NOT spam the user with two welcome emails.
-    /// The policy lives in <see cref="WelcomeEmailPolicy"/> so the
-    /// decision is independently unit-testable.
+    /// Idempotent welcome-email send. The suppression window is anchored on
+    /// <see cref="User.WelcomeEmailSentAt"/>; a re-register inside the window
+    /// is a silent no-op so a flaky network or a double-click does NOT spam
+    /// the user with two welcome emails. The policy lives in the injected
+    /// <see cref="WelcomeEmailPolicy"/> so the decision is independently
+    /// unit-testable AND per-environment tunable via
+    /// <c>appsettings.json</c> → <c>WelcomeEmailPolicy</c> section.
     /// </summary>
     private async Task TrySendWelcomeEmailAsync(
         User user,
         DateTimeOffset now,
         CancellationToken ct)
     {
-        var decision = WelcomeEmailPolicy.ShouldSend(user, now);
+        if (!_welcomeEmailPolicy.IsEnabled)
+        {
+            _logger.LogDebug(
+                "Welcome email disabled by policy (SendOnRegister=false) for user {UserId}.",
+                user.Id);
+            return;
+        }
+
+        var decision = _welcomeEmailPolicy.ShouldSend(user, now);
         if (decision == WelcomeEmailPolicy.Decision.SuppressedRecentSend)
         {
             _logger.LogInformation(
                 "Welcome email suppressed for user {UserId} (WelcomeEmailSentAt={SentAt}; suppress window {Window}).",
-                user.Id, user.WelcomeEmailSentAt, WelcomeEmailPolicy.SuppressionWindow);
+                user.Id, user.WelcomeEmailSentAt, _welcomeEmailPolicy.SuppressionWindow);
             return;
         }
 

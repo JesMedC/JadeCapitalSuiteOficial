@@ -9,12 +9,26 @@
   <meta name="description" content="Plataforma profesional de trading journal.">
   <!--
     Wave 10 slice 10.3 — meta CSP fallback (per spec/security-headers/spec.md §"Out of scope").
-    nginx emits the same Content-Security-Policy as an HTTP header in prod, but dev (`ng serve`)
-    + any static-server scenario bypass nginx entirely. The <meta http-equiv> tag is the
-    in-document fallback so the browser enforces CSP regardless of the edge proxy.
-    Mirrors infrastructure/nginx/nginx.conf (relaxed mode for v1.0.0-rc1).
+    Wave 12 slice 12.2 — per-page-load nonce. The inline script below (replacing the
+    prior static <meta>) generates a random 16-byte base64 nonce on every page load
+    and writes it as a <meta http-equiv="Content-Security-Policy"> fallback. This
+    keeps dev (`ng serve`) + any static-server scenario enforcing CSP with a
+    per-page nonce, which mirrors what the prod nginx does via
+    `'nonce-{request_nonce}'` (nginx-njs). The nonce is ALSO stored on
+    `window.__CSP_NONCE__` so any future inline script in the app can pick it up.
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">
+  <script>
+    (function() {
+      var bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      var nonce = btoa(String.fromCharCode.apply(null, bytes)).slice(0, 22);
+      window.__CSP_NONCE__ = nonce;
+      var meta = document.createElement('meta');
+      meta.httpEquiv = 'Content-Security-Policy';
+      meta.content = "default-src 'self'; script-src 'self' 'nonce-" + nonce + "' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+      document.head.appendChild(meta);
+    })();
+  </script>
   <!-- Wave 10 slice 10.3 — SEO / OpenGraph (Wave 10.6 will add sitemap.xml + robots.txt; canonical + OG tags are simple). -->
   <meta property="og:title" content="Jade Capital — Trading Journal">
   <meta property="og:description" content="Professional trading journal for Forex and binary options traders. Track, analyze, and improve your trading.">

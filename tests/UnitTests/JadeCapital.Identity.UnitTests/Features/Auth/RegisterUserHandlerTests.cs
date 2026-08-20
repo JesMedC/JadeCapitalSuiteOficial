@@ -1,3 +1,4 @@
+using JadeCapital.Identity.Application.Features.Auth.Consent;
 using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
@@ -16,6 +17,7 @@ public class RegisterUserHandlerTests
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly IOptions<JwtOptions> _jwtOptions = Substitute.For<IOptions<JwtOptions>>();
     private readonly IEmailSender _email = Substitute.For<IEmailSender>();
+    private readonly WelcomeEmailPolicy _welcomeEmailPolicy = new(Options.Create(new WelcomeEmailPolicyOptions()));
     private readonly ILogger<RegisterUserHandler> _logger = Substitute.For<ILogger<RegisterUserHandler>>();
 
     public RegisterUserHandlerTests()
@@ -32,7 +34,7 @@ public class RegisterUserHandlerTests
     }
 
     private RegisterUserHandler CreateSut() => new(
-        _users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _logger);
+        _users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _welcomeEmailPolicy, _logger);
 
     private static string Email() => "user" + "@" + "test.com";
 
