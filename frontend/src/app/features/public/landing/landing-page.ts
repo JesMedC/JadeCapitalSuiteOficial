@@ -288,10 +288,22 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
         <header class="section-head section-head--center">
           <h2>Elige el plan que se adapta a tu operativa</h2>
         </header>
-        <div class="billing-toggle" role="tablist">
-          <button class="toggle" [class.on]="!annual()" (click)="annual.set(false)">Mensual</button>
-          <button class="toggle" [class.on]="annual()" (click)="annual.set(true)">Anual <span class="save">-20%</span></button>
-          <span class="hint">Ahorra 2 meses con el plan anual</span>
+        <div class="billing-toggle" role="tablist" aria-label="Frecuencia de facturación">
+          <button
+            type="button"
+            role="tab"
+            class="toggle"
+            [class.on]="!annual()"
+            [attr.aria-selected]="!annual()"
+            (click)="annual.set(false)">Mensual</button>
+          <button
+            type="button"
+            role="tab"
+            class="toggle"
+            [class.on]="annual()"
+            [attr.aria-selected]="annual()"
+            (click)="annual.set(true)">Anual <span class="save">-20%</span></button>
+          <span class="hint" role="presentation">Ahorra 2 meses con el plan anual</span>
         </div>
         <div class="plans-grid">
           @for (p of plans(); track p.code) {

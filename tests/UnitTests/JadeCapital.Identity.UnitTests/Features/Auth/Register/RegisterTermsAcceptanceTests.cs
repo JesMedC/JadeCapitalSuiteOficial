@@ -1,5 +1,6 @@
 using FluentAssertions;
 using JadeCapital.Identity.Application._Common;
+using JadeCapital.Identity.Application.Features.Auth.Consent;
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Shared.Infrastructure.Email;
@@ -34,6 +35,7 @@ public class RegisterTermsAcceptanceTests
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly IOptions<JwtOptions> _jwtOptions = Substitute.For<IOptions<JwtOptions>>();
     private readonly IEmailSender _email = Substitute.For<IEmailSender>();
+    private readonly WelcomeEmailPolicy _welcomeEmailPolicy = new(Options.Create(new WelcomeEmailPolicyOptions()));
     private readonly ILogger<RegisterUserHandler> _logger = Substitute.For<ILogger<RegisterUserHandler>>();
 
     public RegisterTermsAcceptanceTests()
@@ -63,7 +65,7 @@ public class RegisterTermsAcceptanceTests
     }
 
     private RegisterUserHandler CreateSut() =>
-        new(_users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _logger);
+        new(_users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _welcomeEmailPolicy, _logger);
 
     [Fact]
     public async Task Valid_Registration_PersistsConsentLedgerColumns()

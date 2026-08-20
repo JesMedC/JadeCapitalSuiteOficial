@@ -55,5 +55,13 @@ public static class IdentityApplicationErrors
         public static readonly Error ConsentIpRequired =
             Error.Validation("auth.consent_ip_required",
                 "Consent IP is required for GDPR Art. 7 audit trail.");
+
+        // Wave 12 slice 12.2 — WelcomeEmailPolicy validation. Surfaced when the
+        // bound options fail ValidateOnStart (e.g., SuppressionDays < 0). The
+        // host-start validator catches this in dev/CI; the error code exists
+        // so any future runtime override can surface the same contract.
+        public static readonly Error WelcomeEmailPolicyInvalid =
+            Error.Validation("auth.welcome_email_policy_invalid",
+                "WelcomeEmailPolicy: SuppressionDays must be >= 0.");
     }
 }

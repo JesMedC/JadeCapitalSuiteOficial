@@ -1,4 +1,5 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Application.Features.Auth.Consent;
 using JadeCapital.Identity.Application.Features.SoftDelete;
 using JadeCapital.Identity.Contracts.Projections;
 using JadeCapital.Identity.Infrastructure.Audit;
@@ -160,6 +161,20 @@ public static class IdentityModuleRegistration
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<JadeCapital.Identity.Application.Abstractions.IPasswordChangeReuseChecker,
             JadeCapital.Identity.Application.Authentication.PasswordChangeReuseChecker>();
+
+        // ===== Wave 12 slice 12.2 — WelcomeEmailPolicy (IOptions-bound) =====
+        // Wave 11.4 hard-coded the 7-day suppression window inside a static
+        // WelcomeEmailPolicy. Wave 12.2 binds WelcomeEmailPolicyOptions from
+        // appsettings:WelcomeEmailPolicy so per-env tuning (e.g. shorter
+        // suppression for marketing-driven re-engagement, or SendOnRegister=false
+        // during a blackout) is a config change. ValidateOnStart catches a
+        // negative SuppressionDays at host start before any request runs.
+        services.Configure<WelcomeEmailPolicyOptions>(configuration.GetSection(WelcomeEmailPolicyOptions.SectionName));
+        services.AddOptions<WelcomeEmailPolicyOptions>()
+            .Bind(configuration.GetSection(WelcomeEmailPolicyOptions.SectionName))
+            .Validate(o => o.SuppressionDays >= 0, "WelcomeEmailPolicy:SuppressionDays must be >= 0")
+            .ValidateOnStart();
+        services.AddScoped<WelcomeEmailPolicy>();
 
         // ===== Background services =====
         services.AddHostedService<RefreshTokenCleanupService>();

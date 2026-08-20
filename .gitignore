@@ -19,6 +19,10 @@ coverage/
 *.log
 npm-debug.log*
 
+## Playwright
+playwright-report/
+test-results/
+
 ## Secrets
 .env
 .env.local
