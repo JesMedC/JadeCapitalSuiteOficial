@@ -36,6 +36,27 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ===== Wave 12 slice 12.1 — Sentry (silent skip when Sentry__Dsn is unset) =====
+// Production observability hook. When the operator sets Sentry__Dsn (env var)
+// we attach the Sentry.AspNetCore middleware so unhandled exceptions + 5xx
+// are forwarded to the Sentry project. When the env var is missing (the
+// default for local dev) the registration is a no-op — the host boots and
+// serves requests exactly as it did pre-Wave-12.
+// GDPR Art. 5 — data minimisation: SendDefaultPii=false so we never
+// forward IP / cookies / user identifiers to Sentry by default.
+var sentryDsn = builder.Configuration["Sentry__Dsn"];
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.WebHost.UseSentry(o =>
+    {
+        o.Dsn = sentryDsn;
+        o.Environment = builder.Environment.EnvironmentName;
+        o.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 1.0;
+        o.AttachStacktrace = true;
+        o.SendDefaultPii = false;
+    });
+}
+
 // ===== Wave 10 slice 10.2 — Docker Secrets adapter =====
 // Mounted secrets (read by docker compose `secrets:` blocks at
 // /run/secrets/<name>) become configuration keys under `__Secret:<name>`.
@@ -133,8 +154,17 @@ builder.Services.AddTradingInfrastructure(builder.Configuration);
 // Bind AIProviderOptions from the "Ollama" config section (or env vars
 // Ollama__BaseUrl / Ollama__Model / Ollama__Timeout — the project's standard
 // env-var convention). Defaults in the options class cover absent config.
+//
+// Wave 12 slice 12.1 — register the concrete type as a singleton too so
+// MediatR handlers that take AIProviderOptions (not IOptions<AIProviderOptions>)
+// can be resolved from DI. The AddOptions(...) chain is preserved because
+// IHttpClientFactory's typed-client delegate uses IOptions<> to stamp the
+// BaseAddress + Timeout at HttpClient construction time.
 builder.Services.AddOptions<AIProviderOptions>()
-    .Bind(builder.Configuration.GetSection("Ollama"));
+    .Bind(builder.Configuration.GetSection("Ollama"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<AIProviderOptions>>().Value);
 
 // IHttpClientFactory-managed HttpClient so DNS refresh + socket pooling are
 // owned by the host. The factory delegate stamps BaseAddress + Timeout from
@@ -430,6 +460,9 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ===== Modules =====
 app.MapIdentityApi();
+// Wave 12 slice 12.1 — public client-IP utility (anonymous; for GDPR consent
+// correlation before the visitor authenticates).
+app.MapClientIpEndpoint();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();

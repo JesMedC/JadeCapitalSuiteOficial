@@ -8,7 +8,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);NU1902;NU1903;NU1603;NU1605;CA1707;CA1848;CA1014;CA1716;CA1812;CA2007;CA1000;CA1861;CA1859;CA1725;CA1873;CA1305;CA1862;CA1806;MSB9008;CS0618</NoWarn>
+    <NoWarn>$(NoWarn);NU1902;NU1903;NU1603;NU1605;CA1707;CA1848;CA1014;CA1716;CA1812;CA2007;CA1000;CA1861;CA1859;CA1725;CA1873;CA1305;CA1862;CA1806;MSB9008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +17,10 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="FluentAssertions" Version="7.0.0" />
     <PackageReference Include="NSubstitute" Version="5.3.0" />
+    <!-- Wave 12 slice 12.1 — Microsoft.AspNetCore.TestHost for the
+         /api/util/client-ip endpoint integration test. Minimal host
+         pattern mirrors JadeCapital.Admin.UnitTests/Endpoints. -->
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="coverlet.msbuild" Version="6.0.2">
