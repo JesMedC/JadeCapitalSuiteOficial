@@ -1,75 +1,61 @@
-// Wave 12 slice 12.1 — Sentry FE init tests.
-//
-// Asserts the silent-skip contract from the FE side:
-//   1. Empty __SENTRY_DSN__ → Sentry.init is NEVER called.
-//   2. Set __SENTRY_DSN__ → Sentry.init IS called with the right shape.
-//   3. Whitespace __SENTRY_DSN__ → also skipped (treats as unset).
-//
-// The mock for @sentry/angular is local to this file so the rest of the
-// app's jest tests are not affected.
+import * as Sentry from '@sentry/angular';
+import { createTransport, type Transport } from '@sentry/core';
+import { initSentry, type FrontendObservabilityConfig } from './sentry-init';
 
-import { initSentry } from './sentry-init';
+const enabledConfig: FrontendObservabilityConfig = {
+  dsn: 'https://public@example.invalid/42',
+  release: 'jade-web@12.2.0',
+  environment: 'production',
+  enabled: true,
+};
 
-const initMock = jest.fn();
-
-jest.mock('@sentry/angular', () => ({
-  init: (...args: unknown[]) => initMock(...args),
-}));
-
-describe('initSentry', () => {
-  beforeEach(() => {
-    initMock.mockClear();
+describe('frontend Sentry', () => {
+  afterEach(async () => {
+    await Sentry.close(1000);
   });
 
-  it('skips Sentry.init when __SENTRY_DSN__ is empty', () => {
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__SENTRY_DSN__ = '';
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__APP_ENV__ = 'production';
+  it.each(['', '   '])('is a no-op for an empty DSN (%p)', (dsn) => {
+    initSentry({ ...enabledConfig, dsn, enabled: false });
 
-    initSentry();
-
-    expect(initMock).not.toHaveBeenCalled();
+    expect(Sentry.isInitialized()).toBe(false);
   });
 
-  it('skips Sentry.init when __SENTRY_DSN__ is whitespace', () => {
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__SENTRY_DSN__ = '   ';
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__APP_ENV__ = 'production';
+  it('captures an uncaught error with release and original TypeScript context but no PII', async () => {
+    const envelopes: string[] = [];
+    initSentry(enabledConfig, makeRecordingTransport(envelopes));
+    Sentry.setUser({ id: 'user-42', email: 'private@example.test', ip_address: '203.0.113.42' });
+    Sentry.setExtra('authorization', 'Bearer private-token');
+    Sentry.addBreadcrumb({ message: 'cookie=session-private', data: { body: 'private-body' } });
 
-    initSentry();
+    const suppressJsdomReport = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener('error', suppressJsdomReport);
+    dispatchUncaughtHarnessError();
+    window.removeEventListener('error', suppressJsdomReport);
+    expect(await Sentry.flush(1000)).toBe(true);
 
-    expect(initMock).not.toHaveBeenCalled();
-  });
-
-  it('calls Sentry.init with sendDefaultPii=false when DSN is set', () => {
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__SENTRY_DSN__ = 'https://fake@sentry.io/123';
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__APP_ENV__ = 'production';
-
-    initSentry();
-
-    expect(initMock).toHaveBeenCalledTimes(1);
-    expect(initMock).toHaveBeenCalledWith(expect.objectContaining({
-      dsn: 'https://fake@sentry.io/123',
-      environment: 'production',
-      sendDefaultPii: false,
-      tracesSampleRate: 0.1,
-    }));
-  });
-
-  it('falls back to development when __APP_ENV__ is empty', () => {
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__SENTRY_DSN__ = 'https://fake@sentry.io/123';
-    // @ts-expect-error -- global is provided by build-time define
-    globalThis.__APP_ENV__ = '';
-
-    initSentry();
-
-    expect(initMock).toHaveBeenCalledWith(expect.objectContaining({
-      environment: 'development',
-    }));
+    const payload = envelopes.find((envelope) => envelope.includes('"type":"event"'));
+    expect(payload).toEqual(expect.any(String));
+    expect(payload).toContain('jade-web@12.2.0');
+    expect(payload).toContain('sentry-init.spec.ts');
+    expect(payload).toContain('dispatchUncaughtHarnessError');
+    const transportOutput = envelopes.join('\n');
+    for (const sensitive of [
+      'user-42', 'private@example.test', '203.0.113.42',
+      'private-token', 'session-private', 'private-body',
+    ]) {
+      expect(transportOutput).not.toContain(sensitive);
+    }
   });
 });
+
+function dispatchUncaughtHarnessError(): void {
+  const error = new Error('deterministic frontend failure');
+  window.dispatchEvent(new ErrorEvent('error', { error, message: error.message }));
+}
+
+function makeRecordingTransport(envelopes: string[]): (options: never) => Transport {
+  return (options) => createTransport(options, ({ body }) => {
+    envelopes.push(body as string);
+    return Promise.resolve({ statusCode: 200 });
+  });
+}

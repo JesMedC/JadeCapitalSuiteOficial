@@ -1,4 +1,6 @@
-# Apply Progress — Wave 12 slice 12.1 — Critical observability + hardening
+> **SUPERSEDED — historical ledger only.** The canonical and authoritative ledger is [`apply-progress.md`](./apply-progress.md); do not use this file to determine active scope, task state, or evidence authority.
+
+# Historical Record — Wave 12 slice 12.1 — Critical observability + hardening
 
 > **Slice 12.1** — the FIRST slice of Wave 12 (PR targeting
 > `feature/0a-identity-model`).

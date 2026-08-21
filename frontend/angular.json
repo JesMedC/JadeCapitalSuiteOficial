@@ -22,11 +22,7 @@
             "styles": ["src/styles.scss"],
             "scripts": [],
             "stylePreprocessorOptions": { "includePaths": ["src/styles"] },
-            "define": {
-              "ngDevMode": "false",
-              "__SENTRY_DSN__": "\"\"",
-              "__APP_ENV__": "\"production\""
-            }
+            "define": { "ngDevMode": "false" }
           },
           "configurations": {
             "production": {
@@ -34,7 +30,8 @@
                 { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" },
                 { "type": "anyComponentStyle", "maximumWarning": "20kb", "maximumError": "40kb" }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "sourceMap": { "scripts": true, "styles": false, "hidden": true }
             },
             "development": {
               "optimization": false,

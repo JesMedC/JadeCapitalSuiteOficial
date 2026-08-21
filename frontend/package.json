@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "ng serve --host 0.0.0.0 --port 4200 --proxy-config proxy.conf.json",
-    "build": "ng build",
+    "build": "node scripts/generate-observability-config.mjs && ng build",
+    "build:angular": "ng build",
     "test": "jest",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/a11y.spec.ts"
@@ -30,6 +31,7 @@
     "@angular/compiler-cli": "^19.0.0",
     "@axe-core/playwright": "^4.10.0",
     "@playwright/test": "^1.49.0",
+    "@sentry/cli": "^3.6.2",
     "@types/jest": "^29.5.13",
     "jest": "^29.7.0",
     "jest-preset-angular": "^14.4.2",

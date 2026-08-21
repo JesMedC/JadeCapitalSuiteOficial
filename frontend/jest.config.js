@@ -28,6 +28,6 @@ module.exports = {
     '^@env/(.*)$': '<rootDir>/src/environments/$1',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(@angular|rxjs|@ngrx|tslib|zone\\.js))',
+    'node_modules/(?!(@angular|@sentry|rxjs|@ngrx|tslib|zone\\.js))',
   ],
 };

@@ -135,6 +135,16 @@ services:
     build:
       context: .
       dockerfile: infrastructure/Dockerfile.frontend.prod
+      args:
+        FRONTEND_SENTRY_DSN: ${FRONTEND_SENTRY_DSN}
+        SENTRY_RELEASE: ${SENTRY_RELEASE}
+        APP_ENV: ${APP_ENV:-production}
+        ALLOW_FRONTEND_SENTRY_DISABLED: ${ALLOW_FRONTEND_SENTRY_DISABLED:-false}
+        SENTRY_ORG: ${SENTRY_ORG:-}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-}
+      secrets:
+        - source: sentry_auth_token
+          target: sentry_auth_token
     restart: unless-stopped
     depends_on:
       - api
@@ -199,6 +209,8 @@ services:
       - ./infrastructure/postgres/migrations:/migrations:ro
 
 secrets:
+  sentry_auth_token:
+    environment: SENTRY_AUTH_TOKEN
   postgres_password:
     file: ./infrastructure/secrets/postgres_password.txt
   minio_root_user:

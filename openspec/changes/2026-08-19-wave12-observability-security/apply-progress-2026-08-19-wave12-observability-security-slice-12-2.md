@@ -1,11 +1,13 @@
-# Apply Progress — Wave 12 slice 12.2 — Per-request CSP nonce + security hardening + WCAG audit
+> **SUPERSEDED — historical ledger only.** The canonical and authoritative ledger is [`apply-progress.md`](./apply-progress.md); do not use this file to determine active scope, task state, or evidence authority.
+
+# Historical Record — Wave 12 slice 12.2 — Per-request CSP nonce + security hardening + WCAG audit
 
 > **Slice 12.2** — the SECOND slice of Wave 12 (PR targeting
 > `feature/0a-identity-model`).
 > Branch: `feature/wave12-security-hardening` based on `feature/0a-identity-model`.
 > Conventional commit: `feat(wave12-security-hardening): slice 12.2 - per-request CSP nonce + WelcomeEmailPolicy IOptions + WCAG audit`
 >
-> **Status**: ✅ shipped (size:exception — ~800 LOC across FE + BE + CI; justified inline in this doc).
+> **Historical outcome**: ✅ shipped (size:exception — ~800 LOC across FE + BE + CI; justified inline in this record). This outcome is provenance only; current authority remains [`apply-progress.md`](./apply-progress.md).
 
 ## Goal
 
