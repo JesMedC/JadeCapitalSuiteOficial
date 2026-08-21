@@ -37,9 +37,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: Proxy Trust and Consent
 
-- [ ] 3.1 RED — Test malformed proxy/CIDR startup, trusted origin, untrusted spoof, direct peer, and unchanged consent route/status/response, `all`/`essential`, idempotency, changed timestamp, and invalid choice.
-- [ ] 3.2 GREEN — Add `ReverseProxyOptions`; update Host middleware and `ClientIpEndpoint.cs` to use only processed `RemoteIpAddress`.
-- [ ] 3.3 REFACTOR — Keep `UseForwardedHeaders` first, empty trust fail-safe, then run focused tests.
+- [x] 3.1 RED — Test malformed proxy/CIDR startup, trusted origin, untrusted spoof, direct peer, and unchanged consent route/status/response, `all`/`essential`, idempotency, changed timestamp, and invalid choice.
+- [x] 3.2 GREEN — Add `ReverseProxyOptions`; update Host middleware and `ClientIpEndpoint.cs` to use only processed `RemoteIpAddress`.
+- [x] 3.3 REFACTOR — Keep `UseForwardedHeaders` first, empty trust fail-safe, then run focused tests.
 
 ## Phase 4: Stripe Contract
 

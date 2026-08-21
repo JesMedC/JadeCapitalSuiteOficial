@@ -24,7 +24,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
@@ -37,6 +36,7 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddJadeCapitalTelemetry();
+builder.AddJadeCapitalReverseProxy();
 
 // ===== Wave 10 slice 10.2 — Docker Secrets adapter =====
 // Mounted secrets (read by docker compose `secrets:` blocks at
@@ -343,14 +343,6 @@ builder.Services.AddCors(opts =>
 {
     var allowed = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? Array.Empty<string>();
     opts.AddDefaultPolicy(p => p.WithOrigins(allowed).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
-});
-
-// ===== Forwarded headers (cuando va detras de Nginx) =====
-builder.Services.Configure<ForwardedHeadersOptions>(opts =>
-{
-    opts.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    opts.KnownIPNetworks.Clear();
-    opts.KnownProxies.Clear();
 });
 
 var app = builder.Build();
