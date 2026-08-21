@@ -36,26 +36,7 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ===== Wave 12 slice 12.1 — Sentry (silent skip when Sentry__Dsn is unset) =====
-// Production observability hook. When the operator sets Sentry__Dsn (env var)
-// we attach the Sentry.AspNetCore middleware so unhandled exceptions + 5xx
-// are forwarded to the Sentry project. When the env var is missing (the
-// default for local dev) the registration is a no-op — the host boots and
-// serves requests exactly as it did pre-Wave-12.
-// GDPR Art. 5 — data minimisation: SendDefaultPii=false so we never
-// forward IP / cookies / user identifiers to Sentry by default.
-var sentryDsn = builder.Configuration["Sentry__Dsn"];
-if (!string.IsNullOrWhiteSpace(sentryDsn))
-{
-    builder.WebHost.UseSentry(o =>
-    {
-        o.Dsn = sentryDsn;
-        o.Environment = builder.Environment.EnvironmentName;
-        o.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 1.0;
-        o.AttachStacktrace = true;
-        o.SendDefaultPii = false;
-    });
-}
+builder.AddJadeCapitalTelemetry();
 
 // ===== Wave 10 slice 10.2 — Docker Secrets adapter =====
 // Mounted secrets (read by docker compose `secrets:` blocks at
@@ -482,7 +463,7 @@ app.MapTradeMfeMaeEndpoints();
 // over trades + journals + behavioral events in the requested window).
 app.MapCoachingPromptsEndpoint();
 // Slice 3a — trader strategies (CRUD + analytics) + tag/untag trade.
- app.MapStrategyEndpoints();
+app.MapStrategyEndpoints();
 // Slice 3b — alerts (list, get-by-id, ack) + BackgroundService evaluation.
 app.MapAlertEndpoints();
 // Slice 3c — planner sessions (create, update, list-by-week, status change).
