@@ -1,4 +1,5 @@
-# Wave 10 slice 10.2 — production Dockerfile for the Angular frontend.
+# syntax=docker/dockerfile:1.7
+# Production Angular build with build-only Sentry source-map upload.
 #
 # Stages:
 #   1. `build` — node:20-alpine installs deps (npm ci) and runs the Angular
@@ -23,6 +24,13 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+ARG FRONTEND_SENTRY_DSN
+ARG SENTRY_RELEASE
+ARG APP_ENV=production
+ARG ALLOW_FRONTEND_SENTRY_DISABLED=false
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
+
 # Lockfile-driven install (npm ci fails the build if package-lock.json is
 # out of sync with package.json — keeps prod reproducible).
 COPY frontend/package.json      frontend/package-lock.json ./
@@ -31,7 +39,12 @@ RUN npm ci --no-audit --no-fund
 # Build with explicit production configuration (matches angular.json's
 # `production` block: hashing, budgets, optimization on).
 COPY frontend/ ./
-RUN npm run build -- --configuration production
+RUN node scripts/generate-observability-config.mjs
+RUN npm run build:angular -- --configuration production
+RUN --mount=type=secret,id=sentry_auth_token,required=false \
+    SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" \
+    node scripts/upload-sourcemaps.mjs
+RUN find dist -name '*.map' -delete
 
 # =============================================================
 # Stage 2 — nginx runtime

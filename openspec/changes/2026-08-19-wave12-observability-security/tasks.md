@@ -31,9 +31,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Frontend Sentry
 
-- [ ] 2.1 RED — Extend `sentry-init.spec.ts` and deployment tests for required DSN/release, explicit disablement/no-op, uncaught-error transport, release/original-TS frames, PII exclusion, and no runtime token/maps.
-- [ ] 2.2 GREEN — Add `frontend/scripts/**`; update app config, `angular.json`, packages, Docker/compose/env for public settings and build-only hidden-map upload.
-- [ ] 2.3 REFACTOR — Remove placeholders, keep credentials build-only, and verify Jest plus production image harness.
+- [x] 2.1 RED — Extend `sentry-init.spec.ts` and deployment tests for required DSN/release, explicit disablement/no-op, uncaught-error transport, release/original-TS frames, PII exclusion, and no runtime token/maps.
+- [x] 2.2 GREEN — Add `frontend/scripts/**`; update app config, `angular.json`, packages, Docker/compose/env for public settings and build-only hidden-map upload.
+- [x] 2.3 REFACTOR — Remove placeholders, keep credentials build-only, and verify Jest plus production image harness.
 
 ## Phase 3: Proxy Trust and Consent
 
