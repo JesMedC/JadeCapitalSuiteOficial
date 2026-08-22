@@ -6,11 +6,11 @@
 
 - Mode: Strict TDD
 - Delivery: auto-chain, feature-branch-chain
-- Current work unit: PR4 based on PR3 — Canonical Stripe Contract
+- Current work unit: PR5 based on PR4 — Per-request CSP nonce
 - Review budget: 800 changed lines
-- Authored slice delta: 291 changed lines (243 additions, 48 deletions) across 16 files, including SDD ledger updates
-- Completed tasks: 1.1–1.3, 2.1–2.3, 3.1–3.3, 4.1–4.3
-- Remaining tasks: Phase 5
+- Authored slice delta: 311 changed lines (181 additions, 130 deletions) across 8 files, including SDD ledger updates
+- Completed tasks: 1.1–1.3, 2.1–2.3, 3.1–3.3, 4.1–4.3, 5.1–5.3
+- Remaining tasks: None
 
 ## Completed Tasks
 
@@ -26,6 +26,9 @@
 - [x] 4.1 RED — Added canonical options/DI tests, file-backed secret tests, smoke-contract tests, and full named stub-shape characterization before production changes.
 - [x] 4.2 GREEN — Replaced Billing `ApiKey` with `SecretKey`, materialized `:File` configuration into canonical keys, and aligned production composition and smoke configuration.
 - [x] 4.3 REFACTOR — Removed stale alias comments, normalized changed C# files, and verified focused Billing/Host tests plus the solution build.
+- [x] 5.1 RED — Replaced the header-only smoke verifier with a production-image/runtime harness covering two responses, exact header-to-script nonce equality, nonce rotation, marker absence, and CSP regressions.
+- [x] 5.2 GREEN — Used nginx's 128-bit `$request_id` in the CSP and `sub_filter`, disabled upstream compression, reused the injected nonce in the meta fallback, and wired the deployed edge/frontend configs.
+- [x] 5.3 REFACTOR — Removed duplicate MIME configuration, normalized the verifier and CSP regression test, then ran the image harness, frontend suite, backend suites, and solution build.
 
 ## TDD Cycle Evidence
 
@@ -43,6 +46,9 @@
 | 4.1 | `StripeConfigurationTests.cs`, `StubStripeGatewayTests.cs`, `DockerSecretConfigurationProviderTests.cs` | Unit + DI/runtime configuration | 94/94 Billing Stripe and 16/16 Host configuration tests passed | ✅ Reproduced — 5 Billing contract failures plus Host compile failure because `AddFileBackedSecrets` did not exist | ✅ Passed — 13/13 initial contract tests | Null/empty/whitespace keys, canonical-vs-legacy precedence, direct/file configuration, and every named stub response shape | Assertions verify concrete gateway types, Stripe client key, and complete response fields |
 | 4.2 | Same | DI + file-backed runtime configuration | Covered by 4.1 baseline | ✅ Written before production changes | ✅ Passed — canonical key selects `StripeGateway`; empty key selects `StubStripeGateway`; file contents materialize as `Stripe:SecretKey` | Direct and file-backed paths plus legacy-key rejection exercise distinct paths | Centralized generic `:File` materialization at Host configuration composition |
 | 4.3 | Same | Unit + runtime contract | 13/13 focused tests passed before cleanup | ✅ Existing RED suite guarded cleanup | ✅ Passed — 104/104 Billing Stripe and 18/18 Host configuration tests | Canonical smoke input rejects malformed keys and the legacy variable is not accepted | `dotnet format` and `git diff --check` succeeded; solution build succeeded |
+| 5.1 | `scripts/verify-security-headers.sh` | Deployment integration | 6/6 existing nginx tests passed; legacy harness exposed a pre-existing case-sensitive `DENY` assertion | ✅ Confirmed — production image returned literal `{request_nonce}`, so the new 128-bit nonce assertion failed | ✅ Passed — image build, `nginx -t`, and two-response harness succeeded | Two real responses plus all generated executable script tags force request-specific matching rather than a hardcoded value | Consolidated assertions in one Python parser and made header matching case-insensitive |
+| 5.2 | Same + `IndexHtmlMetaCspTests.cs` | Runtime + source contract | Covered by 5.1 RED and frontend image baseline | ✅ Written before nginx/index/deployment changes | ✅ Passed — `$request_id` matched the CSP and every script nonce | Header/body equality, rotation, marker absence, compression handling, meta fallback reuse, and deployed config mounts cover distinct paths | Removed stale placeholder/browser-global behavior and retained the development crypto fallback |
+| 5.3 | Same | Regression + build | Focused runtime already green | ✅ Existing RED harness guarded cleanup | ✅ Passed — focused nginx 6/6, frontend 198/198, image harness, Compose config, and solution build | Full solution tests were also executed and exposed unrelated MinIO credential failures | Removed duplicate `sub_filter_types`; `git diff --check` passed |
 
 ## Work Unit Evidence
 
@@ -101,6 +107,17 @@ Tasks 2.1–2.3 remain complete and unchanged in scope. The correction wires the
 | Build | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet build JadeCapital.slnx --nologo --verbosity minimal` → exit 0; 0 errors and 0 warnings |
 | Rollback boundary | Revert the Billing Stripe option/registration/docs files, Host file-backed configuration and tests, production compose/smoke wiring, and Stripe tests; Phases 1–3 and pending Phase 5 remain independent |
 
+### PR5 Per-request CSP Nonce
+
+| Evidence | Result |
+|---|---|
+| Focused test | `bash scripts/verify-security-headers.sh 18085` → exit 0; production frontend image built, `nginx -t` passed, and two fetched responses had distinct 32-hex nonces matching every executable script tag |
+| Runtime harness | Real frontend and edge nginx containers ran on an isolated Docker network; no nonce marker leaked, style `unsafe-inline` and `frame-ancestors 'none'` remained, and script `unsafe-inline` remained absent |
+| Frontend regression | `npm --prefix frontend test -- --runInBand` → exit 0; 45 suites and 198 tests passed; the production Angular build also passed inside the image |
+| Backend/build | Focused nginx tests passed 6/6; `dotnet build JadeCapital.slnx` passed with 0 warnings/errors. Full solution tests ran but integration tests failed on unrelated missing MinIO credentials; Host also retained one pre-existing OTel exporter failure outside this slice |
+| Deployment contract | `docker compose -f docker-compose.prod.yml config --quiet` → exit 0; edge mounts `jade.conf`, while frontend uses the nginx config baked by `Dockerfile.frontend.prod` instead of overriding it |
+| Rollback boundary | Revert the CSP/index/verifier test files and the two Compose mount changes; Phases 1–4 remain intact |
+
 ## Behavioral Proof
 
 - Only `Sentry:Dsn` is read; empty or whitespace DSNs do not initialize Sentry, and the legacy literal `Sentry__Dsn` configuration key is ignored.
@@ -116,9 +133,13 @@ Tasks 2.1–2.3 remain complete and unchanged in scope. The correction wires the
 - Billing binds only `Stripe:SecretKey`; null, empty, or whitespace values select `StubStripeGateway`, while a canonical key selects `StripeGateway` and reaches the real `StripeClient`.
 - `Stripe__SecretKey__File` is materialized into `Stripe:SecretKey` from trimmed file contents, and legacy `ApiKey` configuration cannot select the real gateway.
 - Stub customer, webhook, checkout, portal, subscription, payment-method, and invoice response shapes remain unchanged.
+- Nginx now uses one cryptographically random 128-bit request ID for both the CSP `script-src` nonce and every executable script tag, and consecutive HTML responses rotate it.
+- The deployed edge receives uncompressed frontend HTML for substitution, while the production frontend image retains its baked nginx configuration.
 
 ## Limitation
 
 No external Sentry service was available or contacted. The runtime proof uses the real Sentry ASP.NET Core SDK and serializes its actual envelope through a deterministic local `ITransport`; this proves SDK behavior and payload safety but not external ingestion, symbol-server processing, or vendor availability.
 
 The frontend proof likewise uses the real Angular SDK with an in-memory transport and locally validates hidden source-map resolution. No source maps were uploaded and no external Sentry ingestion or symbolication service was contacted.
+
+The full solution test command is not green in this environment: 49/58 API integration tests fail during Host startup because MinIO credentials are not initialized, and the Host suite has one unrelated OpenTelemetry exporter assertion failure. Focused CSP tests, the real nginx runtime harness, all 198 frontend tests, and the solution build are green.

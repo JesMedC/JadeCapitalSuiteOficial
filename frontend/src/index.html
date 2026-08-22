@@ -7,25 +7,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0B1320">
   <meta name="description" content="Plataforma profesional de trading journal.">
-  <!--
-    Wave 10 slice 10.3 — meta CSP fallback (per spec/security-headers/spec.md §"Out of scope").
-    Wave 12 slice 12.2 — per-page-load nonce. The inline script below (replacing the
-    prior static <meta>) generates a random 16-byte base64 nonce on every page load
-    and writes it as a <meta http-equiv="Content-Security-Policy"> fallback. This
-    keeps dev (`ng serve`) + any static-server scenario enforcing CSP with a
-    per-page nonce, which mirrors what the prod nginx does via
-    `'nonce-{request_nonce}'` (nginx-njs). The nonce is ALSO stored on
-    `window.__CSP_NONCE__` so any future inline script in the app can pick it up.
-  -->
+  <!-- Production nginx injects its request nonce into this and every generated script tag. -->
   <script>
     (function() {
-      var bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      var nonce = btoa(String.fromCharCode.apply(null, bytes)).slice(0, 22);
-      window.__CSP_NONCE__ = nonce;
+      var nonce = document.currentScript && document.currentScript.nonce;
+      if (!nonce) {
+        var bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        nonce = btoa(String.fromCharCode.apply(null, bytes)).slice(0, 22);
+      }
       var meta = document.createElement('meta');
       meta.httpEquiv = 'Content-Security-Policy';
-      meta.content = "default-src 'self'; script-src 'self' 'nonce-" + nonce + "' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+      meta.content = "default-src 'self'; script-src 'self' 'nonce-" + nonce + "'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
       document.head.appendChild(meta);
     })();
   </script>
