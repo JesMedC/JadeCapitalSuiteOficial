@@ -46,9 +46,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Audit Partitioning and Retention
 
-- [ ] 4.1 RED — Test **Fresh database**, **Historical upgrade**, **Safe rerun**, **Default coverage**, **Future coverage**, **Retained source**, **EF identity**, and **Partition-aware retention**; reject drafts; prove rollback/rerun.
-- [ ] 4.2 GREEN — Create `infrastructure/postgres/migrations/0040_partition_audit_events.sql`; update Identity `AuditEventConfiguration.cs` and `AuditRetentionBackgroundService.cs` for composite pairs.
-- [ ] 4.3 REFACTOR — Centralize state/catalog checks, exact-copy validation, anchor, locks, retained-source rollback, and runtime proof.
+- [x] 4.1 RED — Test **Fresh database**, **Historical upgrade**, **Safe rerun**, **Default coverage**, **Future coverage**, **Retained source**, **EF identity**, and **Partition-aware retention**; reject drafts; prove rollback/rerun.
+- [x] 4.2 GREEN — Create `infrastructure/postgres/migrations/0040_partition_audit_events.sql`; update Identity `AuditEventConfiguration.cs` and `AuditRetentionBackgroundService.cs` for composite pairs.
+- [x] 4.3 REFACTOR — Centralize state/catalog checks, exact-copy validation, anchor, locks, retained-source rollback, and runtime proof.
 
 ## Phase 5: Archive Gate and Non-Delivering RC
 
