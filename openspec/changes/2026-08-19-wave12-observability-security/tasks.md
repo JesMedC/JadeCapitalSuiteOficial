@@ -43,9 +43,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Stripe Contract
 
-- [ ] 4.1 RED — Test no `ApiKey` binding, empty/key DI, `__File`, and unchanged `cus_stub_*`, `evt_stub_*`/`ping`, checkout/portal IDs-URLs-expiry, active `pro`, Visa `4242`, and three newest-first paid USD invoices.
-- [ ] 4.2 GREEN — Replace Billing `ApiKey` with `SecretKey` in options, registration, gateway, secret provider, compose, env, and smoke script.
-- [ ] 4.3 REFACTOR — Remove aliases/comments and run Stripe-focused tests.
+- [x] 4.1 RED — Test no `ApiKey` binding, empty/key DI, `__File`, and unchanged `cus_stub_*`, `evt_stub_*`/`ping`, checkout/portal IDs-URLs-expiry, active `pro`, Visa `4242`, and three newest-first paid USD invoices.
+- [x] 4.2 GREEN — Replace Billing `ApiKey` with `SecretKey` in options, registration, gateway, secret provider, compose, env, and smoke script.
+- [x] 4.3 REFACTOR — Remove aliases/comments and run Stripe-focused tests.
 
 ## Phase 5: Nginx Nonce
 

@@ -46,6 +46,7 @@ builder.AddJadeCapitalReverseProxy();
 // Disambiguates against MVC's ApplicationModelConventionExtensions.Add
 // which is also in scope via implicit usings.
 ((IConfigurationBuilder)builder.Configuration).Add(new DockerSecretConfigurationSource());
+((IConfigurationBuilder)builder.Configuration).AddFileBackedSecrets();
 
 // ===== Logging =====
 builder.Host.UseSerilog((ctx, services, cfg) =>

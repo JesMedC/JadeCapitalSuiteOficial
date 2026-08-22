@@ -7,7 +7,7 @@ namespace JadeCapital.Billing.Infrastructure.Stripe;
 /// Stub Stripe gateway for dev / CI without a real API key (Wave 6, slice 6a.1).
 ///
 /// <para>
-/// Registered by DI when <see cref="StripeOptions.ApiKey"/> is null or empty.
+/// Registered by DI when <see cref="StripeOptions.SecretKey"/> is null or empty.
 /// Returns synthetic but PREDICTABLE responses so dev workflows still work:
 /// <list type="bullet">
 ///   <item><c>CreateOrGetCustomerAsync</c> → <c>cus_stub_{userId:N}</c></item>

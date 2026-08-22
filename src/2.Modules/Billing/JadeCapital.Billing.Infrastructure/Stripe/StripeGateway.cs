@@ -40,7 +40,7 @@ namespace JadeCapital.Billing.Infrastructure.Stripe;
 /// </para>
 ///
 /// <para>
-/// <b>Stub fallback</b>: when <see cref="StripeOptions.ApiKey"/> is null or
+/// <b>Stub fallback</b>: when <see cref="StripeOptions.SecretKey"/> is null or
 /// empty, DI MUST register <see cref="StubStripeGateway"/> instead. This
 /// gateway is never constructed without a valid key in production.
 /// </para>

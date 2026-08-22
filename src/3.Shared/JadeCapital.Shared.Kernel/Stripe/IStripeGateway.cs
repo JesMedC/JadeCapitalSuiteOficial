@@ -34,7 +34,7 @@ namespace JadeCapital.Shared.Kernel.Stripe;
 /// </para>
 ///
 /// <para>
-/// <b>Stub fallback</b>: when <c>StripeOptions.ApiKey</c> is null or empty,
+/// <b>Stub fallback</b>: when <c>StripeOptions.SecretKey</c> is null or empty,
 /// DI MUST register <c>StubStripeGateway</c> instead of the real
 /// <c>StripeGateway</c>. The stub returns synthetic but predictable responses
 /// so dev / CI without a Stripe key still works.
