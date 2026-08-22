@@ -17,5 +17,8 @@ internal sealed class QuoteCacheConfiguration : IEntityTypeConfiguration<QuoteCa
         b.Property(q => q.Volume24h).HasColumnName("volume_24h").HasColumnType("numeric(24,8)").IsRequired();
         b.Property(q => q.Source).HasColumnName("source").HasConversion<byte>().IsRequired();
         b.Property(q => q.CachedAt).HasColumnName("cached_at").IsRequired();
+        b.Ignore(q => q.Id);
+        b.Ignore(q => q.CreatedAt);
+        b.Ignore(q => q.UpdatedAt);
     }
 }

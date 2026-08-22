@@ -83,7 +83,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         //   - cookie_consent_accepted_at   TIMESTAMPTZ NULL  (0038)
         //   - cookie_consent_choice        VARCHAR(16) NULL  (0038)
         b.Property(u => u.SoftDeletedAt).HasColumnName("soft_deleted_at");
-        b.Property(u => u.ScheduledHardDeleteAt).HasColumnName("scheduled_hard_delete_at");
+        b.Property(u => u.ScheduledHardDeleteAt).HasColumnName("scheduled_for_hard_delete_at");
         b.Property(u => u.AcceptedTermsVersion).HasColumnName("accepted_terms_version").HasMaxLength(64);
         b.Property(u => u.AcceptedPrivacyVersion).HasColumnName("accepted_privacy_version").HasMaxLength(64);
         b.Property(u => u.AcceptedAt).HasColumnName("accepted_at");

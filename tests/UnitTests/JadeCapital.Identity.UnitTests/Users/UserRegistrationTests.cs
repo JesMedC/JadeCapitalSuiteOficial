@@ -18,6 +18,8 @@ public class UserRegistrationTests
         u.Status.Should().Be(UserStatus.Active);
         u.EmailConfirmedAt.Should().NotBeNull();
         u.FailedLoginCount.Should().Be(0);
+        u.AttachmentQuotaBytes.Should().Be(104857600);
+        u.AttachmentUsedBytes.Should().Be(0);
         u.LockedUntil.Should().BeNull();
         u.DomainEvents.Should().ContainSingle(e => e is UserRegisteredDomainEvent);
     }

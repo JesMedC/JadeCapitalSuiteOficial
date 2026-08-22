@@ -32,21 +32,38 @@ The system MUST configure Serilog at `src/1.Api/JadeCapital.Host/Program.cs` to 
 
 ### Requirement: Sentry integration — gated on env var presence
 
-The system MUST initialize `Sentry.AspNetCore` 4.x on the backend ONLY when `Sentry__Dsn` env is set. When unset, `SentrySdk.Init` MUST NOT be called (no error, no warning, silent skip). When set, unhandled exceptions + captured errors MUST be reported with stack traces, request context, and source maps (`.pdb` files included in the production Docker image). The FE MUST initialize `@sentry/angular` 8.x in `main.ts` ONLY when `Sentry__DsnFrontend` (window-level env injection from nginx) is set.
+Backend Sentry MUST bind only `Sentry:Dsn` (`Sentry__Dsn`). Production frontend deployment MUST supply its DSN. Empty DSNs MUST disable either SDK. Both SDKs MUST disable default PII, exclude sensitive values, and retain release and stack context.
 
-#### Scenario: Sentry DSN unset → no Sentry init (silent skip)
+#### Scenario: Sentry DSN unset → silent skip
 
-- GIVEN `Sentry__Dsn` env is unset
-- WHEN the API container starts
-- THEN `SentrySdk.IsEnabled` MUST be `false`
-- AND `SentrySdk.CaptureException(new Exception("test"))` MUST be a no-op (returns `SentryId.Empty`)
+- GIVEN empty backend and frontend DSNs
+- WHEN applications start
+- THEN neither SDK MUST send events
 
-#### Scenario: Sentry DSN set → errors reported with source maps
+#### Scenario: Sentry reports errors
 
-- GIVEN `Sentry__Dsn = "https://key@sentry.io/123"` is set
-- WHEN an unhandled exception bubbles to the ASP.NET Core middleware
-- THEN Sentry MUST receive the event with the stack trace + request headers (redacted) + `release` tag
-- AND source maps MUST resolve the stack frames to original TypeScript / C# lines (not the transpiled output)
+- GIVEN production backend and frontend DSNs with a release
+- WHEN either application captures an unhandled exception
+- THEN Sentry MUST receive resolvable, release-tagged context without sensitive values
+
+### Requirement: Optional PII-safe OpenTelemetry tracing
+
+The Host MUST export OTLP traces only with an endpoint; otherwise export MUST be disabled silently. Spans MUST NOT contain credentials, cookies, bodies, or personal data.
+
+#### Scenario: OTLP exports trace
+- GIVEN a reachable OTLP endpoint
+- WHEN an API request completes
+- THEN its trace MUST include identity, route, method, status, and duration
+
+#### Scenario: OTLP is disabled safely
+- GIVEN no OTLP endpoint
+- WHEN the Host handles requests
+- THEN no exporter MUST run; requests MUST succeed
+
+#### Scenario: Sensitive data excluded
+- GIVEN a request carries sensitive values
+- WHEN its spans export
+- THEN those values MUST NOT appear in attributes or events
 
 ### Requirement: Health endpoints — /health/live + /health/ready
 

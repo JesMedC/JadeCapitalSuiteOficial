@@ -53,7 +53,7 @@ public class ScannerEndpointsTests : IClassFixture<JadeApiFactory>
             minVolume = 1000m,
             minRiskReward = 1.5m,
             volatilityWindow = 7,            // VolatilityWindow.D1
-            activeHours = Array.Empty<object>(),
+            activeHours = "[]",
             isActive = true
         };
 

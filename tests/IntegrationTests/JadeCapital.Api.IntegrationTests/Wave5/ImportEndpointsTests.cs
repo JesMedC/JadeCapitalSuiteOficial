@@ -64,7 +64,7 @@ public class ImportEndpointsTests : IClassFixture<JadeApiFactory>
 
         // Sample 9-row CSV. One row (row 5) is a duplicate that the dedupe
         // path in the parser should drop silently.
-        var csv = "Ticket,OpenTime,Symbol,Type,Volume,Price,SL,TP,Commission\n" +
+        var csv = "Ticket,Open Time,Symbol,Type,Volume,Open Price,SL,TP,Commission\n" +
                   "T1,2026-01-02T09:00:00Z,EURUSD,buy,0.10,1.0800,1.0700,1.0900,0.0\n" +
                   "T2,2026-01-02T10:00:00Z,EURUSD,buy,0.10,1.0810,1.0710,1.0910,0.0\n" +
                   "T3,2026-01-02T11:00:00Z,GBPUSD,sell,0.20,1.2700,1.2800,1.2600,0.0\n" +
@@ -94,21 +94,16 @@ public class ImportEndpointsTests : IClassFixture<JadeApiFactory>
         var client = await RegisterTraderAndCreateAccountAsync();
         var accountId = await GetFirstAccountIdAsync(client);
 
-        // Minimal MT4-style header + 3 rows. The header "<TICKET>" +
-        // "<OPEN_TIME>" + "<TYPE>" + "<VOLUME>" + "<SYMBOL>" is the
-        // discriminator the slice 5a.2 MT4 parser uses to win the
-        // auto-detection race.
-        var mt4 = "<html><head><meta charset=\"utf-8\"></head><body>\n" +
-                  "<table>\n" +
-                  "<tr><th>Ticket</th><th>Open Time</th><th>Type</th><th>Volume</th><th>Symbol</th><th>Price</th><th>S / L</th><th>T / P</th><th>Commission</th></tr>\n" +
-                  "<tr><td>1001</td><td>2026.01.02 09:00:00</td><td>buy</td><td>0.10</td><td>EURUSD</td><td>1.0800</td><td>1.0700</td><td>1.0900</td><td>0.0</td></tr>\n" +
-                  "<tr><td>1002</td><td>2026.01.02 10:00:00</td><td>sell</td><td>0.20</td><td>GBPUSD</td><td>1.2700</td><td>1.2800</td><td>1.2600</td><td>0.0</td></tr>\n" +
-                  "<tr><td>1003</td><td>2026.01.02 11:00:00</td><td>buy</td><td>0.05</td><td>USDJPY</td><td>150.10</td><td>149.50</td><td>151.00</td><td>0.0</td></tr>\n" +
-                  "</table></body></html>\n";
+        // Minimal canonical MT4 CSV export: SL + TP distinguish it from
+        // generic CSV, while the complete header clears the parser threshold.
+        var mt4 = "Ticket,Open Time,Type,Volume,Symbol,Open Price,SL,TP,Close Time,Close Price,Commission,Swap,Profit\n" +
+                  "1001,2026.01.02 09:00:00,buy,0.10,EURUSD,1.0800,1.0700,1.0900,,,,0.0,0.0\n" +
+                  "1002,2026.01.02 10:00:00,sell,0.20,GBPUSD,1.2700,1.2800,1.2600,,,,0.0,0.0\n" +
+                  "1003,2026.01.02 11:00:00,buy,0.05,USDJPY,150.10,149.50,151.00,,,,0.0,0.0\n";
         using var form = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes(mt4));
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/html");
-        form.Add(fileContent, "file", "wave5-smoke.htm");
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        form.Add(fileContent, "file", "wave5-smoke.csv");
         form.Add(new StringContent(accountId.ToString()), "accountId");
 
         var resp = await client.PostAsync("/api/imports/csv", form);

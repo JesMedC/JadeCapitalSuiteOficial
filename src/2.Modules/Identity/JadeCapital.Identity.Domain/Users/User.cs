@@ -190,6 +190,7 @@ public sealed class User : AggregateRoot<Guid>
         Role = role;
         Status = UserStatus.Active;
         EmailConfirmedAt = DateTimeOffset.UtcNow;
+        AttachmentQuotaBytes = 104857600;
     }
 
     /// <summary>

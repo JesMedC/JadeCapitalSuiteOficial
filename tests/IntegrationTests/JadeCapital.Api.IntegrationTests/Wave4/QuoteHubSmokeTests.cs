@@ -6,8 +6,10 @@ using System.Text.Json;
 using FluentAssertions;
 using JadeCapital.Api.IntegrationTests.Auth;
 using JadeCapital.Api.IntegrationTests.Infrastructure;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Hosting.Server;
+using JadeCapital.Trading.Infrastructure.Realtime;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace JadeCapital.Api.IntegrationTests.Wave4;
 
@@ -46,23 +48,15 @@ public class QuoteHubSmokeTests : IClassFixture<JadeApiFactory>
         var tokens = await reg.Content.ReadFromJsonAsync<TokenResponse>(_jsonOpts);
         tokens!.AccessToken.Should().NotBeNullOrEmpty();
 
-        // 2) Resolve the WS base URL from the test server.
-        var server = _factory.Server;
-        var addresses = server.Features.Get<IServerAddressesFeature>()?.Addresses
-            ?? throw new InvalidOperationException("Server addresses feature unavailable");
-
-        var httpBase = addresses.FirstOrDefault(a => a.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException("No HTTP address on the test server");
-        var wsBase = httpBase
-            .Replace("http://", "ws://", StringComparison.OrdinalIgnoreCase)
-            .Replace("https://", "wss://", StringComparison.OrdinalIgnoreCase);
-
-        var hubUri = new Uri($"{wsBase.TrimEnd('/')}/hubs/quotes?access_token={tokens.AccessToken}");
+        // 2) Connect through TestServer's in-memory WebSocket transport.
+        var webSocketClient = _factory.Server.CreateWebSocketClient();
+        webSocketClient.SubProtocols.Add("json");
+        webSocketClient.ConfigureRequest = request =>
+            request.Headers.Authorization = $"Bearer {tokens.AccessToken}";
+        var hubUri = new Uri("ws://localhost/hubs/quotes");
 
         // 3) Open the WebSocket and run the SignalR JSON handshake manually.
-        using var ws = new ClientWebSocket();
-        ws.Options.AddSubProtocol("json");
-        await ws.ConnectAsync(hubUri, CancellationToken.None);
+        using var ws = await webSocketClient.ConnectAsync(hubUri, CancellationToken.None);
 
         // Client → server handshake: {"protocol":"json","version":1}\x1e
         await SendSignalRFrameAsync(ws, "{\"protocol\":\"json\",\"version\":1}\x1e", CancellationToken.None);
@@ -73,8 +67,16 @@ public class QuoteHubSmokeTests : IClassFixture<JadeApiFactory>
 
         // 4) Send Subscribe {"arguments":["EURUSD"],"target":"SubscribeToSymbols","type":1}\x1e
         await SendSignalRFrameAsync(ws,
-            "{\"arguments\":[\"EURUSD\"],\"target\":\"SubscribeToSymbols\",\"type\":1}\x1e",
+            "{\"arguments\":[[\"EURUSD\"]],\"invocationId\":\"1\",\"target\":\"SubscribeToSymbols\",\"type\":1}\x1e",
             CancellationToken.None);
+
+        var completion = await ReadSignalRFrameAsync(ws, CancellationToken.None);
+        completion.Should().Contain("\"type\":3", "the subscription invocation must complete");
+
+        var broadcaster = _factory.Services.GetServices<IHostedService>()
+            .OfType<QuoteBroadcastService>()
+            .Single();
+        await broadcaster.BroadcastTickAsync(CancellationToken.None);
 
         // 5) Wait up to 15s for at least one OnQuoteUpdate frame.
         var deadline = DateTimeOffset.UtcNow.AddSeconds(15);

@@ -110,6 +110,25 @@ The system MUST ship `docs/runbooks/setup-email-deliverability.md` listing the e
 - AND `dig TXT _dmarc.jadecapital.com` MUST return the DMARC record
 - AND `mail-tester.com` MUST score ≥ 9/10 (full deliverability pass)
 
+### Requirement: Consent client IP honors configured proxy trust
+
+The Host MUST trust forwarding from configured proxies or networks only. Identity MUST record the resolved address and MUST NOT parse `X-Forwarded-For`. Consent MUST remain unchanged.
+
+#### Scenario: Trusted proxy resolves client
+- GIVEN a trusted proxy forwards a client address
+- WHEN consent is recorded
+- THEN consent IP MUST equal the originating address
+
+#### Scenario: Untrusted sender cannot spoof client IP
+- GIVEN an untrusted peer claims `203.0.113.9`
+- WHEN consent is recorded
+- THEN consent IP MUST equal the peer address, not `203.0.113.9`
+
+#### Scenario: Direct request uses peer
+- GIVEN a direct request
+- WHEN consent is recorded
+- THEN consent IP MUST equal the direct remote address
+
 ## Cross-references
 
 - Closes gaps A8 (ToS + Privacy + Cookie), A9 (GDPR Art. 17), G-A1 (GDPR Art. 20), G-A3 (cookie consent), G-A4 (SPF/DKIM/DMARC), G-A5 (welcome email), B18 (account deletion UI)

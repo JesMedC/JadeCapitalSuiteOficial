@@ -19,7 +19,7 @@ internal sealed class ScannerFilterConfiguration : IEntityTypeConfiguration<Scan
         b.Property(f => f.MinVolume).HasColumnName("min_volume");
         b.Property(f => f.MinRiskReward).HasColumnName("min_risk_reward");
         b.Property(f => f.VolatilityWindow).HasColumnName("volatility_window").HasConversion<byte>().IsRequired();
-        b.Property(f => f.ActiveHours).HasColumnName("active_hours");
+        b.Property(f => f.ActiveHours).HasColumnName("active_hours").HasColumnType("jsonb");
         b.Property(f => f.IsActive).HasColumnName("is_active").IsRequired();
         b.Property(f => f.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(f => f.UpdatedAt).HasColumnName("updated_at");

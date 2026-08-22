@@ -38,7 +38,7 @@ internal sealed class AIRiskAdviceConfiguration : IEntityTypeConfiguration<AIRis
 
         // Audit columns inherited from AggregateRoot → Entity<TId>.
         b.Property(a => a.CreatedAt).HasColumnName("created_at").IsRequired();
-        b.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+        b.Ignore(a => a.UpdatedAt);
 
         // DomainEvents not persisted.
         b.Ignore(a => a.DomainEvents);

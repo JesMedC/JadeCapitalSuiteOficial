@@ -44,7 +44,8 @@ public sealed class CreateOrUpdateScannerFilterHandler
                 req.UserId, req.Name, req.MinSpread, req.MaxSpread, req.MinVolume,
                 req.MinRiskReward, window, req.ActiveHours, _clock);
             if (result.IsFailure) return Result.Failure<ScannerFilterDto>(result.Error);
-            await _repo.AddAsync(result.Value, ct);
+            existing = result.Value;
+            await _repo.AddAsync(existing, ct);
         }
         else
         {
@@ -57,7 +58,7 @@ public sealed class CreateOrUpdateScannerFilterHandler
 
         var saved = await _uow.SaveChangesAsync(ct);
         if (saved.IsFailure) return Result.Failure<ScannerFilterDto>(saved.Error);
-        var dto = ScannerMappingExtensions.ToDto(existing!);
+        var dto = ScannerMappingExtensions.ToDto(existing);
         return Result.Success(dto);
     }
 }

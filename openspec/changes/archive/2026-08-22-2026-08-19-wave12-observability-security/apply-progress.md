@@ -6,9 +6,9 @@
 
 - Mode: Strict TDD
 - Delivery: auto-chain, feature-branch-chain
-- Current work unit: PR5 based on PR4 — Per-request CSP nonce
-- Review budget: 800 changed lines
-- Authored slice delta: 311 changed lines (181 additions, 130 deletions) across 8 files, including SDD ledger updates
+- Current work unit: maintainer-authorized integration-contract modernization, second and final bounded attempt
+- Review budget: 800 cumulative changed lines
+- Cumulative implementation delta: 302 changed lines, excluding this ledger and the untouched final verify report
 - Completed tasks: 1.1–1.3, 2.1–2.3, 3.1–3.3, 4.1–4.3, 5.1–5.3
 - Remaining tasks: None
 
@@ -142,4 +142,125 @@ No external Sentry service was available or contacted. The runtime proof uses th
 
 The frontend proof likewise uses the real Angular SDK with an in-memory transport and locally validates hidden source-map resolution. No source maps were uploaded and no external Sentry ingestion or symbolication service was contacted.
 
-The full solution test command is not green in this environment: 49/58 API integration tests fail during Host startup because MinIO credentials are not initialized, and the Host suite has one unrelated OpenTelemetry exporter assertion failure. Focused CSP tests, the real nginx runtime harness, all 198 frontend tests, and the solution build are green.
+The candidate-caused OpenTelemetry failure and MinIO startup failure are corrected. The full solution command now reaches all 58 API integration tests without a MinIO credential exception, but remains nonzero because 39 pre-existing integration failures remain, including stale Wave 11 registration-consent and migration contracts. The remediation does not claim a passing final verification.
+
+## Bounded Remediation — Failed Wave 12 Verification
+
+### Root Causes and Correction
+
+1. The telemetry test class created multiple process-global ASP.NET Core/Sentry/OpenTelemetry runtimes in separate xUnit facts. The configured OTel scenario passed alone but lost its export when the disabled runtime fact ran in the same test process. The correction executes configured OTel first, then disabled export and Sentry error capture in one deterministic runtime fact; its client suppresses inherited trace propagation and asserts the real server `Activity` exists before inspecting the exporter.
+2. `JadeApiFactory` supplied no Storage credentials, so MinIO client construction aborted Host startup. The test factory now supplies deterministic, syntactically valid loopback MinIO settings; production storage configuration and semantics are unchanged.
+
+### TDD Cycle Evidence
+
+| Work | Safety Net / RED | GREEN | REFACTOR |
+|---|---|---|---|
+| OTel runtime | Required full solution run reproduced 1 Host failure; focused two-runtime ordering reproduced an empty exporter | Telemetry 7/7 and complete Host 55/55 pass | Consolidated only process-global runtime scenarios; retained all enabled, disabled, Sentry, route-field, and PII assertions |
+| MinIO harness | API integration run reproduced 49 failures, including `User Access Credentials not initialized` | All 58 API integration tests now execute and no MinIO credential exception appears | Configuration remains in `JadeApiFactory`; no production storage file changed |
+
+### Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Host.UnitTests/JadeCapital.Host.UnitTests.csproj --filter "FullyQualifiedName~Telemetry" --nologo --verbosity minimal` → exit 0; 7 passed |
+| Runtime harness | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Host.UnitTests/JadeCapital.Host.UnitTests.csproj --nologo --verbosity minimal` → exit 0; 55 passed; configured Kestrel request exported one safe ASP.NET Core activity |
+| Integration harness | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests/JadeCapital.Api.IntegrationTests.csproj --nologo --verbosity minimal` → exit 1; all 58 ran, 19 passed, 39 pre-existing contract failures; zero MinIO credential failures |
+| Required full command | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test JadeCapital.slnx --nologo --verbosity minimal` → exit 1; all unit projects green (1,531 passed), API integration 19/58 passed; zero OTel or MinIO startup failures |
+| Build | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet build JadeCapital.slnx --nologo --verbosity minimal` → exit 0; 0 warnings, 0 errors |
+| Frontend/CSP | N/A — no frontend, nginx, CSP, or deployment files changed |
+| Rollback boundary | Revert only `TelemetryConfigurationTests.cs` runtime-fact isolation and `JadeApiFactory.cs` Storage values; production telemetry and storage semantics remain untouched |
+
+```json
+{"schema":"gentle-ai.remediation-result/v1","mode":"unmanaged-native","lineage_id":"sha256:9bf1747b2c68c9c1d13bfdc2df42cf30e583cfbc24e397fd246d97d4020f3cf1","generation":8,"fix_batch":9,"objective_attempt":2,"parent_token":"sha256:a7a7c29286bb5180d3d736c71c31d53b7a7a54b6350691a809569044680e39db","failed_evidence_revision":"sha256:d38fbcfa230aea3a2d742e55a0672e27bf887a3743d9ded02dfec4c565953b62","outcome":"partial","changed_lines":81,"implementation_changed_lines":40,"budget":200,"settled":false,"fresh_verify_required":true}
+```
+```json
+{"schema":"gentle-ai.remediation-evidence/v1","mode":"unmanaged-native","lineage_id":"sha256:9bf1747b2c68c9c1d13bfdc2df42cf30e583cfbc24e397fd246d97d4020f3cf1","generation":8,"fix_batch":9,"objective_attempt":2,"parent_token":"sha256:a7a7c29286bb5180d3d736c71c31d53b7a7a54b6350691a809569044680e39db","failed_evidence_revision":"sha256:d38fbcfa230aea3a2d742e55a0672e27bf887a3743d9ded02dfec4c565953b62","focused":{"command":"MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Host.UnitTests/JadeCapital.Host.UnitTests.csproj --filter FullyQualifiedName~Telemetry --nologo --verbosity minimal","exit":0,"passed":7,"failed":0},"runtime":{"command":"MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Host.UnitTests/JadeCapital.Host.UnitTests.csproj --nologo --verbosity minimal","exit":0,"passed":55,"failed":0},"full":{"command":"MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test JadeCapital.slnx --nologo --verbosity minimal","exit":1,"unit_passed":1531,"integration_passed":19,"integration_failed":39,"otel_failures":0,"minio_credential_failures":0},"build":{"command":"MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet build JadeCapital.slnx --nologo --verbosity minimal","exit":0,"warnings":0,"errors":0},"rollback":["tests/UnitTests/JadeCapital.Host.UnitTests/Configuration/TelemetryConfigurationTests.cs","tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Infrastructure/JadeApiFactory.cs"]}
+```
+
+## Maintainer-authorized Integration Contract Reset
+
+- Authorization evidence: the maintainer directly supplied parent token `sha256:6a1d57c251cf1dd7620f0eda23944eb8faf5f4363bc5bf099c6427597e0cc532` and explicitly authorized a fresh 800-line / 2-attempt repair window.
+- Transaction mode: unmanaged native; no acquire and no settle were requested or performed.
+- Outcome: blocked after both authorized integration-project attempts; the stale-contract count fell from 39 to 13, but the required 58/58 target was not reached.
+- Authored delta before this ledger: 134 changed lines across 13 files, within the 800-line limit.
+
+### Root Classes Corrected
+
+1. Registration fixtures omitted mandatory consent flags, consent IP, and accepted policy versions. Shared integration DTO defaults now express the shipped Wave 11 registration contract without weakening endpoint assertions.
+2. The fresh schema omitted four nullable fields already mapped by the shipped `User` aggregate. Migration `0039_add_existing_user_aggregate_columns.sql` adds them, and migration-count/source contracts now pin 39 files.
+3. `ScheduledHardDeleteAt` mapped to `scheduled_hard_delete_at` while the canonical schema/spec use `scheduled_for_hard_delete_at`; production mapping and all affected harness schemas now agree.
+4. Fresh registrations violated the tenant and attachment-quota database invariants. Registration now assigns the canonical Personal tenant and new users initialize the specified 100 MiB quota.
+
+### TDD Cycle Evidence
+
+| Root class | RED | GREEN | REFACTOR |
+|---|---|---|---|
+| Registration consent | Baseline integration run: registration-dependent requests returned 400; 39/58 failed | Focused registration plus lifecycle tests: 3/3 passed | Centralized the current wire contract in the two shared `RegisterRequest` records |
+| Migration/schema alignment | Migration contract: 2/6 failed; Host migration count: 1/5 failed | Migration contract 6/6 and Host count 5/5 passed | Added one forward-only nullable migration; normalized canonical scheduled-delete naming |
+| Registration persistence invariants | Focused registration exposed missing scheduled-delete mapping, NULL tenant, then zero quota constraint failures | Identity registration/handler 5/5 and focused runtime 3/3 passed | Personal tenant assignment remains in registration; quota default remains in the aggregate |
+
+### Work Unit Evidence
+
+| Evidence | Exact result |
+|---|---|
+| Initial runtime harness | API integration project → exit 1; 19 passed / 39 failed of 58 |
+| Final authorized integration attempt | API integration project → exit 1; 46 passed / 13 failed of 59 discovered tests (45/58 original contracts green plus the new migration contract green) |
+| Focused migration tests | Integration migration contracts 6/6; Host migration contracts 5/5 |
+| Focused registration/lifecycle tests | Identity registration/handler 5/5; runtime registration + hard-delete mapping 3/3 |
+| Post-full-test unit correction | Hard-delete service/options tests 5/5 |
+| Required full solution test | `dotnet test JadeCapital.slnx` → exit 1; integration remained nonzero and the run preceded the final focused hard-delete harness correction |
+| Build | `dotnet build JadeCapital.slnx` → exit 0; 0 warnings, 0 errors |
+| Rollback boundary | Revert the 13 files listed in this reset's changed-file report; prior OTel/MinIO remediation files remain independent |
+
+### Exact Remaining Root Causes
+
+1. Eight account-dependent tests: `AccountAuditDecorator` requests unregistered `Microsoft.EntityFrameworkCore.DbContext`, so account creation returns 500.
+2. Two market-data tests: `QuoteCacheRepository` queries unmapped `q.CreatedAt` instead of the shipped snake_case column.
+3. One AI risk-advice test: the repository queries `a.updated_at`, absent from the applied schema.
+4. One scanner test: stale harness sends `activeHours` as an array while `UpsertScannerFilterRequest` currently requires a string.
+5. One QuoteHub test: the WebApplicationFactory/TestServer harness exposes no HTTP address through `IServerAddressesFeature`.
+
+This reset does not alter the final verify report and does not claim PASS.
+
+## Integration Contract Modernization — Final Bounded Attempt
+
+- Authorization evidence: parent token `sha256:9d5826162929619b39e6b1fcfd0bea9831eef49103f06a3b061a561fa3730747`; no acquire or settle.
+- Attempt: second and final bounded attempt, continuing the preserved 178-line first-attempt implementation.
+- Outcome: success; API integration is 59/59 and the complete solution test/build commands exit zero.
+- Cumulative implementation delta: 302 changed lines, within the 800-line limit.
+
+### Root Classification and Minimal Correction
+
+| Proven root class | Classification | Correction |
+|---|---|---|
+| `AccountAuditDecorator` cannot resolve `DbContext` | Production DI defect | Aliased scoped `DbContext` to the registered `TradingDbContext`; account-dependent execution then exposed and normalized the value-converted instrument lookup and canonical ImportJob timestamp mapping. |
+| Quote cache queries inherited `CreatedAt` | Production EF-model defect | Ignored inherited `Id`/audit properties because `symbol` and `cached_at` are the table's canonical identity/timestamp contract. |
+| AI risk advice queries absent `updated_at` | Production EF-model defect | Ignored inherited `UpdatedAt`; the immutable advisory schema intentionally persists only `created_at`. |
+| Scanner sends `activeHours` with the wrong shape | Mixed harness and production persistence defect | Sent canonical JSON as a string, mapped it as `jsonb`, initialized required timestamps, and returned the newly created aggregate. |
+| QuoteHub discovers no TestServer address | Harness defect | Used TestServer's in-memory WebSocket client, configured bearer auth, sent the nested list argument shape, and drove the public broadcast tick instead of waiting on startup jitter. |
+
+Normalization after the five roots disabled integration-test parallelism because multiple WebApplicationFactory instances share one static database, changed hard-delete cleanup to remove only each test's seeded users, and aligned canonical CSV/MT4 fixtures. No endpoint assertion was weakened.
+
+### TDD Cycle Evidence
+
+| Root class | RED | GREEN | REFACTOR |
+|---|---|---|---|
+| Account-dependent graph | Preserved runtime RED: 8 account-dependent failures started at unresolved `DbContext`; subsequent focused runs exposed value-object query and ImportJob audit-column mismatches | Account, trade, and import paths pass in final 59/59 integration run | One scoped DI alias; converter-level equality; ignored non-canonical inherited timestamps; canonical import fixtures |
+| Quote cache mapping | Preserved 2 endpoint failures selected unmapped inherited columns | Both market-data endpoint tests pass in final integration run | Kept `symbol` and `cached_at` as the only identity/time model |
+| AI risk mapping | Preserved risk-advice failure selected absent `updated_at` | AI risk endpoint passes in final integration run | Immutable aggregate now maps only its canonical `created_at` |
+| Scanner contract | Preserved request RED bound an array to a string; corrected request then exposed `jsonb` and required timestamp persistence failures | Scanner CRUD lifecycle passes in final integration run | One timestamp value is reused for create/update/event; mapping remains JSON-native |
+| QuoteHub harness | Preserved RED found no `IServerAddressesFeature`; in-memory connection then reproduced 401, invalid SignalR arguments, and startup-jitter timing | Authenticated in-memory WebSocket receives `OnQuoteUpdate` within the existing 15-second assertion | Removed address, real-network, and random-startup coupling; retained the behavioral frame assertion |
+| Shared integration runtime | Parallel/order-dependent runs failed while the same focused tests passed | Serial integration assembly passes 59/59 | Added assembly-level non-parallel execution and per-test seeded-user cleanup |
+
+### Work Unit Evidence
+
+| Evidence | Exact result |
+|---|---|
+| Focused/runtime integration | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests/JadeCapital.Api.IntegrationTests.csproj --nologo --verbosity minimal` → exit 0; 59 passed, 0 failed, 0 skipped |
+| Full solution test | `VSTEST_CONNECTION_TIMEOUT=300 MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test JadeCapital.slnx --nologo --verbosity minimal` → exit 0; 1,590 passed, 0 failed, 0 skipped. The preceding default-timeout run aborted one testhost during protocol negotiation; all other projects, including integration 59/59, were green. |
+| Build | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet build JadeCapital.slnx --nologo --verbosity minimal` → exit 0; 0 warnings, 0 errors |
+| Normalization | Focused `dotnet format ... --include ...` completed; `git diff --check` exited 0; unrelated pre-existing indentation churn was removed |
+| Review budget | 302 cumulative implementation lines versus 800 maximum |
+| Rollback boundary | Revert this attempt's Trading DI/EF/domain/handler files, Wave4/Wave5/background-service integration fixtures, and integration `AssemblyInfo.cs`; the preserved first-attempt Identity/migration/telemetry/MinIO corrections remain independent |
+
+The final verify report remains untouched. No commit, push, archive, Wave 13 work, acquire, or settle was performed.

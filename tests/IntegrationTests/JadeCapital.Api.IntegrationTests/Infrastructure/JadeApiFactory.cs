@@ -115,7 +115,12 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
                 ["Cors:Origins:0"] = "http://localhost",
                 ["Mail:Host"] = "localhost",
                 ["Mail:Port"] = "1025",
-                ["Mail:From"] = "test@jadecapital.test"
+                ["Mail:From"] = "test@jadecapital.test",
+                ["Storage:Endpoint"] = "127.0.0.1:9000",
+                ["Storage:AccessKey"] = "integration-access-key",
+                ["Storage:SecretKey"] = "integration-secret-key",
+                ["Storage:Bucket"] = "jade-integration-tests",
+                ["Storage:Ssl"] = "false"
             });
         });
 

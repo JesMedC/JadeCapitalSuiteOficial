@@ -3,6 +3,7 @@ using JadeCapital.Trading.Domain.Accounts;
 using JadeCapital.Trading.Domain.Enums;
 using JadeCapital.Trading.Domain.Instruments;
 using JadeCapital.Trading.Domain.Trades;
+using JadeCapital.Trading.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace JadeCapital.Trading.Infrastructure.Persistence;
@@ -214,9 +215,9 @@ public sealed class InstrumentRepository : IInstrumentRepository
     public async Task<Instrument?> FindBySymbolAsync(string symbol, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(symbol)) return null;
-        var normalized = symbol.Trim().ToUpperInvariant();
+        var normalized = Symbol.FromTrusted(symbol);
         return await _db.Instruments
-            .FirstOrDefaultAsync(i => i.Symbol.Value == normalized, ct);
+            .FirstOrDefaultAsync(i => i.Symbol == normalized, ct);
     }
 
     public async Task<IReadOnlyList<Instrument>> ListActiveAsync(CancellationToken ct)
