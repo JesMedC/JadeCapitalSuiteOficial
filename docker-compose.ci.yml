@@ -121,7 +121,7 @@ services:
     command:
       - /bin/bash
       - -euc
-      - npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts
+      - npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts journeys.spec.ts
 
 volumes:
   postgres-ci:

@@ -34,9 +34,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Remaining Full-Stack Journeys
 
-- [ ] 2.1 RED — Add `frontend/e2e/journeys.spec.ts` for **Create, list, and open trade**, **Authenticated GDPR export**, and **Account deletion grace period**.
-- [ ] 2.2 GREEN — Add `frontend/e2e/fixtures/` setup/download assertions and gate all five journeys.
-- [ ] 2.3 REFACTOR — Deduplicate fixtures without weakening assertions; prove runtime and slice rollback.
+- [x] 2.1 RED — Add `frontend/e2e/journeys.spec.ts` for **Create, list, and open trade**, **Authenticated GDPR export**, and **Account deletion grace period**.
+- [x] 2.2 GREEN — Add `frontend/e2e/fixtures/` setup/download assertions and gate all five journeys.
+- [x] 2.3 REFACTOR — Deduplicate fixtures without weakening assertions; prove runtime and slice rollback.
 
 ## Phase 3: WAL and Isolated PITR
 

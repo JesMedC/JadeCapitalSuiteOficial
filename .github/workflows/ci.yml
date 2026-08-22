@@ -295,8 +295,8 @@ jobs:
           retention-days: 7
           if-no-uses-found: ignore
 
-  test-auth-e2e:
-    name: Auth E2E (real stack)
+  test-functional-e2e:
+    name: Functional E2E (real stack)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -305,7 +305,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run registration and session journeys
+      - name: Run all five functional journeys
         run: >-
           docker compose
           -p "$COMPOSE_PROJECT_NAME"
