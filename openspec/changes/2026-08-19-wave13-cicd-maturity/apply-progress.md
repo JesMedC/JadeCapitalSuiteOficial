@@ -4,13 +4,13 @@
 
 ## Execution Context
 
-- Branches: Phase 1 `feature/wave13-cicd-maturity-final`; Phase 2 `feature/wave13-e2e-journeys`; Phase 3 `feature/wave13-walg-pitr`; Phase 4 `feature/wave13-audit-partitioning`
-- Completed scope: Phase 1 tasks 1.1–1.3, Phase 2 tasks 2.1–2.3, Phase 3 tasks 3.1–3.3, and Phase 4 tasks 4.1–4.3
+- Branches: Phase 1 `feature/wave13-cicd-maturity-final`; Phase 2 `feature/wave13-e2e-journeys`; Phase 3 `feature/wave13-walg-pitr`; Phase 4 `feature/wave13-audit-partitioning`; Phase 5 `feature/wave13-release-readiness`
+- Completed scope: Phase 1 tasks 1.1–1.3, Phase 2 tasks 2.1–2.3, Phase 3 tasks 3.1–3.3, Phase 4 tasks 4.1–4.3, and Phase 5 tasks 5.1–5.3
 - Mode: Strict TDD
-- Delivery: `auto-chain`, `feature-branch-chain`; work unit 4 / PR4 targets PR3
-- Parent tokens: Phase 1 `sha256:bee90b3532da743a02839f31fc6a0cb2cfcea9cee4c8569a1a3df9a185f611d7`; Phase 2 `sha256:41b95b10a4a59c9c91b8774cd53f114e2597ade410d1481808b704bb9080b083`; Phase 3 `sha256:4f1edb9c12e47e0a7236b2d8e08fa7b6ba2520afebf849616f039bbc39f854d2`; Phase 4 `sha256:f39aa19fa81b2278820b656510cc2b1be22d4dbdb2a8cd3474b2484447017fb7`
+- Delivery: `auto-chain`, `feature-branch-chain`; work unit 5 / PR5 targets PR4
+- Parent tokens: Phase 1 `sha256:bee90b3532da743a02839f31fc6a0cb2cfcea9cee4c8569a1a3df9a185f611d7`; Phase 2 `sha256:41b95b10a4a59c9c91b8774cd53f114e2597ade410d1481808b704bb9080b083`; Phase 3 `sha256:4f1edb9c12e47e0a7236b2d8e08fa7b6ba2520afebf849616f039bbc39f854d2`; Phase 4 `sha256:f39aa19fa81b2278820b656510cc2b1be22d4dbdb2a8cd3474b2484447017fb7`; Phase 5 `sha256:ff20d003a4135f63aaefab9fb04d63d36963c6796eb0aa3e7732e4e6c1ba8e1c`
 - Transaction action: none (`acquire`/`settle` explicitly excluded)
-- Status: **Phases 1–4 complete; Phase 5 untouched**
+- Status: **Phases 1–5 complete; ready for verification**
 
 ## Task State
 
@@ -26,6 +26,9 @@
 - [x] 4.1 RED — Added real-PostgreSQL tests for fresh/upgrade/checkpoint/rerun, deterministic routing, exact retention, rejected drafts, and rollback/rerun.
 - [x] 4.2 GREEN — Added migration 0040, EF composite identity, and ordered composite-pair retention deletion.
 - [x] 4.3 REFACTOR — Centralized catalog/state invariants, exact-copy checks, locks, retained-source rollback, and full-runner proof.
+- [x] 5.1 RED — Added release-readiness tests and explicit negative fixtures for archive-unlisted and changelog-claim-without-archive drift, repository roots, delivery presence, and lookup failures.
+- [x] 5.2 GREEN — Added the exact archive manifest, changelog claims, validator/evidence builders, ordered CI gate, generated SHA-bound evidence, and operator documentation.
+- [x] 5.3 REFACTOR — Centralized canonical root/subprocess handling, atomic evidence output, fail-closed delivery checks, and runtime proof without delivery.
 
 ## Phase 1 Previous Attempt Evidence
 
@@ -149,6 +152,31 @@ The first attempt stopped before RED because the accessibility baseline had 3/6 
 | Review footprint | 538 authored additions/deletions including cumulative artifact updates; below the approved 800-line PR4 budget. |
 | Rollback boundary | Revert migration `0040`, its rehearsal/test, EF composite mapping, composite retention SQL, migration-count updates, and the 0030 rerun guard. The retained source and partitioned generation are never automatically deleted; Phases 1–3 and 5 remain independent. |
 
+## Phase 5 Implementation
+
+- Added an exact three-way set gate across OpenSpec archive directories, the sorted versioned manifest, and machine-readable changelog claims; mismatch diagnostics name every offending key.
+- Added deterministic negative fixtures for both specified drift directions and fail-closed tests for malformed sets, repository roots, SHA mismatch, local/remote tags, GitHub publication, and unavailable lookups.
+- Added non-delivering `v1.1.0-rc1` evidence generation bound to current `GITHUB_SHA`, exact remote tag ref, authoritative GitHub release lookup, and manifest digest. Evidence is written atomically only after all checks pass.
+- Added an ordered CI job after all existing gates plus an operator runbook. No tag, release, publication, commit, push, archive, acquire, or settle action was performed.
+
+## Phase 5 TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 5.1 | `scripts/test-release-readiness.py`, two JSON fixtures | Unit/contract | N/A — new release gate | ✅ Import failed with `ModuleNotFoundError: release_readiness` before production code | ✅ 11/11 tests passed | ✅ Exact match plus both mismatch directions and malformed ordering | ✅ Fixture setup centralized; 11/11 remained green |
+| 5.2 | release-readiness suite and current-repo validator | Unit/runtime | ✅ Existing CI contract validator passed all checks | ✅ Validator/build APIs were absent | ✅ 11/11 tests and 12/12 current archive claims passed | ✅ SHA mismatch plus local/remote/publication absence and presence | ✅ Shared module with thin CLIs; all checks remained green |
+| 5.3 | release-readiness suite | Contract/runtime | ✅ 11/11 green before final root/fixture cleanup | ✅ Root and fail-closed command expectations existed before implementation | ✅ 11/11 passed after canonicalization | ✅ Relative/absolute success; missing/outside/wrong root and lookup failures | ✅ Atomic output and canonical `git -C`; runtime remained green |
+
+## Phase 5 Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test command and exact result | `python3 scripts/test-release-readiness.py`: exit 0; 11/11 tests passed, including two persisted negative fixtures and five delivery/lookup failure subcases. |
+| Runtime harness command and exact result | `GITHUB_SHA="$(git rev-parse HEAD)" python3 scripts/build-rc-evidence.py --root . --output artifacts/release/v1.1.0-rc1-readiness.json`: exit 0; evidence built for `12e72caf35bbc0930f17d601386a2cc3c5465ca2`; 12 archive claims exact; local tag absent, exact remote tag absent, GitHub release lookup returned authoritative HTTP 404. |
+| Supporting verification | Current-repo validator passed 12/12; existing CI validator passed; solution build succeeded with 0 errors and 3 pre-existing CA2263 warnings; `git diff --check` passed. |
+| Review footprint | 563 authored additions/deletions including cumulative artifact updates and generated readiness evidence; below the approved 800-line PR5 budget. |
+| Rollback boundary | Revert the release-readiness Python files/fixtures, archive manifest, changelog claims, CI job, generated evidence, and release-readiness runbook. Phases 1–4 and all archived OpenSpec changes remain unchanged. |
+
 ## Issues Found
 
 - Phase 1: Host .NET SDK was unavailable. A containerized broad Identity run passed 434 tests but 10 Testcontainers cases failed from nested-Docker/Ryuk initialization; the focused registration/login backend set passed 20/20, and the real API image published and served both E2E journeys.
@@ -157,11 +185,12 @@ The first attempt stopped before RED because the accessibility baseline had 3/6 
 - Phase 2: The trade journey uses authenticated real API fixture setup/create and verifies the persisted result through the real UI; no endpoint is mocked or intercepted.
 - Phase 3: WAL-G 3.0.9 exposes `wal-show --detailed-json` as a timeline array rather than the older documented `--json` object; validation targets the installed, checksum-pinned binary and fails on unknown/malformed shapes.
 - Phase 4: The first complete-chain rerun exposed migration 0030's unconditional comment on the pre-0034 `changes` column. A fail-closed column-aware comment guard fixed reruns without changing data.
+- Phase 5: CodeGraph could not run because the local `mise` shim has no configured CodeGraph runtime; artifact-guided filesystem inspection was used after the required CodeGraph status attempt failed.
 
 ## Deviations from Design
 
-None in service reality, persistence, download, authorization, CI gating, PITR isolation, or audit partition safety. Minimal Phase 1 build/runtime repairs were required so the designed Compose-built real stack could start. Phase 2 fixture setup uses authenticated real endpoints to keep the journey deterministic while the user-visible persisted trade is verified in the UI. Phase 3 uses WAL-G 3.0.9's current `--detailed-json` catalog shape while preserving the designed fail-closed continuity contract. Phase 4 places composite-pair deletion in `AuditRetentionService`, where deletion identity is resolved, while the background scheduler continues to supply cutoff and batch policy.
+None in service reality, persistence, download, authorization, CI gating, PITR isolation, audit partition safety, archive consistency, or non-delivering RC evidence. Minimal Phase 1 build/runtime repairs were required so the designed Compose-built real stack could start. Phase 2 fixture setup uses authenticated real endpoints to keep the journey deterministic while the user-visible persisted trade is verified in the UI. Phase 3 uses WAL-G 3.0.9's current `--detailed-json` catalog shape while preserving the designed fail-closed continuity contract. Phase 4 places composite-pair deletion in `AuditRetentionService`, where deletion identity is resolved, while the background scheduler continues to supply cutoff and batch policy.
 
 ## Remaining Work
 
-Phase 5 remains unchecked and untouched.
+All planned Wave 13 implementation tasks are complete. Verification and archive remain separate parent-orchestrated phases.

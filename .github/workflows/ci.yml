@@ -333,3 +333,43 @@ jobs:
 
       - name: Prove base/WAL coverage and isolated A/T/B recovery
         run: bash scripts/test-pitr.sh
+
+  release-readiness:
+    name: Archive consistency and non-delivering RC evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - lint-backend
+      - test-backend
+      - test-integration
+      - test-frontend
+      - test-a11y
+      - test-functional-e2e
+      - test-postgres-pitr
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_SHA: ${{ github.sha }}
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate archive manifest and changelog
+        run: python3 scripts/validate-release-readiness.py --root "$GITHUB_WORKSPACE"
+
+      - name: Build exact-commit readiness evidence without delivery
+        run: >-
+          python3 scripts/build-rc-evidence.py
+          --root "$GITHUB_WORKSPACE"
+          --output artifacts/release/v1.1.0-rc1-readiness.json
+
+      - name: Upload readiness evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v1.1.0-rc1-readiness-${{ github.sha }}
+          path: artifacts/release/v1.1.0-rc1-readiness.json
+          if-no-files-found: error
+          retention-days: 30
