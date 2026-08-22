@@ -192,4 +192,37 @@ public class DockerSecretConfigurationProviderTests : IDisposable
         firstPassKeys.Should().BeEquivalentTo(secondPassKeys);
         sut.GetLoadedSecrets().Should().HaveCount(1);
     }
+
+    [Fact]
+    public void AddFileBackedSecrets_Materializes_Canonical_Stripe_SecretKey()
+    {
+        var dir = CreateTempDirectory();
+        var secretPath = Path.Combine(dir, "stripe_api_key");
+        File.WriteAllText(secretPath, "  sk_test_from_file\n");
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Stripe:SecretKey:File"] = secretPath,
+                ["Stripe:ApiKey"] = "sk_test_legacy_must_not_win"
+            })
+            .AddFileBackedSecrets()
+            .Build();
+
+        configuration["Stripe:SecretKey"].Should().Be("sk_test_from_file");
+    }
+
+    [Fact]
+    public void AddFileBackedSecrets_Leaves_Direct_SecretKey_When_No_File_Is_Configured()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Stripe:SecretKey"] = "sk_test_direct"
+            })
+            .AddFileBackedSecrets()
+            .Build();
+
+        configuration["Stripe:SecretKey"].Should().Be("sk_test_direct");
+    }
 }

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Proprietary
 //
 // WHY A SEPARATE CLASS WHEN Billing.Infrastructure/Stripe/StripeOptions EXISTS
-//   The Billing-side options drives the Stripe.NET SDK construction (ApiKey
-//   + WebhookSecret + DefaultPriceId, etc.). The Host-side class here is a
+//   The Billing-side options drives the Stripe.NET SDK construction. The Host-side class here is a
 //   *validation gate*: it runs at host startup via ValidateOnStart so
 //   misconfigurations fail fast instead of leaking through to runtime.
 //
@@ -19,16 +18,6 @@
 //      StubStripeGateway) or sk_test_* / sk_live_*. Rejects unrecognised
 //      values so typos like "sk_text_..." don't quietly live in .env.
 //
-// WAVE 12 SLICE 12.1 — ApiKey [Obsolete] ALIAS REMOVED
-//   The Wave 11.4 [Obsolete] alias bridge (kept for one release so
-//   un-migrated environments could roll forward) is removed in v1.0.0+.
-//   The canonical wire name is now exclusively `SecretKey`, matching
-//   `Stripe__SecretKey` in docker-compose.prod.yml. No backwards-compat
-//   fallback to a legacy key — the validator reads `Stripe:SecretKey`
-//   directly. docker-compose.prod.yml was aligned in Wave 11.4 already
-//   (no change needed here; see `infrastructure/secrets/stripe_api_key.txt`
-//   for the secret filename that maps to it via `Stripe__SecretKey__File`).
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -48,9 +37,7 @@ public class StripeOptions
     /// <summary>
     /// Stripe API key (canonical wire name). Bound from <c>Stripe:SecretKey</c>
     /// (env var <c>Stripe__SecretKey</c>). Empty in dev means "use
-    /// StubStripeGateway". Wave 12.1 — the previous <c>ApiKey</c> alias
-    /// has been retired; environments must bind <c>Stripe__SecretKey</c>
-    /// directly.
+    /// StubStripeGateway".
     /// </summary>
     public string SecretKey { get; set; } = string.Empty;
 
@@ -93,11 +80,7 @@ public sealed class StripeOptionsValidator : IValidateOptions<StripeOptions>
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
         var isProdLike = env == "Production" || env == "Staging";
 
-        // Wave 12.1 — read Stripe:SecretKey directly. The Wave 11.4 legacy
-        // `Stripe:ApiKey` alias is gone in v1.0.0+, so we do NOT fall back
-        // to it. Belt-and-braces probe of the raw configuration handles
-        // the (legitimate) case where the binder picked up the section
-        // but the SecretKey property is still empty.
+        // Probe the raw canonical key when the supplied options instance is empty.
         var apiKey = !string.IsNullOrWhiteSpace(options.SecretKey)
             ? options.SecretKey
             : (_configuration["Stripe:SecretKey"] ?? string.Empty);

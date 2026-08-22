@@ -1,10 +1,10 @@
 namespace JadeCapital.Billing.Infrastructure.Stripe;
 
 /// <summary>
-/// Options for Stripe SDK integration (Wave 6, slice 6a.1).
+/// Options for Stripe SDK integration.
 ///
 /// <para>
-/// <b>ApiKey</b>: when null or empty, DI swaps the real <c>StripeGateway</c>
+/// <b>SecretKey</b>: when null or empty, DI swaps the real <c>StripeGateway</c>
 /// for a <c>StubStripeGateway</c> (dev / CI without a Stripe key). This is
 /// the Wave 5/5b.1 precedent (OllamaHttpClient falls back to null when no
 /// provider is configured).
@@ -27,8 +27,8 @@ public sealed class StripeOptions
     /// <summary>Configuration section name in <c>appsettings.json</c> / env vars.</summary>
     public const string SectionName = "Stripe";
 
-    /// <summary>Stripe API key (<c>Stripe__ApiKey</c> env var). When null/empty the stub is used.</summary>
-    public string? ApiKey { get; set; }
+    /// <summary>Stripe secret key (<c>Stripe__SecretKey</c> env var). When null/empty the stub is used.</summary>
+    public string? SecretKey { get; set; }
 
     /// <summary>Stripe API version to pin to (default: <c>2025-08-13</c> per user choice).</summary>
     public string ApiVersion { get; set; } = "2025-08-13";

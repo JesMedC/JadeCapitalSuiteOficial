@@ -64,17 +64,17 @@ public static class BillingModuleRegistration
         services.AddSingleton<IStripeClient>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<StripeOptions>>().Value;
-            var apiKey = opts.ApiKey ?? string.Empty;
-            return new StripeClient(apiKey);
+            var secretKey = opts.SecretKey ?? string.Empty;
+            return new StripeClient(secretKey);
         });
 
-        // IStripeGateway: real if ApiKey is set, otherwise StubStripeGateway.
+        // IStripeGateway: real if SecretKey is set, otherwise StubStripeGateway.
         // Singleton lifetime — Stripe.net's StripeClient + services are
         // thread-safe and the gateway is stateless.
         services.AddSingleton<IStripeGateway>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<StripeOptions>>().Value;
-            return string.IsNullOrWhiteSpace(opts.ApiKey)
+            return string.IsNullOrWhiteSpace(opts.SecretKey)
                 ? new StubStripeGateway()
                 : ActivatorUtilities.CreateInstance<StripeGateway>(sp);
         });

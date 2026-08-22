@@ -6,11 +6,11 @@
 
 - Mode: Strict TDD
 - Delivery: auto-chain, feature-branch-chain
-- Current work unit: PR3 based on PR2 — Proxy Trust and Consent
+- Current work unit: PR4 based on PR3 — Canonical Stripe Contract
 - Review budget: 800 changed lines
-- Authored slice delta: 615 changed lines (455 additions, 160 deletions), including SDD ledger updates
-- Completed tasks: 1.1–1.3, 2.1–2.3, 3.1–3.3
-- Remaining tasks: Phases 4–5
+- Authored slice delta: 291 changed lines (243 additions, 48 deletions) across 16 files, including SDD ledger updates
+- Completed tasks: 1.1–1.3, 2.1–2.3, 3.1–3.3, 4.1–4.3
+- Remaining tasks: Phase 5
 
 ## Completed Tasks
 
@@ -23,6 +23,9 @@
 - [x] 3.1 RED — Added startup validation, trusted/untrusted/direct runtime proxy tests, and consent characterization coverage; reproduced the preserved RED compile failure against the pre-change production baseline.
 - [x] 3.2 GREEN — Added validated Host-owned reverse-proxy options and changed Identity to consume only processed `RemoteIpAddress`.
 - [x] 3.3 REFACTOR — Preserved first-middleware ordering, empty-trust fail-safe behavior, and verified focused Host/Identity tests plus the solution build.
+- [x] 4.1 RED — Added canonical options/DI tests, file-backed secret tests, smoke-contract tests, and full named stub-shape characterization before production changes.
+- [x] 4.2 GREEN — Replaced Billing `ApiKey` with `SecretKey`, materialized `:File` configuration into canonical keys, and aligned production composition and smoke configuration.
+- [x] 4.3 REFACTOR — Removed stale alias comments, normalized changed C# files, and verified focused Billing/Host tests plus the solution build.
 
 ## TDD Cycle Evidence
 
@@ -37,6 +40,9 @@
 | 3.1 | `ReverseProxyConfigurationTests.cs`, `ClientIpEndpointTests.cs`, `ConsentEndpointTests.cs` | Unit + TestServer integration | Consent characterization passed 4/4 against the pre-change production baseline | ✅ Reproduced — proxy tests failed compilation on baseline because `AddJadeCapitalReverseProxy` did not exist | ✅ Passed — 17/17 focused Host tests and 6/6 existing Identity consent tests | Malformed proxy/network/limit, trusted proxy/network, forward limit, untrusted spoof, empty trust, direct peer, both consent choices, auth, invalid choice, idempotency, and changed timestamp | Assertions were kept behavioral; existing Identity handler coverage supplies idempotency/timestamp proof |
 | 3.2 | Same | Unit + TestServer integration | Covered by 3.1 baseline | ✅ Written before preserved production changes | ✅ Passed — processed addresses and validated options passed through real middleware | Proxy and network trust plus direct and spoofed requests exercise distinct paths | Identity header parsing and trust-all Host configuration were removed |
 | 3.3 | Same | Source contract + integration | 16/16 focused Host tests passed before final ordering guard | ✅ Ordering contract added before final verification | ✅ Passed — 17/17 focused Host tests | Empty trust and configured trust paths both exercised | Removed the obsolete Host import and guarded first-middleware placement |
+| 4.1 | `StripeConfigurationTests.cs`, `StubStripeGatewayTests.cs`, `DockerSecretConfigurationProviderTests.cs` | Unit + DI/runtime configuration | 94/94 Billing Stripe and 16/16 Host configuration tests passed | ✅ Reproduced — 5 Billing contract failures plus Host compile failure because `AddFileBackedSecrets` did not exist | ✅ Passed — 13/13 initial contract tests | Null/empty/whitespace keys, canonical-vs-legacy precedence, direct/file configuration, and every named stub response shape | Assertions verify concrete gateway types, Stripe client key, and complete response fields |
+| 4.2 | Same | DI + file-backed runtime configuration | Covered by 4.1 baseline | ✅ Written before production changes | ✅ Passed — canonical key selects `StripeGateway`; empty key selects `StubStripeGateway`; file contents materialize as `Stripe:SecretKey` | Direct and file-backed paths plus legacy-key rejection exercise distinct paths | Centralized generic `:File` materialization at Host configuration composition |
+| 4.3 | Same | Unit + runtime contract | 13/13 focused tests passed before cleanup | ✅ Existing RED suite guarded cleanup | ✅ Passed — 104/104 Billing Stripe and 18/18 Host configuration tests | Canonical smoke input rejects malformed keys and the legacy variable is not accepted | `dotnet format` and `git diff --check` succeeded; solution build succeeded |
 
 ## Work Unit Evidence
 
@@ -84,6 +90,17 @@ Tasks 2.1–2.3 remain complete and unchanged in scope. The correction wires the
 | Review budget | 615 changed lines for this slice, including preserved work and SDD ledger updates (455 additions, 160 deletions), within the 800-line budget |
 | Rollback boundary | Revert the seven proxy/consent files in Host, Identity, and Host tests; telemetry/frontend slices and later Stripe/nonce work remain independent |
 
+### PR4 Canonical Stripe Contract
+
+| Evidence | Result |
+|---|---|
+| Focused Billing test | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj --filter "FullyQualifiedName~Stripe" --nologo --verbosity minimal` → exit 0; 104 passed, 0 failed, 0 skipped |
+| Host/config regression | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet test tests/UnitTests/JadeCapital.Host.UnitTests/JadeCapital.Host.UnitTests.csproj --filter "FullyQualifiedName~DockerSecretConfigurationProviderTests|FullyQualifiedName~StripeOptionsValidatorTests" --nologo --verbosity minimal` → exit 0; 18 passed, 0 failed, 0 skipped |
+| Runtime harness | Focused tests build the real Billing service provider for null/empty/whitespace/canonical keys and read a temporary secret file through Host configuration; all gateway-selection, Stripe client, direct-key, and file-key scenarios passed |
+| Smoke contract | `Stripe__SecretKey=invalid bash scripts/stripe-test-smoke.sh` rejected the malformed canonical key before network access; supplying only legacy `Stripe__ApiKey` failed because canonical `Stripe__SecretKey` was required |
+| Build | `MISE_DOTNET_VERSION=10.0.400 mise exec -- dotnet build JadeCapital.slnx --nologo --verbosity minimal` → exit 0; 0 errors and 0 warnings |
+| Rollback boundary | Revert the Billing Stripe option/registration/docs files, Host file-backed configuration and tests, production compose/smoke wiring, and Stripe tests; Phases 1–3 and pending Phase 5 remain independent |
+
 ## Behavioral Proof
 
 - Only `Sentry:Dsn` is read; empty or whitespace DSNs do not initialize Sentry, and the legacy literal `Sentry__Dsn` configuration key is ignored.
@@ -96,6 +113,9 @@ Tasks 2.1–2.3 remain complete and unchanged in scope. The correction wires the
 - Forwarded headers are processed only for validated configured proxies/networks, respect `ForwardLimit`, and are ignored when trust is empty.
 - Identity reads only middleware-processed `RemoteIpAddress`; untrusted spoofing cannot control the client-IP response.
 - Consent route/status/response, both choices, same-choice idempotency, changed-choice timestamp, and invalid-choice behavior remain unchanged.
+- Billing binds only `Stripe:SecretKey`; null, empty, or whitespace values select `StubStripeGateway`, while a canonical key selects `StripeGateway` and reaches the real `StripeClient`.
+- `Stripe__SecretKey__File` is materialized into `Stripe:SecretKey` from trimmed file contents, and legacy `ApiKey` configuration cannot select the real gateway.
+- Stub customer, webhook, checkout, portal, subscription, payment-method, and invoice response shapes remain unchanged.
 
 ## Limitation
 

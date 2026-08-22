@@ -45,6 +45,70 @@ public class StubStripeGatewayTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.EventId.Should().StartWith("evt_stub_");
+        result.Value.Type.Should().Be("ping");
         result.Value.PayloadJson.Should().Be("{\"foo\":\"bar\"}");
+    }
+
+    [Fact]
+    public async Task Checkout_Returns_Named_Id_Url_And_Future_Expiry()
+    {
+        var before = DateTimeOffset.UtcNow.AddMinutes(59);
+
+        var result = await Sut.CreateCheckoutSessionAsync(
+            UserId, "price_pro", "https://app/success", "https://app/cancel");
+
+        result.Value.SessionId.Should().StartWith("cs_stub_");
+        result.Value.Url.Should().Be($"https://stub.example.com/checkout/{result.Value.SessionId}");
+        result.Value.ExpiresAt.Should().BeAfter(before);
+    }
+
+    [Fact]
+    public async Task Portal_Returns_Named_Id_Url_And_Future_Expiry()
+    {
+        var before = DateTimeOffset.UtcNow.AddMinutes(59);
+
+        var result = await Sut.CreatePortalSessionAsync(UserId, "https://app/billing");
+
+        result.Value.SessionId.Should().StartWith("ps_stub_");
+        result.Value.Url.Should().Be($"https://stub.example.com/portal/{result.Value.SessionId}");
+        result.Value.ExpiresAt.Should().BeAfter(before);
+    }
+
+    [Fact]
+    public async Task Subscription_Returns_Active_Pro_Shape()
+    {
+        var result = await Sut.GetSubscriptionAsync("sub_stub_contract");
+
+        result.Value.StripeSubscriptionId.Should().Be("sub_stub_contract");
+        result.Value.Status.Should().Be("active");
+        result.Value.PlanCode.Should().Be("pro");
+        result.Value.CancelAtPeriodEnd.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PaymentMethods_Return_Default_Visa_4242_Card()
+    {
+        var result = await Sut.GetPaymentMethodsAsync("cus_stub_contract");
+
+        result.Value.Should().ContainSingle();
+        result.Value[0].Id.Should().StartWith("pm_stub_");
+        result.Value[0].Brand.Should().Be("visa");
+        result.Value[0].Last4.Should().Be("4242");
+        result.Value[0].IsDefault.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Invoices_Return_Three_Newest_First_Paid_Usd_Shapes()
+    {
+        var result = await Sut.GetInvoicesAsync("cus_stub_contract");
+
+        result.Value.Should().HaveCount(3);
+        result.Value.Should().OnlyContain(invoice =>
+            invoice.Id.StartsWith("in_stub_", StringComparison.Ordinal)
+            && invoice.Currency == "usd"
+            && invoice.Status == "paid"
+            && invoice.PaidAt.HasValue);
+        result.Value.Select(invoice => invoice.IssuedAt)
+            .Should().BeInDescendingOrder();
     }
 }

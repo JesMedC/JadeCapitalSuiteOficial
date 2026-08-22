@@ -154,3 +154,34 @@ public sealed class DockerSecretConfigurationSource : IConfigurationSource
     public IConfigurationProvider Build(IConfigurationBuilder builder)
         => new DockerSecretConfigurationProvider(_secretsDirectory);
 }
+
+/// <summary>
+/// Materializes configuration entries ending in <c>:File</c> into their
+/// canonical target keys. For example, <c>Stripe__SecretKey__File</c> points
+/// to a file whose trimmed contents become <c>Stripe:SecretKey</c>.
+/// </summary>
+public static class FileBackedSecretConfigurationExtensions
+{
+    private const string FileSuffix = ":File";
+
+    public static IConfigurationBuilder AddFileBackedSecrets(
+        this IConfigurationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        var snapshot = builder.Build();
+        var resolved = snapshot.AsEnumerable()
+            .Where(entry =>
+                entry.Key.EndsWith(FileSuffix, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(entry.Value))
+            .ToDictionary(
+                entry => entry.Key[..^FileSuffix.Length],
+                entry => File.ReadAllText(entry.Value!).Trim(),
+                StringComparer.OrdinalIgnoreCase);
+
+        if (resolved.Count > 0)
+            builder.AddInMemoryCollection(resolved);
+
+        return builder;
+    }
+}

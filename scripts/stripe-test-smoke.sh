@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # Smoke test the Stripe checkout flow with test keys.
-# Usage: STRIPE__ApiKey=sk_test_xxx bash scripts/stripe-test-smoke.sh
+# Usage: Stripe__SecretKey=sk_test_xxx bash scripts/stripe-test-smoke.sh
 set -euo pipefail
 
-: "${STRIPE__ApiKey:?STRIPE__ApiKey env var required (sk_test_*)}"
+: "${Stripe__SecretKey:?Stripe__SecretKey env var required (sk_test_*)}"
 
 echo "Stripe test-mode smoke test"
-echo "API key prefix: ${STRIPE__ApiKey:0:7}"
+echo "Secret key prefix: ${Stripe__SecretKey:0:7}"
 
-if [[ ! "$STRIPE__ApiKey" =~ ^sk_test_ ]]; then
-    echo "FAIL: API key does not start with sk_test_"
+if [[ ! "$Stripe__SecretKey" =~ ^sk_test_ ]]; then
+    echo "FAIL: secret key does not start with sk_test_"
     exit 1
 fi
 
 # Call Stripe API with test key (no auth required for this read)
-response=$(curl -sS "https://api.stripe.com/v1/balance" -u "${STRIPE__ApiKey}:" 2>&1)
+response=$(curl -sS "https://api.stripe.com/v1/balance" -u "${Stripe__SecretKey}:" 2>&1)
 if echo "$response" | grep -q "livemode.*false"; then
     echo "PASS: Stripe test-mode balance endpoint responded correctly"
 else

@@ -22,7 +22,7 @@ public class StripeGatewayTests
 
     private static StripeOptions DefaultOptions() => new()
     {
-        ApiKey = "sk_test_123",
+        SecretKey = "sk_test_123",
         ApiVersion = "2025-08-13",
         WebhookSecret = "whsec_test"
     };

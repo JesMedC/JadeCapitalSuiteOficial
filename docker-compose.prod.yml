@@ -107,9 +107,6 @@ services:
       JWT__RefreshTokenSecret__File: /run/secrets/jwt_refresh_token_secret
       Mail__Provider: ${MAIL_PROVIDER:-mailgun}
       Mail__Mailgun__ApiKey__File: /run/secrets/mailgun_api_key
-      # Wave 12.1 — Stripe__ApiKey__File renamed to Stripe__SecretKey__File
-      # to match the retired StripeOptions.ApiKey [Obsolete] alias removal.
-      # The secret file path is unchanged so no rotation is required.
       Stripe__SecretKey__File: /run/secrets/stripe_api_key
       Stripe__WebhookSecret__File: /run/secrets/stripe_webhook_secret
       Cors__Origins__0: ${CORS_ORIGIN}
