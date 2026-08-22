@@ -40,9 +40,9 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: WAL and Isolated PITR
 
-- [ ] 3.1 RED — Add `scripts/test-pitr.sh` failures for **Base/WAL coverage**, **Isolated PITR target**, and **Drill proves the RPO**.
-- [ ] 3.2 GREEN — Add `docker-compose.pitr.yml` and `infrastructure/backup/` catalog-through-A and isolated A/T/B restore.
-- [ ] 3.3 REFACTOR — Fail closed on catalog gaps, deadlines, in-place restore, or source mutation; update `docs/runbooks/disaster-recovery.md`; rehearse rollback.
+- [x] 3.1 RED — Add `scripts/test-pitr.sh` failures for **Base/WAL coverage**, **Isolated PITR target**, and **Drill proves the RPO**.
+- [x] 3.2 GREEN — Add `docker-compose.pitr.yml` and `infrastructure/backup/` catalog-through-A and isolated A/T/B restore.
+- [x] 3.3 REFACTOR — Fail closed on catalog gaps, deadlines, in-place restore, or source mutation; update `docs/runbooks/disaster-recovery.md`; rehearse rollback.
 
 ## Phase 4: Audit Partitioning and Retention
 

@@ -319,3 +319,17 @@ jobs:
           -p "$COMPOSE_PROJECT_NAME"
           -f docker-compose.ci.yml
           down -v --remove-orphans
+
+  test-postgres-pitr:
+    name: PostgreSQL WAL-G PITR
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: wave13-pitr-${{ github.run_id }}-${{ github.run_attempt }}
+      ARCHIVE_DEADLINE_SECONDS: "60"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prove base/WAL coverage and isolated A/T/B recovery
+        run: bash scripts/test-pitr.sh

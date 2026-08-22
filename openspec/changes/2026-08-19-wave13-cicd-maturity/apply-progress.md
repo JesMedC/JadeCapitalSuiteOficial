@@ -4,13 +4,13 @@
 
 ## Execution Context
 
-- Branches: Phase 1 `feature/wave13-cicd-maturity-final`; Phase 2 `feature/wave13-e2e-journeys`
-- Completed scope: Phase 1 tasks 1.1–1.3 and Phase 2 tasks 2.1–2.3
+- Branches: Phase 1 `feature/wave13-cicd-maturity-final`; Phase 2 `feature/wave13-e2e-journeys`; Phase 3 `feature/wave13-walg-pitr`
+- Completed scope: Phase 1 tasks 1.1–1.3, Phase 2 tasks 2.1–2.3, and Phase 3 tasks 3.1–3.3
 - Mode: Strict TDD
-- Delivery: `auto-chain`, `feature-branch-chain`; work unit 2 / PR2 targets PR1
-- Parent tokens: Phase 1 `sha256:bee90b3532da743a02839f31fc6a0cb2cfcea9cee4c8569a1a3df9a185f611d7`; Phase 2 `sha256:41b95b10a4a59c9c91b8774cd53f114e2597ade410d1481808b704bb9080b083`
+- Delivery: `auto-chain`, `feature-branch-chain`; work unit 3 / PR3 targets PR2
+- Parent tokens: Phase 1 `sha256:bee90b3532da743a02839f31fc6a0cb2cfcea9cee4c8569a1a3df9a185f611d7`; Phase 2 `sha256:41b95b10a4a59c9c91b8774cd53f114e2597ade410d1481808b704bb9080b083`; Phase 3 `sha256:4f1edb9c12e47e0a7236b2d8e08fa7b6ba2520afebf849616f039bbc39f854d2`
 - Transaction action: none (`acquire`/`settle` explicitly excluded)
-- Status: **Phases 1–2 complete; later phases untouched**
+- Status: **Phases 1–3 complete; Phases 4–5 untouched**
 
 ## Task State
 
@@ -20,6 +20,9 @@
 - [x] 2.1 RED — Added `frontend/e2e/journeys.spec.ts` for **Create, list, and open trade**, **Authenticated GDPR export**, and **Account deletion grace period**.
 - [x] 2.2 GREEN — Added deterministic real-stack fixtures/download assertions and gated all five journeys.
 - [x] 2.3 REFACTOR — Deduplicated fixtures without weakening assertions; proved runtime and slice rollback.
+- [x] 3.1 RED — Added failing PITR scenario and fail-closed contract tests before WAL-G production code.
+- [x] 3.2 GREEN — Added continuous WAL-G archival, base backups, catalog-through-A validation, and isolated A/T/B recovery.
+- [x] 3.3 REFACTOR — Centralized fail-closed catalog/deadline/isolation/source-integrity checks; updated CI and the DR runbook.
 
 ## Phase 1 Previous Attempt Evidence
 
@@ -91,17 +94,45 @@ The first attempt stopped before RED because the accessibility baseline had 3/6 
 | Review footprint | 330 authored additions/deletions, below the approved 800-line PR2 budget and the planned 400-line work-unit guard. |
 | Rollback boundary | Revert `frontend/e2e/journeys.spec.ts`, `frontend/e2e/fixtures/real-stack.ts`, shared-helper edits in `auth.spec.ts`, the functional Compose/CI gate edits, and the deletion child-route correction. Phase 1 implementation and later phases remain independent. |
 
+## Phase 3 Implementation
+
+- Added a checksum-pinned WAL-G 3.0.9 PostgreSQL 16 image, secret-file wrapper, operations-profile base-backup service, continuous `wal-push`, and production `archive_timeout=3600s`.
+- Added an isolated Compose drill with independent source, archive, and initially empty restore volumes. It records marker A timestamp/LSN/timeline/segment, requires a nonempty base catalog and gap-free same-timeline `wal-show --detailed-json` coverage through A, records T, writes B, and restores to T.
+- Proved the restored cluster contains A but not B, the source fingerprint remains unchanged, and cutoff-to-latest-recovered RPO is 1 second (≤3600 seconds).
+- Added nine fast fail-closed contract checks for catalog gaps/malformed JSON, deadlines, in-place restore, source mutation, missing storage, and unreadable operator secrets.
+- Added the PITR CI job and operator-safe disaster-recovery/base-backup/rollback instructions. Local test credentials use a temporary mode-`0600` file removed by teardown.
+
+## Phase 3 TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|---|---|---|---|---|---|---|---|
+| 3.1 | `scripts/test-pitr.sh` | Integration | N/A (new) | ✅ Failed because `docker-compose.pitr.yml` did not exist | ✅ 3/3 PITR scenarios passed | ✅ Base/WAL, A/T/B, and measured RPO paths | ✅ Proof assertions and isolated cleanup retained |
+| 3.2 | `scripts/test-pitr.sh`, `pitr-drill.sh` | Runtime integration | ✅ RED scenario harness existed first | ✅ Missing WAL-G/Compose implementation | ✅ Real backup, archive, fetch, and recovery passed | ✅ Base catalog plus A and B WAL boundaries | ✅ Pinned image, deadline polling, and exact evidence fields |
+| 3.3 | `scripts/test-pitr-contracts.sh` | Contract/integration | ✅ Runtime drill passed before extraction | ✅ Failed on missing `pitr-contract.sh` | ✅ 9/9 fail-closed contracts passed | ✅ Valid and rejected catalog/deadline/path/hash/secret cases | ✅ Shared validators; full drill remained 3/3 green |
+
+## Phase 3 Work Unit Evidence
+
+| Evidence | Result |
+|---|---|
+| Focused test command and exact result | `bash scripts/test-pitr.sh`: exit 0; 9/9 fail-closed contracts and 3/3 PITR scenarios passed. Catalog showed one base and continuous timeline 1 through A segment `000000010000000000000004`; measured RPO was 1 second. |
+| Runtime harness command and exact result | `docker compose -p wave13-pitr-1775182 -f docker-compose.pitr.yml up --build --abort-on-container-exit --exit-code-from drill drill` (executed by the focused runner): exit 0; WAL-G base push/fetch completed; isolated restore contained A, excluded B, and source fingerprint was unchanged. |
+| Cleanup/rollback rehearsal | Runner trap executed `down -v --remove-orphans`; no `wave13-pitr` containers or volumes remained. Production WAL-G objects/daily dumps are outside the isolated cleanup boundary and the runbook forbids deleting them or restoring in place. |
+| Compose/syntax receipts | Production Compose config, all shell syntax checks, `git diff --check`, and local secret-file handling passed. |
+| Review footprint | 516 authored additions/deletions including cumulative artifact updates; below the approved 800-line PR3 budget. |
+| Rollback boundary | Revert `docker-compose.pitr.yml`, WAL-G files under `infrastructure/backup/`, production Compose WAL-G/base-backup additions, PITR scripts, CI job, and DR runbook additions. Retain existing daily dump scripts and all remote backup objects; Phases 1–2 and 4–5 remain independent. |
+
 ## Issues Found
 
 - Phase 1: Host .NET SDK was unavailable. A containerized broad Identity run passed 434 tests but 10 Testcontainers cases failed from nested-Docker/Ryuk initialization; the focused registration/login backend set passed 20/20, and the real API image published and served both E2E journeys.
 - Phase 1: The existing app emits unrelated SignalR/CSP console noise on the dashboard; it does not affect the specified auth persistence assertions.
 - Phase 2: The deletion route was declared as `settings/delete-account` plus a nested `delete-account`; changing the child path to empty made `/app/settings/delete-account` reachable as documented.
 - Phase 2: The trade journey uses authenticated real API fixture setup/create and verifies the persisted result through the real UI; no endpoint is mocked or intercepted.
+- Phase 3: WAL-G 3.0.9 exposes `wal-show --detailed-json` as a timeline array rather than the older documented `--json` object; validation targets the installed, checksum-pinned binary and fails on unknown/malformed shapes.
 
 ## Deviations from Design
 
-None in service reality, persistence, download, authorization, or CI gating. Minimal Phase 1 build/runtime repairs were required so the designed Compose-built real stack could start. Phase 2 fixture setup uses authenticated real endpoints to keep the journey deterministic while the user-visible persisted trade is verified in the UI.
+None in service reality, persistence, download, authorization, CI gating, or PITR isolation. Minimal Phase 1 build/runtime repairs were required so the designed Compose-built real stack could start. Phase 2 fixture setup uses authenticated real endpoints to keep the journey deterministic while the user-visible persisted trade is verified in the UI. Phase 3 uses WAL-G 3.0.9's current `--detailed-json` catalog shape while preserving the designed fail-closed continuity contract.
 
 ## Remaining Work
 
-Phases 3–5 remain unchecked and untouched.
+Phases 4–5 remain unchecked and untouched.
