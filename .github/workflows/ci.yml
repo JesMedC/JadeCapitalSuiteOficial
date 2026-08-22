@@ -14,9 +14,11 @@ on:
     branches:
       - feature/0a-identity-model
       - feature/wave10-*
+      - feature/wave13-*
   push:
     branches:
       - feature/0a-identity-model
+      - feature/wave13-*
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -292,3 +294,28 @@ jobs:
           path: frontend/playwright-report
           retention-days: 7
           if-no-uses-found: ignore
+
+  test-auth-e2e:
+    name: Auth E2E (real stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: wave13-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run registration and session journeys
+        run: >-
+          docker compose
+          -p "$COMPOSE_PROJECT_NAME"
+          -f docker-compose.ci.yml
+          up --build --abort-on-container-exit --exit-code-from e2e e2e
+
+      - name: Tear down isolated stack
+        if: always()
+        run: >-
+          docker compose
+          -p "$COMPOSE_PROJECT_NAME"
+          -f docker-compose.ci.yml
+          down -v --remove-orphans

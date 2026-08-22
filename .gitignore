@@ -22,6 +22,7 @@ npm-debug.log*
 ## Playwright
 playwright-report/
 test-results/
+.playwright/
 
 ## Secrets
 .env
