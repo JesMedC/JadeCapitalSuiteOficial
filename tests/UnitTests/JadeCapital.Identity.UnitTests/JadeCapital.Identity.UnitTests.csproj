@@ -24,8 +24,7 @@
          the real anonymizer SQL against a real Postgres instance.
          Mirrors the `JadeApiFactory` pattern from
          tests/IntegrationTests/JadeCapital.Api.IntegrationTests. -->
-    <PackageReference Include="Testcontainers" Version="4.0.0" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <PackageReference Include="Respawn" Version="7.0.0" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->

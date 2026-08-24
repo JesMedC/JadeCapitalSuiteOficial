@@ -52,7 +52,7 @@ testing:
     sdk: Microsoft.NET.Test.Sdk 17.12.0
     integration:
       web: Microsoft.AspNetCore.Mvc.Testing 10.0.9
-      containers: Testcontainers 4.0.0 (PostgreSql + Redis)
+      containers: Testcontainers 4.14.0 (PostgreSql + Redis)
       reset: Respawn 7.0.0
       driver: Npgsql 9.0.1
     command: dotnet test --nologo --verbosity minimal
