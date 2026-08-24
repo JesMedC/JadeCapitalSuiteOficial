@@ -14,7 +14,7 @@
          runner operates on IdentityDbContext; an in-process provider lets
          the unit tests exercise EF-level behavior without a real Postgres
          or Testcontainers dependency. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.19" />
     <!-- Wave 11 slice 11.1 — Testcontainers + Respawn for the
          GdprAuditAnonymizer test fixture. The anonymizer's raw SQL
          uses the unquoted `audit.events` schema-qualified reference
