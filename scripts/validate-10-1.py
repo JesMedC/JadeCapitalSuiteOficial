@@ -154,7 +154,7 @@ def validate_ci() -> None:
     if upload_openapi.get("if-no-files-found") != "error":
         _fail("OpenAPI upload must fail when the generated document is absent")
 
-    # test-integration: services: postgres block
+    # test-integration: runner-published Postgres + Redis services
     test_integ = jobs["test-integration"]
     test_integ_text = yaml.safe_dump(test_integ) + raw
     if "postgres" not in test_integ_text:
@@ -169,7 +169,21 @@ def validate_ci() -> None:
         _fail("test-integration Postgres service and connection passwords must match")
     if "/dev/tcp/127.0.0.1/5432" not in _named_step(test_integ, "Wait for Postgres").get("run", ""):
         _fail("test-integration readiness must use the runner loopback endpoint")
-    _ok("test-integration uses services: postgres + IntegrationTests csproj")
+    redis_service = test_integ.get("services", {}).get("redis", {})
+    if not redis_service:
+        _fail("test-integration missing services: redis block")
+    if not str(redis_service.get("image", "")).startswith("redis:"):
+        _fail("test-integration Redis service must use a Redis image")
+    if "6379:6379" not in redis_service.get("ports", []):
+        _fail("test-integration must publish Redis on runner port 6379")
+    if "redis-cli ping" not in redis_service.get("options", ""):
+        _fail("test-integration Redis service must have a health check")
+    redis_connection = test_integ.get("env", {}).get("ConnectionStrings__Redis", "")
+    if redis_connection != "127.0.0.1:6379":
+        _fail("test-integration must connect through the runner-published Redis port")
+    if "/dev/tcp/127.0.0.1/6379" not in _named_step(test_integ, "Wait for Redis").get("run", ""):
+        _fail("test-integration Redis readiness must use the runner loopback endpoint")
+    _ok("test-integration uses runner-published Postgres + Redis services")
 
     # test-frontend: npm ci + npm test + npm run build, Node 20
     test_fe = jobs["test-frontend"]

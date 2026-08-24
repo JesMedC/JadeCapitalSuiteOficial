@@ -177,9 +177,9 @@ jobs:
           retention-days: 30
           if-no-files-found: error
   # ---------------------------------------------------------------------------
-  # Job 3: test-integration — Postgres via GitHub-hosted services block.
-  # GitHub publishes the service container port on the runner loopback;
-  # the tests and readiness probe must use that host-side endpoint.
+  # Job 3: test-integration — Postgres + Redis via GitHub-hosted services.
+  # GitHub publishes service container ports on the runner loopback;
+  # the tests and readiness probes must use those host-side endpoints.
   # ---------------------------------------------------------------------------
   test-integration:
     name: Backend integration tests
@@ -190,7 +190,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
       ConnectionStrings__Postgres: "Host=127.0.0.1;Port=5432;Database=jadecapital;Username=jade;Password=secret"
-      ConnectionStrings__Redis: "redis:6379"
+      ConnectionStrings__Redis: "127.0.0.1:6379"
     services:
       postgres:
         image: postgres:16-alpine
@@ -202,6 +202,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U jade -d jadecapital"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -240,6 +249,18 @@ jobs:
             sleep 1
           done
           echo "postgres never became ready"
+          exit 1
+
+      - name: Wait for Redis
+        run: |
+          for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/6379) >/dev/null 2>&1; then
+              echo "redis ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "redis never became ready"
           exit 1
 
       - name: API integration tests
