@@ -52,6 +52,6 @@ Chain strategy: feature-branch-chain
 
 ## Phase 5: Archive Gate and Non-Delivering RC
 
-- [ ] 5.1 RED — Test **Archive is unlisted**, **Changelog claim lacks an archive**, and **Readiness evidence is non-delivering** in `scripts/test-release-readiness.py`; cover relative/absolute/missing/outside/wrong roots, local/remote tags, publication, lookup failure.
-- [ ] 5.2 GREEN — Add `openspec/archive-manifest.json`, validation/evidence builders under `scripts/`, `CHANGELOG.md` markers, and ordered CI gates bound to `GITHUB_SHA`.
-- [ ] 5.3 REFACTOR — Canonicalize `git -C <root>`, quote fail-closed subprocesses, prove runtime, and confirm no delivery.
+- [x] 5.1 RED — Test **Archive is unlisted**, **Changelog claim lacks an archive**, and **Readiness evidence is non-delivering** in `scripts/test-release-readiness.py`; cover relative/absolute/missing/outside/wrong roots, local/remote tags, publication, lookup failure.
+- [x] 5.2 GREEN — Add `openspec/archive-manifest.json`, validation/evidence builders under `scripts/`, `CHANGELOG.md` markers, and ordered CI gates bound to `GITHUB_SHA`.
+- [x] 5.3 REFACTOR — Canonicalize `git -C <root>`, quote fail-closed subprocesses, prove runtime, and confirm no delivery.
