@@ -7,7 +7,7 @@ import { AdminSubscriptionsListPage } from '../admin-list.page';
 
 describe('AdminSubscriptionsListPage', () => {
   let http: { get: jest.Mock; post: jest.Mock };
-  const paged = (items: Array<{ subscriptionId: string }> = []): PagedSubscriptions => ({
+  const paged = (items: PagedSubscriptions['items'] = []): PagedSubscriptions => ({
     total: items.length,
     page: 1,
     pageSize: 20,

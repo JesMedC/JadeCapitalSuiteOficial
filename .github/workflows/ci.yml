@@ -22,6 +22,7 @@ on:
       - ci/*
       - feature/0a-identity-model
       - feature/wave13-*
+      - chore/angular20-security
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}

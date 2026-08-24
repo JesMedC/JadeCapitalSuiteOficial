@@ -49,8 +49,9 @@ describe('ForgotPasswordPage', () => {
   });
 
   it('KeyboardOrder_MobileViewport_360px', () => {
+    const root = fixture.nativeElement as HTMLElement;
     const focusables = Array.from(
-      fixture.nativeElement.querySelectorAll<HTMLElement>(
+      root.querySelectorAll<HTMLElement>(
         'a[href], input:not([type="hidden"]), button:not([disabled])',
       ),
     );
