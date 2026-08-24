@@ -77,9 +77,14 @@ public sealed class TelemetryConfigurationTests
     }
 
     [Fact]
-    public async Task RuntimeTelemetry_CoversConfiguredOtlpDisabledExportAndSentryErrors()
+    public async Task RuntimeTelemetry_IgnoresMalformedPropagationAndStripsPii()
     {
         await VerifyConfiguredOtlpAsync();
+    }
+
+    [Fact]
+    public async Task RuntimeTelemetry_DisablesExportWithoutEndpointAndReportsSentryErrors()
+    {
         await VerifyEmptyConfigurationAsync();
         await VerifyUnhandledExceptionAsync();
     }
@@ -164,6 +169,8 @@ public sealed class TelemetryConfigurationTests
         var client = CreateClientWithoutTracePropagation(app);
         client.DefaultRequestHeaders.Authorization = new("Bearer", bearer);
         client.DefaultRequestHeaders.Add("Cookie", cookie);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("traceparent", "00-malformed").Should().BeTrue();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("baggage", new string(',', 8_192)).Should().BeTrue();
         var provider = app.Services.GetRequiredService<TracerProvider>();
 
         var response = await client.GetAsync($"/telemetry/42?email={email}&ip=203.0.113.9");
@@ -171,8 +178,11 @@ public sealed class TelemetryConfigurationTests
 
         response.IsSuccessStatusCode.Should().BeTrue();
         requestActivity.Should().NotBeNull();
-        var activity = exporter.Activities.Should().ContainSingle().Subject;
+        var activity = exporter.Activities.Should()
+            .ContainSingle(candidate => candidate.DisplayName == "GET /telemetry/{id:int}").Which;
         activity.TraceId.Should().NotBe(default);
+        activity.ParentSpanId.Should().Be(default(ActivitySpanId));
+        activity.Baggage.Should().BeEmpty();
         activity.DisplayName.Should().Be("GET /telemetry/{id:int}");
         activity.Duration.Should().BeGreaterThan(TimeSpan.Zero);
         activity.TagObjects.Any(tag =>
