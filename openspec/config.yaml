@@ -53,7 +53,7 @@ testing:
     integration:
       web: Microsoft.AspNetCore.Mvc.Testing 10.0.9
       containers: Testcontainers 4.0.0 (PostgreSql + Redis)
-      reset: Respawn 6.2.1
+      reset: Respawn 7.0.0
       driver: Npgsql 9.0.1
     command: dotnet test --nologo --verbosity minimal
     coverage:

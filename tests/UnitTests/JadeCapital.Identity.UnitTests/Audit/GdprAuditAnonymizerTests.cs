@@ -125,20 +125,15 @@ if (_container is null)
                         // bails with "No tables found" if the schema is empty.
                         await EnsureSchemaAsync();
 
-                        // Pass an open NpgsqlConnection so Respawn can negotiate
-                        // the Postgres adapter (the string overload assumes
-                        // SqlServer; see Respawn 6.2.1 docs).
+                        // Keep an open NpgsqlConnection and explicitly select
+                        // the Postgres adapter for this fixture.
                         await using var respawnConn = new NpgsqlConnection(_connectionString);
                         await respawnConn.OpenAsync();
 _respawner = await Respawner.CreateAsync(respawnConn, new RespawnerOptions
                     {
                         DbAdapter = DbAdapter.Postgres
-                        // No TablesToInclude filter — Respawn discovers
-                        // audit.events via information_schema.tables. The
-                        // filter form ("audit.events" implicit string) is
-                        // broken in Respawn 6.2.1 against the schema-
-                        // qualified table name (it parses the dot as a
-                        // DB alias); the no-filter form just works.
+                        // No TablesToInclude filter: Respawn discovers
+                        // audit.events via information_schema.tables.
                     });
                     }
                 }
@@ -149,9 +144,8 @@ _respawner = await Respawner.CreateAsync(respawnConn, new RespawnerOptions
             }
 
         // Per-test setup: Respawn truncates between tests + open a fresh
-        // connection for the test. Pass an open NpgsqlConnection so the
-        // Postgres adapter is honored; the string overload assumes
-        // SqlClient (Respawn 6.2.1).
+        // connection for the test. Keep an open NpgsqlConnection so the
+        // explicit Postgres adapter is honored.
         await using (var resetConn = new NpgsqlConnection(_connectionString))
         {
             await resetConn.OpenAsync();
