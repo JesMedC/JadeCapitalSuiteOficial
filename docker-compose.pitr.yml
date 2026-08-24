@@ -1,0 +1,63 @@
+services:
+  source:
+    build:
+      context: .
+      dockerfile: infrastructure/backup/walg-postgres.Dockerfile
+    environment:
+      POSTGRES_DB: pitr
+      POSTGRES_USER: pitr
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+      WALG_FILE_PREFIX: /wal-g
+      WALG_COMPRESSION_METHOD: lz4
+    entrypoint: ["/usr/local/bin/pitr-source-entrypoint"]
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=60s
+      - -c
+      - archive_command=/usr/local/bin/walg-env wal-push %p
+    secrets:
+      - postgres_password
+    volumes:
+      - source-data:/var/lib/postgresql/data
+      - wal-archive:/wal-g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pitr -d pitr"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  drill:
+    build:
+      context: .
+      dockerfile: infrastructure/backup/walg-postgres.Dockerfile
+    depends_on:
+      source:
+        condition: service_healthy
+    environment:
+      PGPASSWORD_FILE: /run/secrets/postgres_password
+      WALG_FILE_PREFIX: /wal-g
+      WALG_COMPRESSION_METHOD: lz4
+      ARCHIVE_DEADLINE_SECONDS: ${ARCHIVE_DEADLINE_SECONDS:-60}
+    entrypoint: ["bash", "/opt/pitr-drill.sh"]
+    secrets:
+      - postgres_password
+    volumes:
+      - source-data:/var/lib/postgresql/data:ro
+      - restore-data:/restore-data
+      - wal-archive:/wal-g
+      - ./infrastructure/backup/pitr-drill.sh:/opt/pitr-drill.sh:ro
+
+secrets:
+  postgres_password:
+    file: ${PITR_POSTGRES_PASSWORD_FILE:?PITR_POSTGRES_PASSWORD_FILE is required}
+
+volumes:
+  source-data:
+  restore-data:
+  wal-archive:

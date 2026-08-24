@@ -40,18 +40,18 @@ Chain strategy: feature-branch-chain
 
 ## Phase 3: WAL and Isolated PITR
 
-- [ ] 3.1 RED — Add `scripts/test-pitr.sh` failures for **Base/WAL coverage**, **Isolated PITR target**, and **Drill proves the RPO**.
-- [ ] 3.2 GREEN — Add `docker-compose.pitr.yml` and `infrastructure/backup/` catalog-through-A and isolated A/T/B restore.
-- [ ] 3.3 REFACTOR — Fail closed on catalog gaps, deadlines, in-place restore, or source mutation; update `docs/runbooks/disaster-recovery.md`; rehearse rollback.
+- [x] 3.1 RED — Add `scripts/test-pitr.sh` failures for **Base/WAL coverage**, **Isolated PITR target**, and **Drill proves the RPO**.
+- [x] 3.2 GREEN — Add `docker-compose.pitr.yml` and `infrastructure/backup/` catalog-through-A and isolated A/T/B restore.
+- [x] 3.3 REFACTOR — Fail closed on catalog gaps, deadlines, in-place restore, or source mutation; update `docs/runbooks/disaster-recovery.md`; rehearse rollback.
 
 ## Phase 4: Audit Partitioning and Retention
 
-- [ ] 4.1 RED — Test **Fresh database**, **Historical upgrade**, **Safe rerun**, **Default coverage**, **Future coverage**, **Retained source**, **EF identity**, and **Partition-aware retention**; reject drafts; prove rollback/rerun.
-- [ ] 4.2 GREEN — Create `infrastructure/postgres/migrations/0040_partition_audit_events.sql`; update Identity `AuditEventConfiguration.cs` and `AuditRetentionBackgroundService.cs` for composite pairs.
-- [ ] 4.3 REFACTOR — Centralize state/catalog checks, exact-copy validation, anchor, locks, retained-source rollback, and runtime proof.
+- [x] 4.1 RED — Test **Fresh database**, **Historical upgrade**, **Safe rerun**, **Default coverage**, **Future coverage**, **Retained source**, **EF identity**, and **Partition-aware retention**; reject drafts; prove rollback/rerun.
+- [x] 4.2 GREEN — Create `infrastructure/postgres/migrations/0040_partition_audit_events.sql`; update Identity `AuditEventConfiguration.cs` and `AuditRetentionBackgroundService.cs` for composite pairs.
+- [x] 4.3 REFACTOR — Centralize state/catalog checks, exact-copy validation, anchor, locks, retained-source rollback, and runtime proof.
 
 ## Phase 5: Archive Gate and Non-Delivering RC
 
-- [ ] 5.1 RED — Test **Archive is unlisted**, **Changelog claim lacks an archive**, and **Readiness evidence is non-delivering** in `scripts/test-release-readiness.py`; cover relative/absolute/missing/outside/wrong roots, local/remote tags, publication, lookup failure.
-- [ ] 5.2 GREEN — Add `openspec/archive-manifest.json`, validation/evidence builders under `scripts/`, `CHANGELOG.md` markers, and ordered CI gates bound to `GITHUB_SHA`.
-- [ ] 5.3 REFACTOR — Canonicalize `git -C <root>`, quote fail-closed subprocesses, prove runtime, and confirm no delivery.
+- [x] 5.1 RED — Test **Archive is unlisted**, **Changelog claim lacks an archive**, and **Readiness evidence is non-delivering** in `scripts/test-release-readiness.py`; cover relative/absolute/missing/outside/wrong roots, local/remote tags, publication, lookup failure.
+- [x] 5.2 GREEN — Add `openspec/archive-manifest.json`, validation/evidence builders under `scripts/`, `CHANGELOG.md` markers, and ordered CI gates bound to `GITHUB_SHA`.
+- [x] 5.3 REFACTOR — Canonicalize `git -C <root>`, quote fail-closed subprocesses, prove runtime, and confirm no delivery.
