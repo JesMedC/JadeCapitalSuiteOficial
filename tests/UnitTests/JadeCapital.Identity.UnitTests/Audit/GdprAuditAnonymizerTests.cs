@@ -108,50 +108,44 @@ public sealed class GdprAuditAnonymizerTests : IAsyncLifetime, IDisposable
 
     public async Task InitializeAsync()
     {
-if (_container is null)
+        if (_container is null)
+        {
+            await _initLock.WaitAsync();
+            try
             {
-                await _initLock.WaitAsync();
-                try
+                if (_container is null)
                 {
-                    if (_container is null)
-                    {
-                        _container = PostgresBuilder.Build();
-                        await _container.StartAsync();
-                        _connectionString = _container.GetConnectionString();
+                    _container = PostgresBuilder.Build();
+                    await _container.StartAsync();
+                    _connectionString = _container.GetConnectionString();
 
-                        // Schema MUST be created BEFORE Respawner.CreateAsync —
-                        // Respawn's BuildDeleteTables queries
-                        // information_schema.tables to discover tables and
-                        // bails with "No tables found" if the schema is empty.
-                        await EnsureSchemaAsync();
+                    // Schema MUST be created BEFORE Respawner.CreateAsync —
+                    // Respawn's BuildDeleteTables queries
+                    // information_schema.tables to discover tables and
+                    // bails with "No tables found" if the schema is empty.
+                    await EnsureSchemaAsync();
 
-                        // Pass an open NpgsqlConnection so Respawn can negotiate
-                        // the Postgres adapter (the string overload assumes
-                        // SqlServer; see Respawn 6.2.1 docs).
-                        await using var respawnConn = new NpgsqlConnection(_connectionString);
-                        await respawnConn.OpenAsync();
-_respawner = await Respawner.CreateAsync(respawnConn, new RespawnerOptions
+                    // Keep an open NpgsqlConnection and explicitly select
+                    // the Postgres adapter for this fixture.
+                    await using var respawnConn = new NpgsqlConnection(_connectionString);
+                    await respawnConn.OpenAsync();
+                    _respawner = await Respawner.CreateAsync(respawnConn, new RespawnerOptions
                     {
                         DbAdapter = DbAdapter.Postgres
-                        // No TablesToInclude filter — Respawn discovers
-                        // audit.events via information_schema.tables. The
-                        // filter form ("audit.events" implicit string) is
-                        // broken in Respawn 6.2.1 against the schema-
-                        // qualified table name (it parses the dot as a
-                        // DB alias); the no-filter form just works.
+                        // No TablesToInclude filter: Respawn discovers
+                        // audit.events via information_schema.tables.
                     });
-                    }
-                }
-                finally
-                {
-                    _initLock.Release();
                 }
             }
+            finally
+            {
+                _initLock.Release();
+            }
+        }
 
         // Per-test setup: Respawn truncates between tests + open a fresh
-        // connection for the test. Pass an open NpgsqlConnection so the
-        // Postgres adapter is honored; the string overload assumes
-        // SqlClient (Respawn 6.2.1).
+        // connection for the test. Keep an open NpgsqlConnection so the
+        // explicit Postgres adapter is honored.
         await using (var resetConn = new NpgsqlConnection(_connectionString))
         {
             await resetConn.OpenAsync();

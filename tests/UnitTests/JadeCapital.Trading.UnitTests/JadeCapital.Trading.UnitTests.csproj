@@ -40,6 +40,6 @@
          Mirrors the Identity.UnitTests SQLite setup (BackfillTenantsRunnerTests).
          Lets the EF HasQueryFilter behavior be exercised without a real
          Postgres or Testcontainers dependency. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.19" />
   </ItemGroup>
 </Project>
