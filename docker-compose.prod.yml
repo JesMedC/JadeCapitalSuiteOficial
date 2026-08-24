@@ -17,15 +17,36 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: .
+      dockerfile: infrastructure/backup/walg-postgres.Dockerfile
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-jadecapital}
       POSTGRES_USER: ${POSTGRES_USER:-jade}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
+      WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
+      AWS_ENDPOINT: ${WALG_S3_ENDPOINT:-}
+      AWS_REGION: ${WALG_S3_REGION:-us-east-1}
+      AWS_S3_FORCE_PATH_STYLE: ${WALG_S3_FORCE_PATH_STYLE:-true}
+      AWS_ACCESS_KEY_ID_FILE: /run/secrets/backup_s3_access_key
+      AWS_SECRET_ACCESS_KEY_FILE: /run/secrets/backup_s3_secret_key
+      WALG_COMPRESSION_METHOD: lz4
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=3600s
+      - -c
+      - archive_command=/usr/local/bin/walg-env wal-push %p
     secrets:
       - postgres_password
+      - backup_s3_access_key
+      - backup_s3_secret_key
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -205,11 +226,44 @@ services:
     volumes:
       - ./infrastructure/postgres/migrations:/migrations:ro
 
+  postgres-base-backup:
+    build:
+      context: .
+      dockerfile: infrastructure/backup/walg-postgres.Dockerfile
+    profiles: ["operations"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-jade}
+      PGDATABASE: ${POSTGRES_DB:-jadecapital}
+      PGPASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+      WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
+      AWS_ENDPOINT: ${WALG_S3_ENDPOINT:-}
+      AWS_REGION: ${WALG_S3_REGION:-us-east-1}
+      AWS_S3_FORCE_PATH_STYLE: ${WALG_S3_FORCE_PATH_STYLE:-true}
+      AWS_ACCESS_KEY_ID_FILE: /run/secrets/backup_s3_access_key
+      AWS_SECRET_ACCESS_KEY_FILE: /run/secrets/backup_s3_secret_key
+      WALG_COMPRESSION_METHOD: lz4
+    entrypoint: ["/usr/local/bin/walg-base-backup"]
+    secrets:
+      - postgres_password
+      - backup_s3_access_key
+      - backup_s3_secret_key
+    volumes:
+      - postgres-data:/var/lib/postgresql/data:ro
+
 secrets:
   sentry_auth_token:
     environment: SENTRY_AUTH_TOKEN
   postgres_password:
     file: ./infrastructure/secrets/postgres_password.txt
+  backup_s3_access_key:
+    file: ./infrastructure/secrets/backup_s3_access_key.txt
+  backup_s3_secret_key:
+    file: ./infrastructure/secrets/backup_s3_secret_key.txt
   minio_root_user:
     file: ./infrastructure/secrets/minio_root_user.txt
   minio_root_password:

@@ -72,6 +72,25 @@ public sealed class AuditRetentionService : IAuditRetentionService
 
     public async Task<int> PurgeOldAsync(DateTimeOffset cutoff, int batchLimit, CancellationToken ct)
     {
+        if (batchLimit <= 0) return 0;
+
+        if (_db.Database.IsNpgsql())
+        {
+            return await _db.Database.ExecuteSqlInterpolatedAsync($$"""
+                WITH victims AS (
+                    SELECT id, occurred_at
+                    FROM audit.events
+                    WHERE occurred_at < {{cutoff}}
+                    ORDER BY occurred_at, id
+                    LIMIT {{batchLimit}}
+                )
+                DELETE FROM audit.events AS events
+                USING victims
+                WHERE events.id = victims.id
+                  AND events.occurred_at = victims.occurred_at
+                """, ct);
+        }
+
         // SQLite's EF provider does NOT translate DateTimeOffset comparisons
         // in WHERE clauses (NotSupportedException). The fix is to materialize
         // the eligible rows first (bounded by a generous hard cap so the

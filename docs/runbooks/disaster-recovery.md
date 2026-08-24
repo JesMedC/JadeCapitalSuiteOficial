@@ -5,6 +5,72 @@
 **RPO target**: ≤ 1 hour (Postgres WAL archiving); ≤ 24 hours (Redis, MinIO)
 **RTO target**: ≤ 4 hours (database corruption); ≤ 8 hours (full VM loss)
 
+## PostgreSQL WAL-G policy
+
+Production PostgreSQL runs WAL-G `wal-push` continuously with
+`archive_timeout=3600s`. A one-hour archive timeout is the maximum permitted
+RPO boundary, not a reason to wait before investigating a failed archive.
+Daily logical dumps remain an independent fallback.
+
+Create a physical base backup after configuring the off-host S3-compatible
+target:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile operations \
+  run --rm postgres-base-backup
+```
+
+The operator MUST provision these mode-`0600` files outside source control:
+
+- `infrastructure/secrets/backup_s3_access_key.txt`
+- `infrastructure/secrets/backup_s3_secret_key.txt`
+- `infrastructure/secrets/postgres_password.txt`
+
+Set only non-secret routing values (`WALG_S3_PREFIX`, `WALG_S3_ENDPOINT`,
+`WALG_S3_REGION`) in the environment. The wrappers read credentials from
+Docker secrets and never print them. Verify every base backup and WAL range:
+
+```bash
+docker compose -f docker-compose.prod.yml --profile operations run --rm \
+  --entrypoint /usr/local/bin/walg-env postgres-base-backup backup-list --json --detail
+docker compose -f docker-compose.prod.yml --profile operations run --rm \
+  --entrypoint /usr/local/bin/walg-env postgres-base-backup wal-show --detailed-json
+```
+
+Treat missing/malformed catalogs, a non-`OK` timeline, missing segments, or a
+range that does not include the incident marker as **no usable backup**.
+
+## Isolated PITR drill
+
+Run the deterministic local rehearsal before production recovery changes:
+
+```bash
+bash scripts/test-pitr.sh
+```
+
+The drill creates isolated source, archive, and empty restore volumes. It takes
+a WAL-G base backup, writes marker A, proves an unbroken same-timeline catalog
+through A, records target T, writes B, and restores into the separate cluster.
+Success requires A present, B absent, an unchanged source-data fingerprint,
+and measured RPO ≤3600 seconds. The generated password is held in a temporary
+mode-`0600` file and deleted during teardown.
+
+For an incident, NEVER run `backup-fetch` over the source `PGDATA`. Provision a
+new empty volume/network, fetch the selected base there, configure
+`restore_command` with `wal-g wal-fetch`, set an approved
+`recovery_target_time`, add `recovery.signal`, and start only the isolated
+cluster. Promote or cut over only after application-level validation.
+
+### WAL-G rollback rehearsal
+
+1. Run `bash scripts/test-pitr.sh` and retain its proof output.
+2. Confirm teardown removed only the isolated drill volumes; production backup
+   objects and daily dumps remain retained.
+3. To roll back WAL-G configuration, stop writers, preserve the archive and
+   latest verified base backup, restore the prior Postgres image/settings, and
+   restart logical dumps before resuming writes.
+4. Never delete WAL-G objects or restore into the source as part of rollback.
+
 ## Scenarios
 
 ### Database corruption (single-service failure)
@@ -107,14 +173,14 @@
     ```
 
 **RTO**: ≤ 8 hours (provisioning + restore)
-**RPO**: ≤ 24 hours for Postgres dump; ≤ 1 hour for WAL (if WAL archiving is
-configured via `wal-g` to an offsite target)
+**RPO**: ≤ 24 hours for the logical dump fallback; ≤ 1 hour for verified WAL-G
+base/WAL coverage.
 
 ## Backup retention policy
 
 | Service   | Hot retention | Cold retention | Notes |
 |-----------|---------------|----------------|-------|
-| Postgres  | 7 daily       | 30 monthly     | `pg_dump` daily at 02:00 UTC + WAL archiving hourly |
+| Postgres  | 7 daily       | 30 monthly     | `pg_dump` daily + continuous WAL-G; `archive_timeout=3600s` |
 | Redis     | 7 daily       | —              | `BGSAVE` hourly (AOF provides sub-minute RPO) |
 | MinIO     | 7 daily       | 90 daily       | `mc mirror --remove` nightly at 03:00 UTC |
 
@@ -128,9 +194,9 @@ the first Saturday of every month.
 
 ### Procedure
 
-1. Spin up a Testcontainers Postgres + Redis + MinIO stack locally.
-2. Download the most recent production dump from MinIO.
-3. Run `infrastructure/backup/restore-postgres.sh` against the empty Postgres.
+1. Run `bash scripts/test-pitr.sh` to prove WAL-G A/T/B recovery in isolated volumes.
+2. Download the most recent production dump from MinIO as fallback evidence.
+3. Run `infrastructure/backup/restore-postgres.sh` against a separate empty Postgres.
 4. Verify row counts against the production dashboard's last-known totals:
    - `SELECT count(*) FROM trading.trades;`
    - `SELECT count(*) FROM identity.users;`
@@ -164,6 +230,8 @@ the first Saturday of every month.
 - `infrastructure/backup/redis-backup.sh` (hourly BGSAVE + mc cp)
 - `infrastructure/backup/minio-backup.sh` (nightly mc mirror --remove)
 - `infrastructure/backup/restore-postgres.sh`
+- `infrastructure/backup/pitr-drill.sh` and `pitr-contract.sh`
+- `docker-compose.pitr.yml` (isolated WAL-G recovery harness)
 - `infrastructure/backup/restore-redis.sh`
 - `infrastructure/backup/restore-minio.sh`
 - `infrastructure/postgres/migrate.Dockerfile` (order-agnostic apply)

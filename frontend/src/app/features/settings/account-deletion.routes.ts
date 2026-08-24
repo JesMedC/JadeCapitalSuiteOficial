@@ -15,7 +15,7 @@ import { Routes } from '@angular/router';
 
 export const SETTINGS_ROUTES: Routes = [
   {
-    path: 'delete-account',
+    path: '',
     loadComponent: () =>
       import('./account-deletion/account-deletion.page').then((m) => m.AccountDeletionPage),
     title: 'Eliminar mi cuenta · JadeCapitalSuite',

@@ -1,0 +1,11 @@
+.git
+.codegraph
+.angular
+**/bin
+**/obj
+**/node_modules
+frontend/dist
+frontend/playwright-report
+frontend/test-results
+frontend/.playwright
+TestResults
