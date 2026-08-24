@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- openspec-archive: 2026-08-19-wave8-audit-coverage-extended -->
 <!-- openspec-archive: 2026-08-19-wave9-audit-finalization -->
 <!-- openspec-archive: 2026-08-22-2026-08-19-wave12-observability-security -->
+<!-- openspec-archive: 2026-08-24-2026-08-19-wave13-cicd-maturity -->
 
 ### Wave 11 (2026-08-19) — GDPR Art. 7 + ePrivacy + docs hardening
 #### Added

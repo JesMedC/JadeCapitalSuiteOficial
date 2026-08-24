@@ -151,3 +151,12 @@ The default `BatchLimit = 10000` × `CleanupIntervalHours = 24` deletes ~10000 r
 - WHEN the backlog exceeds `BatchLimit`
 - THEN the system MUST drain at the daily trickle rate (no operator intervention required for tables under ~1M rows)
 - AND the spec MUST NOT mandate a one-shot script — flagged for Wave 10 if needed
+
+### Requirement: Retention across partitions
+
+Retention MUST purge expired monthly/DEFAULT events while preserving newer events and parent writability.
+
+#### Scenario: Partition-aware retention
+- GIVEN expired/retained events across historical, current, and DEFAULT partitions
+- WHEN one retention cycle completes
+- THEN expired events MUST be removed and retained events MUST remain readable
