@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/angular';
+import type { BrowserOptions } from '@sentry/browser';
 import { createTransport, type Transport } from '@sentry/core';
 import { initSentry, type FrontendObservabilityConfig } from './sentry-init';
 
@@ -53,7 +54,7 @@ function dispatchUncaughtHarnessError(): void {
   window.dispatchEvent(new ErrorEvent('error', { error, message: error.message }));
 }
 
-function makeRecordingTransport(envelopes: string[]): (options: never) => Transport {
+function makeRecordingTransport(envelopes: string[]): NonNullable<BrowserOptions['transport']> {
   return (options) => createTransport(options, ({ body }) => {
     envelopes.push(body as string);
     return Promise.resolve({ statusCode: 200 });

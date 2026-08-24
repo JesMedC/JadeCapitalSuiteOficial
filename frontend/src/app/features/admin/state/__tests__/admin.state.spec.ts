@@ -2,14 +2,27 @@ import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { AdminApiService, PagedSubscriptions } from '@core/api/admin-api.service';
+import {
+  AdminApiService,
+  PagedSubscriptions,
+  SubscriptionListItem,
+} from '@core/api/admin-api.service';
 import { AdminSubscriptionsListPage } from '../../subscriptions/admin-list.page';
 
 describe('AdminSubscriptionsListPage state (admin.state)', () => {
   let http: { get: jest.Mock; post: jest.Mock };
   let api: AdminApiService;
 
-  const paged = (total: number, page: number, pageSize: number, items: Array<{ subscriptionId: string }> = []): PagedSubscriptions => ({
+  const item = (overrides: Partial<SubscriptionListItem> = {}): SubscriptionListItem => ({
+    subscriptionId: 's-1',
+    userId: 'u-1',
+    planCode: 'pro',
+    status: 'Active',
+    updatedAt: '2026-01-01T00:00:00Z',
+    version: 1,
+    ...overrides,
+  });
+  const paged = (total: number, page: number, pageSize: number, items: SubscriptionListItem[] = []): PagedSubscriptions => ({
     total,
     page,
     pageSize,
@@ -72,7 +85,7 @@ describe('AdminSubscriptionsListPage state (admin.state)', () => {
     page.error.set('previous error');
     page.loading.set(false);
 
-    http.get.mockReturnValueOnce(of(paged(1, 1, 20, [{ subscriptionId: 's-1' }])));
+    http.get.mockReturnValueOnce(of(paged(1, 1, 20, [item()])));
     const p = page.reload();
     expect(page.loading()).toBe(true);
     expect(page.error()).toBeNull();

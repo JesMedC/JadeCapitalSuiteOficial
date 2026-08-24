@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
-import { PositionSizeService } from '@core/api/position-size.service';
 import {
-  PositionSizeCalculator,
   PositionSizeCalcResult,
-} from '../position-size-calculator';
+  PositionSizeService,
+} from '@core/api/position-size.service';
+import { PositionSizeCalculator } from '../position-size-calculator';
 import { RiskProfileDto } from '@core/api/risk-profile.types';
 
 // ============================================================================

@@ -10,24 +10,25 @@ jest.spyOn(console, 'warn').mockImplementation(() => {});
  * HubConnection mock — captures the registered handler chains so tests
  * can simulate server-pushed OnQuoteUpdate events.
  */
-function makeConnectionMock(): signalR.HubConnection & {
+type ConnectionMock = {
   _emit: (event: string, ...args: any[]) => void;
-  _invoke: jest.Mock;
-  _on: jest.Mock;
-  _start: jest.Mock;
-  _stop: jest.Mock;
-} {
+  invoke: jest.Mock;
+  on: jest.Mock;
+  off: jest.Mock;
+  start: jest.Mock;
+  stop: jest.Mock;
+};
+
+function makeConnectionMock(): ConnectionMock {
   const handlers = new Map<string, ((...args: any[]) => void)[]>();
-  const conn = {
+  const conn: ConnectionMock = {
     on: jest.fn((event: string, handler: (...args: any[]) => void) => {
       const list = handlers.get(event) ?? [];
       list.push(handler);
       handlers.set(event, list);
-      return conn;
     }),
     off: jest.fn((event: string) => {
       handlers.delete(event);
-      return conn;
     }),
     invoke: jest.fn(async (_method: string, _args: any) => undefined),
     start: jest.fn(async () => undefined),
@@ -36,7 +37,7 @@ function makeConnectionMock(): signalR.HubConnection & {
       for (const h of handlers.get(event) ?? []) h(...args);
     },
   };
-  return conn as any;
+  return conn;
 }
 
 describe('QuotesSignalRService', () => {
@@ -49,7 +50,7 @@ describe('QuotesSignalRService', () => {
     });
     svc = TestBed.inject(QuotesSignalRService);
     conn = makeConnectionMock();
-    svc.setConnectionForTesting(conn);
+    svc.setConnectionForTesting(conn as unknown as signalR.HubConnection);
   });
 
   it('starts the underlying HubConnection and flips state to connected', async () => {
