@@ -67,6 +67,13 @@ def validate_ci() -> None:
         _fail("'pull_request' trigger missing")
     if "push" not in on:
         _fail("'push' trigger missing")
+    pull_request_branches = set(on["pull_request"].get("branches", []))
+    if "feature/wave12-*" not in pull_request_branches:
+        _fail("'pull_request' must cover feature/wave12-* targets")
+    push_branches = set(on["push"].get("branches", []))
+    for branch_pattern in ("ci/*", "chore/*"):
+        if branch_pattern not in push_branches:
+            _fail(f"'push' must cover focused {branch_pattern} branches")
     _ok("triggers (pull_request + push) present")
 
     # Concurrency
@@ -98,7 +105,11 @@ def validate_ci() -> None:
     format_run = _named_step(lint, "Verify formatting").get("run", "")
     if not lint.get("env", {}).get("FORMAT_BASE_SHA"):
         _fail("lint-backend missing the event base SHA for changed-file formatting")
-    if "changed-csharp-files.sh" not in format_run or '--include "${CSHARP_FILES[@]}"' not in format_run:
+    oldest_pushed_sha = lint.get("env", {}).get("FORMAT_OLDEST_PUSHED_SHA", "")
+    if "github.event.commits[0].id" not in oldest_pushed_sha:
+        _fail("lint-backend missing the oldest pushed commit event input")
+    selector_call = 'changed-csharp-files.sh "$FORMAT_BASE_SHA" "$FORMAT_OLDEST_PUSHED_SHA"'
+    if selector_call not in format_run or '--include "${CSHARP_FILES[@]}"' not in format_run:
         _fail("lint-backend must format only the fail-closed changed C# set")
     if "< <(" in format_run:
         _fail("lint-backend must not hide changed-file selector failures in process substitution")
