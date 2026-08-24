@@ -115,15 +115,15 @@ services:
       CI: "true"
       E2E_BASE_URL: http://frontend
     volumes:
-      - .:/workspace:ro
-      - frontend-node-modules:/workspace/frontend/node_modules
+      - .:/source:ro
+      - frontend-workspace:/workspace/frontend
       - playwright-output:/workspace/frontend/.playwright
     command:
       - /bin/bash
       - -euc
-      - npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts journeys.spec.ts
+      - set -o pipefail; tar --exclude='./node_modules' --exclude='./.playwright' -C /source/frontend -cf - . | tar -xf - && npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts journeys.spec.ts
 
 volumes:
   postgres-ci:
-  frontend-node-modules:
+  frontend-workspace:
   playwright-output:
