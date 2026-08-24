@@ -36,6 +36,7 @@ jobs:
       DOTNET_NOLOGO: "true"
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+      FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +60,17 @@ jobs:
         run: dotnet restore JadeCapital.slnx --locked-mode --nologo --verbosity minimal
 
       - name: Verify formatting
-        run: dotnet format JadeCapital.slnx --verify-no-changes --verbosity minimal
+        run: |
+          set -euo pipefail
+          CHANGED_FILES_FILE="$(mktemp)"
+          trap 'rm -f "$CHANGED_FILES_FILE"' EXIT
+          bash scripts/changed-csharp-files.sh "$FORMAT_BASE_SHA" > "$CHANGED_FILES_FILE"
+          mapfile -d '' CSHARP_FILES < "$CHANGED_FILES_FILE"
+          if (( ${#CSHARP_FILES[@]} == 0 )); then
+            echo "No changed C# files to format."
+            exit 0
+          fi
+          dotnet format JadeCapital.slnx --include "${CSHARP_FILES[@]}" --verify-no-changes --verbosity minimal
 
       - name: Build (warnings-as-errors)
         run: dotnet build JadeCapital.slnx --nologo --verbosity minimal --no-restore
@@ -125,28 +136,50 @@ jobs:
       # Boots the API in the background, pulls swagger.json from
       # /swagger/v1/swagger.json (Swashbuckle auto-generates the spec
       # when AddSwaggerGen() is registered in Program.cs), then uploads
-      # it as a workflow artifact (30-day retention). The `kill $API_PID`
-      # is best-effort — the runner garbage-collects the dotnet process
-      # on job exit even if SIGTERM fails (e.g. mid-startup).
+      # it as a workflow artifact (30-day retention). The exit trap stops
+      # the host whether startup succeeds, fails, or reaches the deadline.
       - name: Export OpenAPI spec
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          Jwt__Issuer: JadeCapitalSuite
+          Jwt__Audience: JadeCapitalSuite.Client
+          Jwt__AccessTokenSecret: ci-openapi-access-token-secret-at-least-32-characters
+          Jwt__RefreshTokenSecret: ci-openapi-refresh-token-secret-at-least-32-characters
+          ConnectionStrings__Storage: Endpoint=http://127.0.0.1:9000;AccessKey=ci-openapi;SecretKey=ci-openapi-storage-password;Bucket=ci-openapi;Ssl=false
         run: |
+          set -euo pipefail
           dotnet run --project src/1.Api/JadeCapital.Host --no-build --urls http://localhost:8080 &
           API_PID=$!
-          sleep 30
-          curl -sS http://localhost:8080/swagger/v1/swagger.json -o openapi.json || true
-          kill $API_PID 2>/dev/null || true
-          ls -la openapi.json
+          trap 'kill "$API_PID" 2>/dev/null || true; wait "$API_PID" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            if curl --fail --silent --show-error \
+                http://localhost:8080/swagger/v1/swagger.json \
+                --output openapi.json.tmp; then
+              test -s openapi.json.tmp
+              mv openapi.json.tmp openapi.json
+              exit 0
+            fi
+            rm -f openapi.json.tmp
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              wait "$API_PID"
+              echo "API exited before exposing the OpenAPI document"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "API never exposed the OpenAPI document"
+          exit 1
       - name: Upload OpenAPI artifact
         uses: actions/upload-artifact@v4
         with:
           name: openapi-spec
           path: openapi.json
           retention-days: 30
-          if-no-uses-found: ignore
+          if-no-files-found: error
   # ---------------------------------------------------------------------------
   # Job 3: test-integration — Postgres via GitHub-hosted services block.
-  # No Testcontainers: the service hostnames match what Testcontainers
-  # provisions locally, saving ~30s of container startup.
+  # GitHub publishes the service container port on the runner loopback;
+  # the tests and readiness probe must use that host-side endpoint.
   # ---------------------------------------------------------------------------
   test-integration:
     name: Backend integration tests
@@ -156,7 +189,7 @@ jobs:
       DOTNET_NOLOGO: "true"
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jadecapital;Username=jade;Password=secret"
+      ConnectionStrings__Postgres: "Host=127.0.0.1;Port=5432;Database=jadecapital;Username=jade;Password=secret"
       ConnectionStrings__Redis: "redis:6379"
     services:
       postgres:
@@ -200,7 +233,7 @@ jobs:
       - name: Wait for Postgres
         run: |
           for i in {1..30}; do
-            if (echo > /dev/tcp/postgres/5432) >/dev/null 2>&1; then
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then
               echo "postgres ready after ${i}s"
               exit 0
             fi
@@ -247,6 +280,10 @@ jobs:
         run: npm test -- --watch=false --browsers=ChromeHeadlessCI
 
       - name: Production build
+        env:
+          SENTRY_RELEASE: ci-${{ github.sha }}
+          APP_ENV: ci
+          ALLOW_FRONTEND_SENTRY_DISABLED: "true"
         run: npm run build
 
   # ---------------------------------------------------------------------------
@@ -291,9 +328,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-a11y-report
-          path: frontend/playwright-report
+          path: frontend/.playwright/report
           retention-days: 7
-          if-no-uses-found: ignore
+          if-no-files-found: ignore
 
   test-auth-e2e:
     name: Auth E2E (real stack)
