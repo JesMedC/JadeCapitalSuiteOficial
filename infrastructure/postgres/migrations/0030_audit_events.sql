@@ -95,8 +95,21 @@ COMMENT ON COLUMN audit.events.tenant_id IS
 COMMENT ON COLUMN audit.events.user_id IS
     'Actor user id. NULL for system actors (webhook handlers, scheduled jobs).';
 
-COMMENT ON COLUMN audit.events.changes IS
-    'JSONB diff: { "field": { "before": ..., "after": ... } }. NULL for Created events.';
+DO $comment_payload$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema='audit' AND table_name='events' AND column_name='changes') THEN
+        COMMENT ON COLUMN audit.events.changes IS
+            'JSONB diff: { "field": { "before": ..., "after": ... } }. NULL for Created events.';
+    ELSIF EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema='audit' AND table_name='events' AND column_name='changes_json') THEN
+        COMMENT ON COLUMN audit.events.changes_json IS
+            'JSONB diff: { "field": { "before": ..., "after": ... } }. NULL for Created events.';
+    ELSE
+        RAISE EXCEPTION 'audit.events payload column is missing';
+    END IF;
+END
+$comment_payload$;
 
 COMMENT ON COLUMN audit.events.occurred_at IS
     'UTC timestamp at which the aggregate created the AuditEvent row. Pinned from IClock.UtcNow in the aggregate.';

@@ -198,10 +198,10 @@ public sealed class MigrationOrderApplyTests
         // `ADD COLUMN IF NOT EXISTS`) but the file numbers were
         // rebased so the sequence stays consecutive (the
         // MigrationOrderTests.EnsureConsecutiveNumbering contract).
-        const int ExpectedCount = 39;
+        const int ExpectedCount = 40;
         files.Length.Should().Be(ExpectedCount,
             $"Wave 11.2a (3 migrations) + Wave 11.3 (1 migration) + Wave 11.4 (2 migrations = 0037 + 0038) + schema-alignment migration 0039: "
-            + $"{ExpectedCount} total.");
+            + $"partition migration 0040: {ExpectedCount} total.");
 
         for (int i = 0; i < files.Length; i++)
         {
