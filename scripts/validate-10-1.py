@@ -28,6 +28,13 @@ GITHUB = REPO / ".github"
 
 REQUIRED_JOBS = {"lint-backend", "test-backend", "test-integration", "test-frontend"}
 EXPECTED_ECOSYSTEMS = {"nuget", "npm", "github-actions"}
+NODE24_ACTION_MAJORS = {
+    "actions/checkout": "v5",
+    "actions/setup-node": "v5",
+    "actions/setup-dotnet": "v5",
+    "actions/cache": "v5",
+    "actions/upload-artifact": "v6",
+}
 
 
 def _fail(msg: str) -> None:
@@ -44,6 +51,18 @@ def _named_step(job: dict, name: str) -> dict:
         if step.get("name") == name:
             return step
     _fail(f"job missing '{name}' step")
+
+
+def _validate_node24_action_refs(raw: str, workflow: str) -> None:
+    mismatches = []
+    for action, expected_major in NODE24_ACTION_MAJORS.items():
+        pattern = rf"\buses:\s*[\"']?{re.escape(action)}@([^\s\"'#]+)"
+        for actual_ref in re.findall(pattern, raw):
+            if actual_ref != expected_major:
+                mismatches.append(f"{action}@{actual_ref} (expected @{expected_major})")
+    if mismatches:
+        _fail(f"{workflow} has non-Node24 official action refs: {', '.join(mismatches)}")
+    _ok("official JavaScript actions use the approved Node 24 majors")
 
 
 def validate_ci() -> None:
@@ -96,7 +115,9 @@ def validate_ci() -> None:
 
     raw = p.read_text().lower()
 
-    # lint-backend: actions/setup-dotnet@v4 + dotnet format --verify-no-changes
+    _validate_node24_action_refs(raw, "ci.yml")
+
+    # lint-backend: actions/setup-dotnet + dotnet format --verify-no-changes
     lint = jobs["lint-backend"]
     if "setup-dotnet" not in yaml.safe_dump(lint):
         _fail("lint-backend missing actions/setup-dotnet reference")
@@ -196,7 +217,7 @@ def validate_ci() -> None:
         _fail("test-integration Redis readiness must use the runner loopback endpoint")
     _ok("test-integration uses runner-published Postgres + Redis services")
 
-    # test-frontend: npm ci + npm test + npm run build, Node 20
+    # test-frontend: npm ci + npm test + npm run build, Node 20 application runtime
     test_fe = jobs["test-frontend"]
     test_fe_text = yaml.safe_dump(test_fe) + raw
     if "setup-node" not in test_fe_text:
@@ -214,7 +235,7 @@ def validate_ci() -> None:
         _fail("test-frontend build missing explicit Sentry release/environment inputs")
     if build_env.get("ALLOW_FRONTEND_SENTRY_DISABLED") != "true":
         _fail("test-frontend must explicitly opt into disabled Sentry for the CI verification build")
-    _ok("test-frontend uses setup-node@v4 (Node 20) + npm ci/test/build")
+    _ok("test-frontend uses setup-node@v5 (Node 20) + npm ci/test/build")
 
     a11y_upload = _named_step(jobs["test-a11y"], "Upload Playwright HTML report on failure").get("with", {})
     if a11y_upload.get("path") != "frontend/.playwright/report":
@@ -300,9 +321,11 @@ def validate_nightly() -> None:
     if not p.exists():
         _fail(f"{p} missing")
     try:
-        doc = yaml.safe_load(p.read_text())
+        raw = p.read_text()
+        doc = yaml.safe_load(raw)
     except yaml.YAMLError as e:
         _fail(f"{p} invalid YAML: {e}")
+    _validate_node24_action_refs(raw, "nightly-scan.yml")
     on = doc.get(True, doc.get("on", {}))
     if "schedule" not in on:
         _fail("schedule trigger missing")
