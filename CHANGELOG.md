@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### OpenSpec archive claims
+<!-- openspec-archive: 2026-08-15-jade-trader-os-core-portals -->
+<!-- openspec-archive: 2026-08-15-trader-risk-journal-core -->
+<!-- openspec-archive: 2026-08-16-mobile-responsive-shell -->
+<!-- openspec-archive: 2026-08-17-trader-journal-core -->
+<!-- openspec-archive: 2026-08-18-trader-strategies-alerts-planner -->
+<!-- openspec-archive: 2026-08-19-trader-scanner-marketdata-realtime -->
+<!-- openspec-archive: 2026-08-19-wave5-imports-ai -->
+<!-- openspec-archive: 2026-08-19-wave6-stripe-multitenant -->
+<!-- openspec-archive: 2026-08-19-wave7-audit-coverage -->
+<!-- openspec-archive: 2026-08-19-wave8-audit-coverage-extended -->
+<!-- openspec-archive: 2026-08-19-wave9-audit-finalization -->
+<!-- openspec-archive: 2026-08-22-2026-08-19-wave12-observability-security -->
+
 ### Wave 11 (2026-08-19) — GDPR Art. 7 + ePrivacy + docs hardening
 #### Added
 - **`POST /api/auth/consent`** — GDPR ePrivacy cookie consent capture (persists `users.cookie_consent_accepted_at` + `users.cookie_consent_choice`).

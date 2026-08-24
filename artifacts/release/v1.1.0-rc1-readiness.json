@@ -1,0 +1,13 @@
+{
+  "archive_count": 12,
+  "archive_manifest_sha256": "4deba7dbfaef577773db173eb178ce478dbd6fde9082558fa99352323c4d8de0",
+  "commit": "12e72caf35bbc0930f17d601386a2cc3c5465ca2",
+  "delivery": {
+    "github_release": "absent",
+    "local_tag": "absent",
+    "remote_tag": "absent"
+  },
+  "repository": "JesMedC/JadeCapitalSuiteOficial",
+  "schema": "jadecapital.rc-readiness/v1",
+  "tag": "v1.1.0-rc1"
+}

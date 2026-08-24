@@ -211,13 +211,13 @@ def validate_ci() -> None:
     if a11y_upload.get("if-no-files-found") != "ignore":
         _fail("test-a11y upload must use the valid if-no-files-found input")
 
-    auth_e2e = jobs["test-auth-e2e"]
-    project_name = auth_e2e.get("env", {}).get("COMPOSE_PROJECT_NAME", "")
+    functional_e2e = jobs["test-functional-e2e"]
+    project_name = functional_e2e.get("env", {}).get("COMPOSE_PROJECT_NAME", "")
     if "github.run_id" not in project_name or "github.run_attempt" not in project_name:
-        _fail("test-auth-e2e must use a run-isolated Compose project")
-    teardown = _named_step(auth_e2e, "Tear down isolated stack").get("run", "")
+        _fail("test-functional-e2e must use a run-isolated Compose project")
+    teardown = _named_step(functional_e2e, "Tear down isolated stack").get("run", "")
     if "down -v --remove-orphans" not in teardown:
-        _fail("test-auth-e2e must remove isolated containers, volumes, and orphans")
+        _fail("test-functional-e2e must remove isolated containers, volumes, and orphans")
 
     compose_path = REPO / "docker-compose.ci.yml"
     try:

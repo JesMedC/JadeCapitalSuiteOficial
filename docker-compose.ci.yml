@@ -121,7 +121,7 @@ services:
     command:
       - /bin/bash
       - -euc
-      - set -o pipefail; tar --exclude='./node_modules' --exclude='./.playwright' -C /source/frontend -cf - . | tar -xf - && npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts
+      - set -o pipefail; tar --exclude='./node_modules' --exclude='./.playwright' -C /source/frontend -cf - . | tar -xf - && npm ci --no-audit --no-fund && npm run test:e2e -- auth.spec.ts journeys.spec.ts
 
 volumes:
   postgres-ci:

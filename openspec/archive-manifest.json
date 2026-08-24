@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "archives": [
+    "2026-08-15-jade-trader-os-core-portals",
+    "2026-08-15-trader-risk-journal-core",
+    "2026-08-16-mobile-responsive-shell",
+    "2026-08-17-trader-journal-core",
+    "2026-08-18-trader-strategies-alerts-planner",
+    "2026-08-19-trader-scanner-marketdata-realtime",
+    "2026-08-19-wave5-imports-ai",
+    "2026-08-19-wave6-stripe-multitenant",
+    "2026-08-19-wave7-audit-coverage",
+    "2026-08-19-wave8-audit-coverage-extended",
+    "2026-08-19-wave9-audit-finalization",
+    "2026-08-22-2026-08-19-wave12-observability-security"
+  ]
+}

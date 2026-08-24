@@ -1,0 +1,5 @@
+{
+  "actual": ["archive-a", "archive-b"],
+  "manifest": ["archive-a"],
+  "claims": ["archive-a"]
+}
