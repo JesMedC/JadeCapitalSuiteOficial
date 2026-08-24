@@ -14,9 +14,12 @@ on:
     branches:
       - feature/0a-identity-model
       - feature/wave10-*
+      - feature/wave12-*
       - feature/wave13-*
   push:
     branches:
+      - chore/*
+      - ci/*
       - feature/0a-identity-model
       - feature/wave13-*
 
@@ -37,6 +40,7 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: "true"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
       FORMAT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+      FORMAT_OLDEST_PUSHED_SHA: ${{ github.event.commits[0].id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +68,7 @@ jobs:
           set -euo pipefail
           CHANGED_FILES_FILE="$(mktemp)"
           trap 'rm -f "$CHANGED_FILES_FILE"' EXIT
-          bash scripts/changed-csharp-files.sh "$FORMAT_BASE_SHA" > "$CHANGED_FILES_FILE"
+          bash scripts/changed-csharp-files.sh "$FORMAT_BASE_SHA" "$FORMAT_OLDEST_PUSHED_SHA" > "$CHANGED_FILES_FILE"
           mapfile -d '' CSHARP_FILES < "$CHANGED_FILES_FILE"
           if (( ${#CSHARP_FILES[@]} == 0 )); then
             echo "No changed C# files to format."
