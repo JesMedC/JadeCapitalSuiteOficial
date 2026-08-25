@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 
 // ============================================================================
 //  MfeMaeMiniChart — slice 2c (Trader Journal Core / MFE/MAE Charts).
@@ -29,7 +28,6 @@ import { DecimalPipe } from '@angular/common';
 @Component({
   selector: 'jcs-mfe-mae-mini-chart',
   standalone: true,
-  imports: [DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isEmpty()) {
