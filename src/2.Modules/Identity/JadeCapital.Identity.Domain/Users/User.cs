@@ -23,6 +23,7 @@ public sealed class User : AggregateRoot<Guid>
 {
     public const int MaxFailedLoginAttempts = 5;
     public const int LockoutMinutes = 15;
+    public static readonly Guid NonHumanSentinelId = Guid.Parse("00000000-0000-0000-0000-000000000002");
 
     /// <summary>Maximum number of prior passwords retained for the reuse check.</summary>
     public const int MaxPasswordHistoryEntries = 5;
@@ -609,6 +610,9 @@ public sealed class User : AggregateRoot<Guid>
     public bool CanAuthenticate()
         => Status == UserStatus.Active
            && (LockedUntil is null || LockedUntil <= DateTimeOffset.UtcNow);
+
+    public bool CanRecover(DateTimeOffset utcNow) => Id != NonHumanSentinelId && TenantId is not null
+        && Status == UserStatus.Active && (LockedUntil is null || LockedUntil <= utcNow);
 
     // ============================================
     // Wave 6c.1 — Tenant membership

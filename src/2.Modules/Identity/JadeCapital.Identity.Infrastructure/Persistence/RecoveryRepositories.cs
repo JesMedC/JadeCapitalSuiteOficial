@@ -2,6 +2,7 @@ using JadeCapital.Identity.Application.Abstractions;
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.Time;
 using Microsoft.EntityFrameworkCore;
 
 namespace JadeCapital.Identity.Infrastructure.Persistence;
@@ -19,33 +20,41 @@ namespace JadeCapital.Identity.Infrastructure.Persistence;
 public sealed class TemporaryCredentialRepository : ITemporaryCredentialRepository
 {
     private readonly IdentityDbContext _db;
+    private readonly IClock _clock;
 
-    public TemporaryCredentialRepository(IdentityDbContext db) { _db = db; }
+    public TemporaryCredentialRepository(IdentityDbContext db, IClock clock) { _db = db; _clock = clock; }
 
-    public async Task<Result<TemporaryCredential>> ReserveAsync(Guid id, Guid userId, int generation, string hash, CancellationToken ct = default)
+    public async Task<Result<TemporaryCredential?>> IssueActivatedAsync(Guid userId, string hash, CancellationToken ct = default)
     {
-        var utcNow = DateTimeOffset.UtcNow;
-        var reserved = TemporaryCredential.Reserve(id, userId, generation, CredentialHash.From(hash), utcNow);
-        if (reserved.IsFailure) return Result.Failure<TemporaryCredential>(reserved.Error);
-        await _db.TemporaryCredentials.AddAsync(reserved.Value, ct);
-        return Result.Success(reserved.Value);
-    }
+        try
+        {
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+            var user = await _db.Users
+                .FromSqlInterpolated($"SELECT * FROM identity.users WHERE id = {userId} FOR UPDATE")
+                .AsNoTracking()
+                .SingleOrDefaultAsync(ct);
+            var utcNow = _clock.UtcNow;
+            if (user is null || !user.CanRecover(utcNow)) return Result.Success<TemporaryCredential?>(null);
 
-    public async Task<int> LatestGenerationAsync(Guid userId, CancellationToken ct = default)
-        => await _db.TemporaryCredentials
-            .Where(t => t.UserId == userId)
-            .Select(t => (int?)t.Generation)
-            .MaxAsync(ct) ?? 0;
+            var generation = checked((await _db.TemporaryCredentials.Where(t => t.UserId == userId).Select(t => (int?)t.Generation).MaxAsync(ct) ?? 0) + 1);
+            var active = await _db.TemporaryCredentials.Where(t => t.UserId == userId && t.Status == TemporaryCredentialStatus.Activated).ToListAsync(ct);
+            foreach (var row in active)
+                if (row.MarkSuperseded(utcNow) is { IsFailure: true } superseded)
+                    return Result.Failure<TemporaryCredential?>(superseded.Error);
+            if (active.Count > 0 && await _db.SaveChangesAsync(ct) < active.Count) return Result.Failure<TemporaryCredential?>(PersistenceFailed);
 
-    public async Task<Result> ActivateAsync(Guid id, int expectedGeneration, CancellationToken ct = default)
-    {
-        var row = await _db.TemporaryCredentials.FirstOrDefaultAsync(t => t.Id == id, ct);
-        if (row is null) return Result.Failure(IdentityDomainErrorsForTemp.NotFound);
-        var utcNow = DateTimeOffset.UtcNow;
-        var activate = row.Activate(utcNow, expectedGeneration);
-        if (activate.IsFailure) return activate;
-        // SaveChanges commits the status transition in the caller's transaction.
-        return Result.Success();
+            var credentialHash = CredentialHash.Create(hash); if (credentialHash.IsFailure) return Result.Failure<TemporaryCredential?>(credentialHash.Error);
+            var reserved = TemporaryCredential.Reserve(Guid.NewGuid(), userId, generation, credentialHash.Value, utcNow);
+            if (reserved.IsFailure) return Result.Failure<TemporaryCredential?>(reserved.Error);
+            var activated = reserved.Value.Activate(utcNow, generation);
+            if (activated.IsFailure) return Result.Failure<TemporaryCredential?>(activated.Error);
+            await _db.TemporaryCredentials.AddAsync(reserved.Value, ct);
+            if (await _db.SaveChangesAsync(ct) < 1) return Result.Failure<TemporaryCredential?>(PersistenceFailed);
+            await transaction.CommitAsync(ct);
+            return Result.Success<TemporaryCredential?>(reserved.Value);
+        }
+        catch (DbUpdateException ex) when ((ex.InnerException as Npgsql.PostgresException)?.SqlState == "23505") { return Result.Failure<TemporaryCredential?>(ConcurrentIssuanceFailed); }
+        catch (Exception) when (!ct.IsCancellationRequested) { return Result.Failure<TemporaryCredential?>(PersistenceFailed); }
     }
 
     public Task<TemporaryCredential?> FindByIdAsync(Guid id, CancellationToken ct = default)
@@ -79,29 +88,14 @@ public sealed class TemporaryCredentialRepository : ITemporaryCredentialReposito
             : Result.Failure(IdentityDomainErrorsForTemp.NotActivated);
     }
 
-    public async Task<int> SupersedeActiveAsync(Guid userId, CancellationToken ct = default)
-    {
-        var utcNow = DateTimeOffset.UtcNow;
-        var activeRows = await _db.TemporaryCredentials
-            .Where(t => t.UserId == userId && t.Status == TemporaryCredentialStatus.Activated)
-            .ToListAsync(ct);
-        foreach (var row in activeRows)
-        {
-            row.GetType(); // suppress unused warning under no-EF-tracker edge cases
-            // Domain transition is idempotent: Activated -> Superseded once;
-            // re-calls become no-ops. We intentionally go through the entity so
-            // the invariant logic stays in the domain.
-            var r = row.MarkSuperseded(utcNow);
-            if (r.IsFailure) { /* consumed/missing/etc. — skip; sweeper is safe */ }
-        }
-        return activeRows.Count;
-    }
-
     private static class IdentityDomainErrorsForTemp
     {
         public static readonly Error NotFound = Error.NotFound("temporary_credential.not_found", "Temporary credential not found.");
         public static readonly Error NotActivated = Error.Conflict("temporary_credential.not_activated", "Temporary credential is not activated.");
     }
+
+    private static readonly Error PersistenceFailed = Error.Failure("temporary_credential.persistence_failed", "Temporary credential could not be committed.");
+    private static readonly Error ConcurrentIssuanceFailed = Error.Failure("temporary_credential.concurrent_issuance_failed", "Temporary credential could not be committed.");
 }
 
 public sealed class PasswordHistoryRepository : IPasswordHistoryRepository

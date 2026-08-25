@@ -21,42 +21,32 @@ public sealed record ChangePasswordResult(string AccessToken, DateTimeOffset Acc
 public sealed class ForgotPasswordHandler : IRequestHandler<ForgotPasswordCommand, Result>
 {
     private readonly IUserRepository _users; private readonly ITemporaryCredentialRepository _temps;
-    private readonly IPasswordHasher _hasher; private readonly IClock _clock; private readonly IEmailSender _email;
-    private readonly IUnitOfWork _uow; private readonly ILogger<ForgotPasswordHandler> _logger;
-    public ForgotPasswordHandler(IUserRepository users, ITemporaryCredentialRepository temps, IPasswordHasher hasher, IClock clock, IEmailSender email, IUnitOfWork uow, ILogger<ForgotPasswordHandler> logger)
-    { _users = users; _temps = temps; _hasher = hasher; _clock = clock; _email = email; _uow = uow; _logger = logger; }
+    private readonly IPasswordHasher _hasher; private readonly IEmailSender _email;
+    private readonly ILogger<ForgotPasswordHandler> _logger;
+    public ForgotPasswordHandler(IUserRepository users, ITemporaryCredentialRepository temps, IPasswordHasher hasher, IEmailSender email, ILogger<ForgotPasswordHandler> logger)
+    { _users = users; _temps = temps; _hasher = hasher; _email = email; _logger = logger; }
     public async Task<Result> Handle(ForgotPasswordCommand req, CancellationToken ct)
     {
-        var user = await _users.FindByEmailAsync(req.Email.Trim().ToLowerInvariant(), ct);
-        if (user is null) { _logger.LogInformation("Password recovery requested for unknown email."); return Result.Success(); }
-        var now = _clock.UtcNow;
-        var plaintext = CrockfordCredential.Generate();
-        var hash = _hasher.Hash(plaintext);
-        // Atomic supersession: a concurrent reset for the same user must leave
-        // exactly one Activated row. The unique partial index
-        // ux_temporary_credentials_user_active is the persistence-level guarantee;
-        // this is the application-level guarantee the handler relies on.
-        await _temps.SupersedeActiveAsync(user.Id, ct);
-        var gen = (await _temps.LatestGenerationAsync(user.Id, ct)) + 1;
-        var reserved = await _temps.ReserveAsync(Guid.NewGuid(), user.Id, gen, hash, ct);
-        if (reserved.IsFailure) { _logger.LogWarning("Failed to reserve temp credential for {UserId}.", user.Id); return Result.Failure(reserved.Error); }
         try
         {
-            await _email.SendRecoveryEmailAsync(new RecoveryEmailMessage(req.Email, user.DisplayName, plaintext, now.AddHours(TemporaryCredential.LifetimeHours)), ct);
-        }
-        catch (Exception ex)
-        {
-            // SMTP failure must NOT propagate — the spec requires uniform 200 generic.
-            // The reservation stays Pending; no ActivateAsync call is made, so no
-            // Activated row is ever persisted. The pending row will be superseded
-            // by the next legitimate request (or expire).
-            _logger.LogWarning("Recovery email send failed for {UserId}: {Error}", user.Id, ex.GetType().Name);
+            var user = await _users.FindByEmailAsync(req.Email.Trim().ToLowerInvariant(), ct);
+            if (user is null) return Result.Success();
+            var plaintext = CrockfordCredential.Generate();
+            var issued = await _temps.IssueActivatedAsync(user.Id, _hasher.Hash(plaintext), ct);
+            if (issued.IsFailure)
+            {
+                _logger.LogWarning("Password recovery credential commit failed.");
+                return Result.Failure(issued.Error);
+            }
+            var credential = issued.Value; if (credential is null) return Result.Success();
+            await _email.SendRecoveryEmailAsync(new RecoveryEmailMessage(user.Email, user.DisplayName, plaintext, credential.ExpiresAt), ct);
             return Result.Success();
         }
-        var activated = await _temps.ActivateAsync(reserved.Value.Id, gen, ct);
-        if (activated.IsFailure) { _logger.LogWarning("Temp credential superseded before activation for {UserId}.", user.Id); return Result.Failure(activated.Error); }
-        await _uow.SaveChangesAsync(ct);
-        return Result.Success();
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            _logger.LogWarning("Password recovery processing failed.");
+            return Result.Failure(Error.Failure("password_recovery.processing_failed", "Password recovery processing failed."));
+        }
     }
 }
 public sealed class LoginWithTemporaryHandler : IRequestHandler<LoginWithTemporaryCommand, Result<LoginResult>>
