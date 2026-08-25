@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using JadeCapital.Host;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Application.Abstractions;
@@ -47,7 +48,7 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
     public string RedisConnectionString { get; private set; } = string.Empty;
 
     /// <summary>Captured log lines for assertions about PII / body leaks.</summary>
-    public List<string> CapturedLogs { get; } = new();
+    public ConcurrentQueue<string> CapturedLogs { get; } = new();
 
     /// <summary>The single InMemoryCapturingEmailSender registered for this fixture.</summary>
     public InMemoryCapturingEmailSender EmailSender { get; } = new(Microsoft.Extensions.Logging.Abstractions.NullLogger<InMemoryCapturingEmailSender>.Instance);
@@ -142,9 +143,9 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
             // Tee the host's logger into CapturedLogs so log-leak assertions work.
             services.AddLogging(b =>
             {
-                    b.AddProvider(new TeeLoggerProvider(CapturedLogs));
-                });
+                b.AddProvider(new TeeLoggerProvider(CapturedLogs));
             });
+        });
     }
 
     /// <summary>No-op timing gate for tests. The prod gate is exercised by
@@ -158,19 +159,19 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
     /// no plaintext / token / body ever leaks into logs.</summary>
     private sealed class TeeLoggerProvider : ILoggerProvider
     {
-        private readonly List<string> _sink;
-        public TeeLoggerProvider(List<string> sink) { _sink = sink; }
+        private readonly ConcurrentQueue<string> _sink;
+        public TeeLoggerProvider(ConcurrentQueue<string> sink) { _sink = sink; }
         public ILogger CreateLogger(string categoryName) => new TeeLogger(categoryName, _sink);
         public void Dispose() { }
         private sealed class TeeLogger : ILogger
         {
-            private readonly string _cat; private readonly List<string> _sink;
-            public TeeLogger(string cat, List<string> sink) { _cat = cat; _sink = sink; }
+            private readonly string _cat; private readonly ConcurrentQueue<string> _sink;
+            public TeeLogger(string cat, ConcurrentQueue<string> sink) { _cat = cat; _sink = sink; }
             public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
             public bool IsEnabled(LogLevel logLevel) => true;
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {
-                _sink.Add($"[{logLevel}] {_cat}: {formatter(state, exception)}");
+                _sink.Enqueue($"[{logLevel}] {_cat}: {formatter(state, exception)}");
             }
             private sealed class NullScope : IDisposable { public static readonly NullScope Instance = new(); public void Dispose() { } }
         }

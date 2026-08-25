@@ -31,7 +31,7 @@ public sealed class InMemoryCapturingEmailSender : IEmailSender
     {
         _captured.Enqueue(message);
         // Correlation only — no message body, no temporary password, no hash.
-        _logger.LogInformation("Recovery email captured for {To} (message id only).", message.To);
+        _logger.LogInformation("Recovery email captured.");
         return Task.CompletedTask;
     }
 
