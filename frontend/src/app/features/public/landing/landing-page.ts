@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { from } from 'rxjs';
 import { PlanApiService } from '@core/api/plan-api.service';
 import { PlanInfo } from '@core/api/plan-info';
@@ -36,7 +36,7 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
 @Component({
   selector: 'jcs-landing-page',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- ============== Top bar ============== -->
