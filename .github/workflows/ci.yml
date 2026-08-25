@@ -303,7 +303,7 @@ jobs:
         run: npm run lint --if-present
 
       - name: Unit tests (headless)
-        run: npm test -- --watch=false --browsers=ChromeHeadlessCI
+        run: npm test -- --runInBand
 
       - name: Production build
         env:

@@ -4,6 +4,7 @@
     "outDir": "./out-tsc/spec",
     "module": "commonjs",
     "moduleResolution": "node",
+    "target": "ES2016",
     "types": ["jest", "node"],
     "esModuleInterop": true
   },
