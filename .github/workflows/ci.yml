@@ -16,6 +16,7 @@ on:
       - feature/wave10-*
       - feature/wave12-*
       - feature/wave13-*
+      - fix/password-recovery-*
   push:
     branches:
       - chore/*
@@ -23,6 +24,7 @@ on:
       - feature/0a-identity-model
       - feature/wave13-*
       - chore/angular20-security
+      - fix/password-recovery-*
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
