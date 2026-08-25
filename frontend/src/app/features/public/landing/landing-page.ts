@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { from } from 'rxjs';
 import { PlanApiService } from '@core/api/plan-api.service';
 import { PlanInfo } from '@core/api/plan-info';
@@ -36,7 +36,7 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
 @Component({
   selector: 'jcs-landing-page',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- ============== Top bar ============== -->
@@ -288,20 +288,18 @@ const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: strin
         <header class="section-head section-head--center">
           <h2>Elige el plan que se adapta a tu operativa</h2>
         </header>
-        <div class="billing-toggle" role="tablist" aria-label="Frecuencia de facturación">
+        <div class="billing-toggle" role="group" aria-label="Frecuencia de facturación">
           <button
             type="button"
-            role="tab"
             class="toggle"
             [class.on]="!annual()"
-            [attr.aria-selected]="!annual()"
+            [attr.aria-pressed]="!annual()"
             (click)="annual.set(false)">Mensual</button>
           <button
             type="button"
-            role="tab"
             class="toggle"
             [class.on]="annual()"
-            [attr.aria-selected]="annual()"
+            [attr.aria-pressed]="annual()"
             (click)="annual.set(true)">Anual <span class="save">-20%</span></button>
           <span class="hint" role="presentation">Ahorra 2 meses con el plan anual</span>
         </div>

@@ -180,11 +180,11 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
             @"CREATE UNIQUE INDEX IF NOT EXISTS ux_tenants_slug ON identity.tenants(slug)",
             // IMPORTANT — Wave 11 slice 11.3 schema fix: production EF Core now
             // maps `User.ScheduledHardDeleteAt` to the snake_case column
-            // `scheduled_hard_delete_at` (added in slice 11.2a bug
+            // `scheduled_for_hard_delete_at` (added in slice 11.2a bug
             // fix; the Wave 10.5 schema here was PascalCase because
             // there was NO explicit mapping back then). The production
             // BackgroundService's LINQ `u.ScheduledHardDeleteAt` now
-            // translates to `scheduled_hard_delete_at`, so this test
+            // translates to `scheduled_for_hard_delete_at`, so this test
             // schema MUST match.
             @"CREATE TABLE IF NOT EXISTS identity.users (
                 id UUID PRIMARY KEY,
@@ -202,7 +202,7 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
                 session_version INT NOT NULL DEFAULT 1,
                 attachment_quota_bytes BIGINT NOT NULL DEFAULT 0,
                 attachment_used_bytes BIGINT NOT NULL DEFAULT 0,
-                scheduled_hard_delete_at TIMESTAMPTZ,
+                scheduled_for_hard_delete_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )",
@@ -281,14 +281,14 @@ public sealed class HardDeleteSweepBackgroundServiceTests : IAsyncLifetime, IDis
     {
         // Wave 11 slice 11.3 — production EF maps
         // `User.ScheduledHardDeleteAt` to the snake_case column
-        // `scheduled_hard_delete_at` (added in slice 11.2a bug fix).
+        // `scheduled_for_hard_delete_at` (added in slice 11.2a bug fix).
         // The Wave 10.5 seed used the PascalCase column name; we now
         // write to the snake_case column so the LINQ translator resolves
         // the WHERE clause against the production schema.
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO identity.users (id, tenant_id, email, display_name, password_hash, role, status,
                 failed_login_count, session_version, attachment_quota_bytes, attachment_used_bytes,
-                scheduled_hard_delete_at, created_at, updated_at)
+                scheduled_for_hard_delete_at, created_at, updated_at)
               VALUES (@id, @tid, @email, @dn, 'x', 1, @status, 0, 1, 0, 0, @sched, @now, @now)",
             _seedConnection);
         cmd.Parameters.AddWithValue("@id", userId);

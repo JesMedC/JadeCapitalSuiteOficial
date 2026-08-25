@@ -53,11 +53,11 @@ public class ITenantContextContractTests
 
         // TenantId is a reference type (record) → null annotation is allowed
         // at the call site; reflection reports the bare type.
-        currentProp.PropertyType.Should().Be(typeof(TenantId),
+        currentProp.PropertyType.Should().Be<TenantId>(
             "Current returns TenantId (reference type); nullability annotation is at the call site.");
 
         // Guid? is Nullable<Guid>; reflection reports Nullable<Guid>.
-        Nullable.GetUnderlyingType(userProp.PropertyType).Should().Be(typeof(Guid),
+        Nullable.GetUnderlyingType(userProp.PropertyType).Should().Be<Guid>(
             $"CurrentUserId must be Guid? for anonymous callers. Actual: {userProp.PropertyType.FullName}");
     }
 

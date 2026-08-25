@@ -39,7 +39,7 @@ public class MigrationOrderTests
     // the same slice, but the migrations stay forward-only and idempotent so
     // production deploy order is `[0036 → 0037 → 0038]` against the 36 baseline
     // (0001-0036).
-    private const int ExpectedMigrationCount = 38;
+    private const int ExpectedMigrationCount = 40;
 
     private static string FindRepoRoot(string startDir)
     {
@@ -114,7 +114,8 @@ public class MigrationOrderTests
         var files = EnumerateMigrationFiles();
         files.Count.Should().Be(ExpectedMigrationCount,
             $"Wave 10.4 narrower scope + Wave 11.2a (3 migrations) + Wave 11.3 (1 migration = 0036_add_welcome_email_sent_at) "
-            + $"+ Wave 11.4 (2 migrations = 0037_add_consent_columns + 0038_add_cookie_consent_columns): "
+            + $"+ Wave 11.4 (2 migrations = 0037_add_consent_columns + 0038_add_cookie_consent_columns) "
+            + $"+ schema-alignment migration 0039 + audit partition migration 0040: "
             + $"{ExpectedMigrationCount} migrations verified");
     }
 

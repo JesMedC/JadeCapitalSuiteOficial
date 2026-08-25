@@ -28,6 +28,13 @@ GITHUB = REPO / ".github"
 
 REQUIRED_JOBS = {"lint-backend", "test-backend", "test-integration", "test-frontend"}
 EXPECTED_ECOSYSTEMS = {"nuget", "npm", "github-actions"}
+NODE24_ACTION_MAJORS = {
+    "actions/checkout": "v5",
+    "actions/setup-node": "v5",
+    "actions/setup-dotnet": "v5",
+    "actions/cache": "v5",
+    "actions/upload-artifact": "v6",
+}
 
 
 def _fail(msg: str) -> None:
@@ -37,6 +44,25 @@ def _fail(msg: str) -> None:
 
 def _ok(msg: str) -> None:
     print(f"  OK:   {msg}")
+
+
+def _named_step(job: dict, name: str) -> dict:
+    for step in job.get("steps", []):
+        if step.get("name") == name:
+            return step
+    _fail(f"job missing '{name}' step")
+
+
+def _validate_node24_action_refs(raw: str, workflow: str) -> None:
+    mismatches = []
+    for action, expected_major in NODE24_ACTION_MAJORS.items():
+        pattern = rf"\buses:\s*[\"']?{re.escape(action)}@([^\s\"'#]+)"
+        for actual_ref in re.findall(pattern, raw):
+            if actual_ref != expected_major:
+                mismatches.append(f"{action}@{actual_ref} (expected @{expected_major})")
+    if mismatches:
+        _fail(f"{workflow} has non-Node24 official action refs: {', '.join(mismatches)}")
+    _ok("official JavaScript actions use the approved Node 24 majors")
 
 
 def validate_ci() -> None:
@@ -60,6 +86,13 @@ def validate_ci() -> None:
         _fail("'pull_request' trigger missing")
     if "push" not in on:
         _fail("'push' trigger missing")
+    pull_request_branches = set(on["pull_request"].get("branches", []))
+    if "feature/wave12-*" not in pull_request_branches:
+        _fail("'pull_request' must cover feature/wave12-* targets")
+    push_branches = set(on["push"].get("branches", []))
+    for branch_pattern in ("ci/*", "chore/*"):
+        if branch_pattern not in push_branches:
+            _fail(f"'push' must cover focused {branch_pattern} branches")
     _ok("triggers (pull_request + push) present")
 
     # Concurrency
@@ -82,15 +115,28 @@ def validate_ci() -> None:
 
     raw = p.read_text().lower()
 
-    # lint-backend: actions/setup-dotnet@v4 + dotnet format --verify-no-changes
+    _validate_node24_action_refs(raw, "ci.yml")
+
+    # lint-backend: actions/setup-dotnet + dotnet format --verify-no-changes
     lint = jobs["lint-backend"]
     if "setup-dotnet" not in yaml.safe_dump(lint):
         _fail("lint-backend missing actions/setup-dotnet reference")
     if "verify-no-changes" not in raw or "dotnet format" not in raw:
         _fail("lint-backend missing 'dotnet format --verify-no-changes'")
+    format_run = _named_step(lint, "Verify formatting").get("run", "")
+    if not lint.get("env", {}).get("FORMAT_BASE_SHA"):
+        _fail("lint-backend missing the event base SHA for changed-file formatting")
+    oldest_pushed_sha = lint.get("env", {}).get("FORMAT_OLDEST_PUSHED_SHA", "")
+    if "github.event.commits[0].id" not in oldest_pushed_sha:
+        _fail("lint-backend missing the oldest pushed commit event input")
+    selector_call = 'changed-csharp-files.sh "$FORMAT_BASE_SHA" "$FORMAT_OLDEST_PUSHED_SHA"'
+    if selector_call not in format_run or '--include "${CSHARP_FILES[@]}"' not in format_run:
+        _fail("lint-backend must format only the fail-closed changed C# set")
+    if "< <(" in format_run:
+        _fail("lint-backend must not hide changed-file selector failures in process substitution")
     if "actions/cache" not in raw:
         _fail("lint-backend missing actions/cache reference")
-    _ok("lint-backend uses setup-dotnet@v4 + format --verify-no-changes + cache")
+    _ok("lint-backend verifies the fail-closed changed C# set and uses the NuGet cache")
 
     # test-backend: per-csproj dotnet test invocations
     test_be = jobs["test-backend"]
@@ -105,17 +151,73 @@ def validate_ci() -> None:
         if csproj not in test_be_text:
             _fail(f"test-backend missing '{csproj}'")
     _ok("test-backend covers all 5 BE unit-test csproj")
+    export_step = _named_step(test_be, "Export OpenAPI spec")
+    backend_env = export_step.get("env", {})
+    openapi_env_keys = (
+        "Jwt__Issuer",
+        "Jwt__Audience",
+        "Jwt__AccessTokenSecret",
+        "Jwt__RefreshTokenSecret",
+        "ConnectionStrings__Storage",
+    )
+    for key in openapi_env_keys:
+        if not backend_env.get(key):
+            _fail(f"test-backend missing CI-only OpenAPI input '{key}'")
+    if any(key in test_be.get("env", {}) for key in (*openapi_env_keys, "ASPNETCORE_ENVIRONMENT")):
+        _fail("CI-only OpenAPI inputs must be scoped to the export step")
+    for key in ("Jwt__AccessTokenSecret", "Jwt__RefreshTokenSecret"):
+        if len(backend_env[key]) < 32:
+            _fail(f"test-backend CI-only '{key}' must satisfy production length validation")
+    if backend_env.get("ASPNETCORE_ENVIRONMENT") != "Development":
+        _fail("test-backend must enable the development-only OpenAPI endpoint")
 
-    # test-integration: services: postgres block
+    export_run = export_step.get("run", "")
+    for token in (
+        "set -euo pipefail",
+        "trap ",
+        "curl --fail",
+        "test -s openapi.json.tmp",
+        "mv openapi.json.tmp openapi.json",
+        'kill -0 "$API_PID"',
+    ):
+        if token not in export_run:
+            _fail(f"OpenAPI export must fail closed and include '{token}'")
+    upload_openapi = _named_step(test_be, "Upload OpenAPI artifact").get("with", {})
+    if upload_openapi.get("if-no-files-found") != "error":
+        _fail("OpenAPI upload must fail when the generated document is absent")
+
+    # test-integration: runner-published Postgres + Redis services
     test_integ = jobs["test-integration"]
     test_integ_text = yaml.safe_dump(test_integ) + raw
     if "postgres" not in test_integ_text:
         _fail("test-integration missing services: postgres block")
     if "JadeCapital.Api.IntegrationTests.csproj" not in test_integ_text:
         _fail("test-integration missing JadeCapital.Api.IntegrationTests.csproj")
-    _ok("test-integration uses services: postgres + IntegrationTests csproj")
+    postgres_connection = test_integ.get("env", {}).get("ConnectionStrings__Postgres", "")
+    postgres_password = test_integ.get("services", {}).get("postgres", {}).get("env", {}).get("POSTGRES_PASSWORD")
+    if "Host=127.0.0.1" not in postgres_connection:
+        _fail("test-integration must connect through the runner-published Postgres port")
+    if not postgres_password or f"Password={postgres_password}" not in postgres_connection:
+        _fail("test-integration Postgres service and connection passwords must match")
+    if "/dev/tcp/127.0.0.1/5432" not in _named_step(test_integ, "Wait for Postgres").get("run", ""):
+        _fail("test-integration readiness must use the runner loopback endpoint")
+    redis_service = test_integ.get("services", {}).get("redis", {})
+    if not redis_service:
+        _fail("test-integration missing services: redis block")
+    if not str(redis_service.get("image", "")).startswith("redis:"):
+        _fail("test-integration Redis service must use a Redis image")
+    if "6379:6379" not in redis_service.get("ports", []):
+        _fail("test-integration must publish Redis on runner port 6379")
+    if "redis-cli ping" not in redis_service.get("options", ""):
+        _fail("test-integration Redis service must have a health check")
+    redis_connection = test_integ.get("env", {}).get("ConnectionStrings__Redis", "")
+    if redis_connection != "127.0.0.1:6379":
+        _fail("test-integration must connect through the runner-published Redis port")
+    if "/dev/tcp/127.0.0.1/6379" not in _named_step(test_integ, "Wait for Redis").get("run", ""):
+        _fail("test-integration Redis readiness must use the runner loopback endpoint")
+    _ok("test-integration uses runner-published Postgres + Redis services")
 
-    # test-frontend: npm ci + npm test + npm run build, Node 20
+    # test-frontend: npm ci + npm test + npm run build, Node 20 application runtime
     test_fe = jobs["test-frontend"]
     test_fe_text = yaml.safe_dump(test_fe) + raw
     if "setup-node" not in test_fe_text:
@@ -128,7 +230,52 @@ def validate_ci() -> None:
         _fail("test-frontend missing 'npm test'")
     if "npm run build" not in raw:
         _fail("test-frontend missing 'npm run build'")
-    _ok("test-frontend uses setup-node@v4 (Node 20) + npm ci/test/build")
+    build_env = _named_step(test_fe, "Production build").get("env", {})
+    if not build_env.get("SENTRY_RELEASE") or not build_env.get("APP_ENV"):
+        _fail("test-frontend build missing explicit Sentry release/environment inputs")
+    if build_env.get("ALLOW_FRONTEND_SENTRY_DISABLED") != "true":
+        _fail("test-frontend must explicitly opt into disabled Sentry for the CI verification build")
+    _ok("test-frontend uses setup-node@v5 (Node 20) + npm ci/test/build")
+
+    a11y_upload = _named_step(jobs["test-a11y"], "Upload Playwright HTML report on failure").get("with", {})
+    if a11y_upload.get("path") != "frontend/.playwright/report":
+        _fail("test-a11y upload path must match Playwright's configured report directory")
+    if a11y_upload.get("if-no-files-found") != "ignore":
+        _fail("test-a11y upload must use the valid if-no-files-found input")
+
+    functional_e2e = jobs["test-functional-e2e"]
+    project_name = functional_e2e.get("env", {}).get("COMPOSE_PROJECT_NAME", "")
+    if "github.run_id" not in project_name or "github.run_attempt" not in project_name:
+        _fail("test-functional-e2e must use a run-isolated Compose project")
+    teardown = _named_step(functional_e2e, "Tear down isolated stack").get("run", "")
+    if "down -v --remove-orphans" not in teardown:
+        _fail("test-functional-e2e must remove isolated containers, volumes, and orphans")
+
+    compose_path = REPO / "docker-compose.ci.yml"
+    try:
+        compose = yaml.safe_load(compose_path.read_text())
+    except yaml.YAMLError as error:
+        _fail(f"{compose_path} invalid YAML: {error}")
+    e2e = compose.get("services", {}).get("e2e", {})
+    mounts = e2e.get("volumes", [])
+    command = e2e.get("command", [])
+    command_text = command[-1] if command else ""
+    if ".:/source:ro" not in mounts or "frontend-workspace:/workspace/frontend" not in mounts:
+        _fail("functional E2E must copy read-only source into an isolated writable workspace")
+    if any(mount.startswith(".:/workspace") for mount in mounts):
+        _fail("functional E2E workspace parent must not be a read-only bind mount")
+    for token in (
+        "--exclude='./node_modules'",
+        "--exclude='./.playwright'",
+        "-C /source/frontend -cf - . | tar -xf -",
+        "npm ci --no-audit --no-fund",
+        "npm run test:e2e -- auth.spec.ts",
+    ):
+        if token not in command_text:
+            _fail(f"functional E2E writable-workspace command missing '{token}'")
+    if "frontend-workspace" not in compose.get("volumes", {}) or "playwright-output" not in compose.get("volumes", {}):
+        _fail("functional E2E writable workspace and output volumes must be declared")
+    _ok("functional E2E uses isolated writable install/output volumes with read-only source")
 
 
 def validate_dependabot() -> None:
@@ -174,9 +321,11 @@ def validate_nightly() -> None:
     if not p.exists():
         _fail(f"{p} missing")
     try:
-        doc = yaml.safe_load(p.read_text())
+        raw = p.read_text()
+        doc = yaml.safe_load(raw)
     except yaml.YAMLError as e:
         _fail(f"{p} invalid YAML: {e}")
+    _validate_node24_action_refs(raw, "nightly-scan.yml")
     on = doc.get(True, doc.get("on", {}))
     if "schedule" not in on:
         _fail("schedule trigger missing")

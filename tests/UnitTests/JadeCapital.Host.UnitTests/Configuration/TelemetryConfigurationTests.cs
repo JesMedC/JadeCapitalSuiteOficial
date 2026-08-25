@@ -77,7 +77,19 @@ public sealed class TelemetryConfigurationTests
     }
 
     [Fact]
-    public async Task EmptyConfiguration_StartsWithoutSentryOrTraceExporter()
+    public async Task RuntimeTelemetry_IgnoresMalformedPropagationAndStripsPii()
+    {
+        await VerifyConfiguredOtlpAsync();
+    }
+
+    [Fact]
+    public async Task RuntimeTelemetry_DisablesExportWithoutEndpointAndReportsSentryErrors()
+    {
+        await VerifyEmptyConfigurationAsync();
+        await VerifyUnhandledExceptionAsync();
+    }
+
+    private static async Task VerifyEmptyConfigurationAsync()
     {
         var sentryTransport = new EnvelopeCaptureTransport();
         var traceExporter = new ActivityCaptureExporter();
@@ -96,8 +108,7 @@ public sealed class TelemetryConfigurationTests
         app.Services.GetService<TracerProvider>().Should().BeNull();
     }
 
-    [Fact]
-    public async Task UnhandledException_ReachesLocalSentryTransportWithReleaseAndSafeResolvableStack()
+    private static async Task VerifyUnhandledExceptionAsync()
     {
         const string email = "private.person@example.com";
         const string bearer = "top-secret-bearer";
@@ -136,12 +147,12 @@ public sealed class TelemetryConfigurationTests
         SentrySdk.Close();
     }
 
-    [Fact]
-    public async Task ConfiguredOtlp_ExportsSafeAspNetCoreRouteFieldsThroughLocalExporter()
+    private static async Task VerifyConfiguredOtlpAsync()
     {
         const string email = "private.person@example.com";
         const string bearer = "top-secret-bearer";
         const string cookie = "session=top-secret-cookie";
+        Activity? requestActivity = null;
         var exporter = new ActivityCaptureExporter();
         await using var app = await StartHostAsync(
             new Dictionary<string, string?>
@@ -150,18 +161,28 @@ public sealed class TelemetryConfigurationTests
             },
             sentryTransport: null,
             exporter,
-            map: web => web.MapGet("/telemetry/{id:int}", (int id) => Results.Ok(new { id })));
-        var client = CreateClient(app);
+            map: web => web.MapGet("/telemetry/{id:int}", (int id) =>
+            {
+                requestActivity = Activity.Current;
+                return Results.Ok(new { id });
+            }));
+        var client = CreateClientWithoutTracePropagation(app);
         client.DefaultRequestHeaders.Authorization = new("Bearer", bearer);
         client.DefaultRequestHeaders.Add("Cookie", cookie);
+        client.DefaultRequestHeaders.TryAddWithoutValidation("traceparent", "00-malformed").Should().BeTrue();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("baggage", new string(',', 8_192)).Should().BeTrue();
         var provider = app.Services.GetRequiredService<TracerProvider>();
 
         var response = await client.GetAsync($"/telemetry/42?email={email}&ip=203.0.113.9");
         provider.ForceFlush(2000).Should().BeTrue();
 
         response.IsSuccessStatusCode.Should().BeTrue();
-        var activity = exporter.Activities.Should().ContainSingle().Subject;
+        requestActivity.Should().NotBeNull();
+        var activity = exporter.Activities.Should()
+            .ContainSingle(candidate => candidate.DisplayName == "GET /telemetry/{id:int}").Which;
         activity.TraceId.Should().NotBe(default);
+        activity.ParentSpanId.Should().Be(default(ActivitySpanId));
+        activity.Baggage.Should().BeEmpty();
         activity.DisplayName.Should().Be("GET /telemetry/{id:int}");
         activity.Duration.Should().BeGreaterThan(TimeSpan.Zero);
         activity.TagObjects.Any(tag =>
@@ -200,6 +221,12 @@ public sealed class TelemetryConfigurationTests
 
     private static HttpClient CreateClient(WebApplication app) =>
         new() { BaseAddress = new Uri(app.Urls.Single()) };
+
+    private static HttpClient CreateClientWithoutTracePropagation(WebApplication app) =>
+        new(new SocketsHttpHandler { ActivityHeadersPropagator = null })
+        {
+            BaseAddress = new Uri(app.Urls.Single())
+        };
 
     private static IResult ThrowUnhandled() =>
         throw new InvalidOperationException("telemetry transport probe");

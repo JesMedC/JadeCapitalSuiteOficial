@@ -64,10 +64,8 @@ namespace JadeCapital.Api.IntegrationTests.BackgroundServices;
 /// </para>
 ///
 /// <para>
-/// <b>Respawn between tests</b>: each test truncates
-/// <c>identity.users</c> + <c>identity.tenants</c> between runs so the
-/// seeded data doesn't leak. The Personal tenant (created by 0029) is
-/// preserved — we DELETE only seeded test users.
+/// <b>Isolation</b>: each test records and deletes only the user ids it seeded;
+/// unrelated integration rows and the Personal tenant remain untouched.
 /// </para>
 /// </summary>
 public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
@@ -75,6 +73,7 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
 {
     private readonly JadeApiFactory _factory;
     private NpgsqlConnection? _seedConn;
+    private readonly List<Guid> _seededUserIds = new();
 
     public HardDeleteSweepBackgroundServiceEfMappingTests(JadeApiFactory factory)
     {
@@ -100,19 +99,19 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
             }
         }
 
-        // Clean only the seeded test users — preserve the sentinel
-        // (id ...0002) and the Personal tenant created by 0029. We use a
-        // WHERE id != sentinel pattern so the FK reference stays valid.
-        await using (var cmd = new NpgsqlCommand(
-            "DELETE FROM identity.users WHERE id != '00000000-0000-0000-0000-000000000002'::uuid", _seedConn))
-        {
-            await cmd.ExecuteNonQueryAsync();
-        }
     }
 
     public async Task DisposeAsync()
     {
-        if (_seedConn is not null) await _seedConn.DisposeAsync();
+        if (_seedConn is null) return;
+        foreach (var userId in _seededUserIds)
+        {
+            await using var cmd = new NpgsqlCommand(
+                "DELETE FROM identity.users WHERE id = @id", _seedConn);
+            cmd.Parameters.AddWithValue("id", userId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await _seedConn.DisposeAsync();
     }
 
     public void Dispose()
@@ -129,6 +128,7 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
     /// </summary>
     private async Task SeedUserAsync(Guid userId, string status, DateTimeOffset? scheduledHardDeleteAt)
     {
+        _seededUserIds.Add(userId);
         // Resolve a Personal tenant id (created by 0029). Use the
         // canonical id ...1111 so we don't have to query.
         var personalTenantId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -149,10 +149,10 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
                 id, tenant_id, email, display_name, password_hash, role, status,
                 email_confirmed_at, failed_login_count, session_version,
                 attachment_quota_bytes, attachment_used_bytes,
-                scheduled_hard_delete_at, created_at, updated_at
+                scheduled_for_hard_delete_at, created_at, updated_at
             ) VALUES (
                 @id, @tid, @email, @dn, '!', 1, @status,
-                now(), 0, 1, 0, 0,
+                now(), 0, 1, 104857600, 0,
                 @sched, now(), now()
             )", _seedConn);
         cmd.Parameters.AddWithValue("@id", userId);
@@ -161,16 +161,7 @@ public sealed class HardDeleteSweepBackgroundServiceEfMappingTests
         cmd.Parameters.AddWithValue("@dn", "Test User");
         cmd.Parameters.AddWithValue("@status", status);
         cmd.Parameters.AddWithValue("@sched", (object?)scheduledHardDeleteAt ?? DBNull.Value);
-        // DEBUG: check columns RIGHT BEFORE the user INSERT.
-        await using (var check = new NpgsqlCommand(@"
-            SELECT string_agg(column_name, ', ' ORDER BY ordinal_position)
-            FROM information_schema.columns
-            WHERE table_schema = 'identity' AND table_name = 'users'", _seedConn))
-        {
-            var columns = (string?)await check.ExecuteScalarAsync();
-            throw new InvalidOperationException(
-                $"DEBUG columns BEFORE insert: {columns ?? "NONE"}");
-        }
+        await cmd.ExecuteNonQueryAsync();
     }
 
     /// <summary>

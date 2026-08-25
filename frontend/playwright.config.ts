@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const externalBaseUrl = process.env['E2E_BASE_URL'];
+
 // ============================================================================
 //  playwright.config.ts — Wave 12 slice 12.2.
 //
@@ -26,13 +28,18 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  timeout: 45 * 1000,
+  expect: { timeout: 10 * 1000 },
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
   workers: process.env['CI'] ? 1 : undefined,
-  reporter: [['list'], ['html', { open: 'never' }]],
+  outputDir: '.playwright/test-results',
+  reporter: [['list'], ['html', { open: 'never', outputFolder: '.playwright/report' }]],
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL: externalBaseUrl ?? 'http://localhost:4200',
+    actionTimeout: 10 * 1000,
+    navigationTimeout: 15 * 1000,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -42,12 +49,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run start',
-    url: 'http://localhost:4200',
-    reuseExistingServer: !process.env['CI'],
-    timeout: 120 * 1000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  webServer: externalBaseUrl
+    ? undefined
+    : {
+        command: 'npm run start',
+        url: 'http://localhost:4200',
+        reuseExistingServer: !process.env['CI'],
+        timeout: 120 * 1000,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
 });

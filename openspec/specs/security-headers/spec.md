@@ -14,28 +14,25 @@ Ship browser-hardening HTTP response headers on every nginx-served response and 
 
 ### Requirement: Content-Security-Policy header on all nginx responses
 
-The system MUST add a `Content-Security-Policy` header to every nginx-served response in `infrastructure/nginx/nginx.conf`. The CSP MUST include: `default-src 'self'; script-src 'self' 'nonce-{per-request}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.jadecapital.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`. The nonce MUST be unique per request and emitted by a small nginx Lua or `sub_filter` snippet that injects `<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'nonce-{nonce}'">` into the HTML. Strict nonce-only CSP (no `'unsafe-inline'`) is OUT OF SCOPE for v1.0.0-rc1.
+Nginx MUST retain CSP, generate a cryptographically random per-request nonce, and inject it into scripts. Header and HTML MUST match and MUST NOT expose `{request_nonce}`. Strict style nonces remain out of scope.
 
-#### Scenario: CSP header includes script-src 'self' 'nonce-{per-request}'
+#### Scenario: Header nonce matches HTML
 
-- GIVEN nginx serves a response
-- WHEN `curl -I https://jadecapital.com/` runs
-- THEN the `Content-Security-Policy` header MUST contain `script-src 'self' 'nonce-`
-- AND the nonce value MUST differ across two consecutive requests
-
-#### Scenario: CSP header includes style-src 'self' 'unsafe-inline'
-
-- GIVEN nginx serves a response
+- GIVEN nginx serves HTML with executable scripts
 - WHEN the response is inspected
-- THEN `style-src 'self' 'unsafe-inline'` MUST be present in the CSP
-- AND `'unsafe-inline'` for scripts MUST NOT be present (only nonce + 'self')
+- THEN every script nonce MUST equal the `script-src` nonce
 
-#### Scenario: CSP header includes frame-ancestors 'none'
+#### Scenario: Requests use distinct nonces
+
+- GIVEN two requests for the same HTML
+- WHEN both responses arrive
+- THEN each nonce MUST match its response and differ between responses
+
+#### Scenario: Existing CSP protections remain
 
 - GIVEN nginx serves any response
 - WHEN the CSP header is parsed
-- THEN `frame-ancestors 'none'` MUST be present
-- AND the page MUST NOT be embeddable in an `<iframe>` (clickjacking defense)
+- THEN style `unsafe-inline` and `frame-ancestors 'none'` MUST remain; script `unsafe-inline` MUST remain absent
 
 ### Requirement: Strict-Transport-Security header on all HTTPS responses
 

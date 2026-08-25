@@ -62,7 +62,8 @@ describe('ForcedChangePage', () => {
 
     expect(input.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    const labels = Array.from(fixture.nativeElement.querySelectorAll<HTMLLabelElement>('label'));
+    const root = fixture.nativeElement as HTMLElement;
+    const labels = Array.from(root.querySelectorAll<HTMLLabelElement>('label'));
     const labelForInput = labels.find((l) => l.htmlFor === 'newPassword');
     expect(labelForInput).toBeDefined();
     expect(labelForInput!.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

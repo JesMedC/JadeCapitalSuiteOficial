@@ -36,6 +36,7 @@ public static class TradingModuleRegistration
             opts.UseNpgsql(pgConn, npg =>
                 npg.MigrationsHistoryTable("__ef_migrations", "trading"));
         });
+        services.AddScoped<DbContext>(sp => sp.GetRequiredService<TradingDbContext>());
 
         // ===== Repos =====
         services.AddScoped<ITradeRepository, TradeRepository>();

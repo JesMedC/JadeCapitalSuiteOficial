@@ -2,7 +2,15 @@ using Microsoft.Extensions.Configuration;
 
 namespace JadeCapital.Api.IntegrationTests.Auth;
 
-public record RegisterRequest(string Email, string DisplayName, string Password);
+public record RegisterRequest(
+    string Email,
+    string DisplayName,
+    string Password,
+    bool AcceptTerms = true,
+    bool AcceptPrivacy = true,
+    string ConsentIp = "127.0.0.1",
+    string AcceptedTermsVersion = "v1.0",
+    string AcceptedPrivacyVersion = "v1.0");
 public record LoginRequest(string Email, string Password);
 public record RefreshRequest(string RefreshToken);
 
@@ -36,7 +44,8 @@ public class AuthFlowTests : IClassFixture<JadeApiFactory>
 
         var response = await _client.PostAsJsonAsync("/api/auth/register", req);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var responseBody = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.Created, responseBody);
         var body = await response.Content.ReadFromJsonAsync<TokenResponse>();
         body.Should().NotBeNull();
         body!.Email.Should().Be(uniqueEmail);

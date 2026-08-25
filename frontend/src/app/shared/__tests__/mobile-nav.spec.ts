@@ -43,7 +43,8 @@ describe('MobileNav', () => {
   });
 
   it('uses anchor tags (not buttons) for native router-link semantics', () => {
-    const links = fixture.nativeElement.querySelectorAll('a.mobile-nav-link');
+    const root = fixture.nativeElement as HTMLElement;
+    const links = root.querySelectorAll<HTMLAnchorElement>('a.mobile-nav-link');
     expect(links.length).toBe(4);
     for (const link of Array.from(links)) {
       expect(link.tagName).toBe('A');

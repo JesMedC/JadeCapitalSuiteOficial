@@ -136,7 +136,7 @@ public sealed class HardDeleteSweepBackgroundServiceOptionsTests : IAsyncLifetim
                 session_version INT NOT NULL DEFAULT 1,
                 attachment_quota_bytes BIGINT NOT NULL DEFAULT 0,
                 attachment_used_bytes BIGINT NOT NULL DEFAULT 0,
-                scheduled_hard_delete_at TIMESTAMPTZ,
+                scheduled_for_hard_delete_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             )",
@@ -205,7 +205,7 @@ public sealed class HardDeleteSweepBackgroundServiceOptionsTests : IAsyncLifetim
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO identity.users (id, tenant_id, email, display_name, password_hash, role, status,
                 failed_login_count, session_version, attachment_quota_bytes, attachment_used_bytes,
-                scheduled_hard_delete_at, created_at, updated_at)
+                scheduled_for_hard_delete_at, created_at, updated_at)
               VALUES (@id, @tid, @email, @dn, 'x', 1, @status, 0, 1, 0, 0, @sched, @now, @now)",
             _seedConnection);
         cmd.Parameters.AddWithValue("@id", userId);

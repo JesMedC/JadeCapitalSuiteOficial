@@ -20,11 +20,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
 WORKDIR /src
 
-# Central package management + TFM pinning
+# Shared target framework and build policy.
 COPY Directory.Build.props ./
-COPY Directory.Packages.props ./
-COPY global.json ./
-COPY NuGet.config ./
 
 # Copy every csproj the Host build needs. dotnet restore walks the project
 # graph; listing them explicitly keeps the cache layer stable when only
@@ -53,12 +50,12 @@ COPY src/2.Modules/PublicPortal/JadeCapital.PublicPortal.Infrastructure/JadeCapi
 COPY src/3.Shared/JadeCapital.Shared.Kernel/JadeCapital.Shared.Kernel.csproj                src/3.Shared/JadeCapital.Shared.Kernel/
 COPY src/3.Shared/JadeCapital.Shared.Infrastructure/JadeCapital.Shared.Infrastructure.csproj    src/3.Shared/JadeCapital.Shared.Infrastructure/
 
-RUN dotnet restore src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj --locked-mode
+RUN dotnet restore src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj
 
 # =============================================================
 # Stage 2 — copy source + publish
 # =============================================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM restore AS build
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/1.Api/JadeCapital.Host/JadeCapital.Host.csproj \

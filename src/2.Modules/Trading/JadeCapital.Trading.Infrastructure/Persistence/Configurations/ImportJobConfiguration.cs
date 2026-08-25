@@ -45,9 +45,9 @@ internal sealed class ImportJobConfiguration : IEntityTypeConfiguration<ImportJo
         b.Property(j => j.DeletedAtUtc).HasColumnName("deleted_at");
         b.Property(j => j.DeletedByUserId).HasColumnName("deleted_by_user_id");
 
-        // Audit columns inherited from AggregateRoot → Entity<TId>.
-        b.Property(j => j.CreatedAt).HasColumnName("created_at").IsRequired();
-        b.Property(j => j.UpdatedAt).HasColumnName("updated_at");
+        // Import jobs use StartedAt/FinishedAt as their canonical lifecycle timestamps.
+        b.Ignore(j => j.CreatedAt);
+        b.Ignore(j => j.UpdatedAt);
 
         // DomainEvents not are persisted.
         b.Ignore(j => j.DomainEvents);

@@ -171,7 +171,15 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
 
     private sealed record ForgotResp(bool Accepted);
 
-    private sealed record RegisterRequest(string Email, string DisplayName, string Password);
+    private sealed record RegisterRequest(
+        string Email,
+        string DisplayName,
+        string Password,
+        bool AcceptTerms = true,
+        bool AcceptPrivacy = true,
+        string ConsentIp = "127.0.0.1",
+        string AcceptedTermsVersion = "v1.0",
+        string AcceptedPrivacyVersion = "v1.0");
 
     /// <summary>IEmailSender that throws on every send. Used to assert SMTP
     /// failure leaves no Activated row.</summary>

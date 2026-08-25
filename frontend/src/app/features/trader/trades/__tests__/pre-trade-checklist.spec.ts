@@ -92,9 +92,9 @@ describe('PreTradeChecklist', () => {
     // selection
     component.setEmotionality(3);    // Neutral
     component.setSetupQuality(4);    // Good
-    component._confluences.set(7);
-    component._rrEntry.set(2.5);
-    component._rrTarget.set(2.0);
+    component.onConfluencesInput({ target: { valueAsNumber: 7 } } as unknown as Event);
+    component.onRrEntryInput({ target: { valueAsNumber: 2.5 } } as unknown as Event);
+    component.onRrTargetInput({ target: { valueAsNumber: 2.0 } } as unknown as Event);
     fixture.detectChanges();
 
     let captured: PreTradeChecklistPayload | undefined;
@@ -127,7 +127,7 @@ describe('PreTradeChecklist', () => {
     expect(component.isValid()).toBe(true);
 
     // Break it: RR entry below 1.
-    component._rrEntry.set(0.5);
+    component.onRrEntryInput({ target: { valueAsNumber: 0.5 } } as unknown as Event);
     expect(component.isValid()).toBe(false);
   });
 

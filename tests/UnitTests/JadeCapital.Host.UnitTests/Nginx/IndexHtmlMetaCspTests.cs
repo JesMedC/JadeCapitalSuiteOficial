@@ -49,12 +49,19 @@ public class IndexHtmlMetaCspTests
     {
         var html = ReadIndexHtml();
 
-        // Spec: meta CSP MUST mirror the prod nginx CSP (relaxed mode for v1.0.0-rc1).
-        // We assert on the directive name + a couple of stable directives. Angular's
-        // index.html is small enough that we don't need full HTML parsing.
+        // The bootstrap script creates the development fallback dynamically. In
+        // production, nginx injects its request nonce into document.currentScript.
         html.Should().Contain(
-            "<meta http-equiv=\"Content-Security-Policy\"",
-            "frontend index.html MUST carry a meta CSP fallback (spec/security-headers/spec.md §Out of scope)");
+            "document.createElement('meta')",
+            "frontend index.html MUST create a meta CSP fallback when nginx is bypassed");
+
+        html.Should().Contain(
+            "document.currentScript.nonce",
+            "the meta policy must reuse the nonce injected into the executable bootstrap script");
+
+        html.Should().Contain(
+            "meta.httpEquiv = 'Content-Security-Policy'",
+            "the generated meta element must enforce Content-Security-Policy");
 
         html.Should().Contain(
             "default-src 'self'",

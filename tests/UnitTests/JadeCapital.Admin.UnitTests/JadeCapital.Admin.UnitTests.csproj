@@ -14,7 +14,7 @@
          tests. Mirrors the Wave 6 6d.2 SQLite pattern used in Identity.UnitTests.
          SQLite lets the test exercise EF-level behavior (cursor pagination +
          ExecuteDeleteAsync) without a real Postgres or Testcontainers dependency. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.19" />
     <!-- Wave 9 slice 9b.1 — TestServer + TestAuthHandler for the AdminAuditEndpoints
          integration test (role matrix: 401/403/200). Uses an in-memory TestAuthHandler
          that injects role claims via the X-Test-Role header so the test does not

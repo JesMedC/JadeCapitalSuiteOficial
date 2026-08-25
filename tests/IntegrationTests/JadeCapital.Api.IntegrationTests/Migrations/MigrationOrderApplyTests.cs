@@ -145,6 +145,27 @@ public sealed class MigrationOrderApplyTests
     }
 
     [Fact]
+    public void Migration_0039_AddsExistingUserAggregateColumns()
+    {
+        var root = LocateMigrationsRoot();
+        var migrationPath = Path.Combine(root, "0039_add_existing_user_aggregate_columns.sql");
+        File.Exists(migrationPath).Should().BeTrue(
+            "the migration schema must include every column already mapped by the shipped User aggregate");
+        var content = File.ReadAllText(migrationPath);
+
+        foreach (var column in new[]
+        {
+            "soft_deleted_at",
+            "accepted_terms_version",
+            "accepted_privacy_version",
+            "accepted_at"
+        })
+        {
+            content.Should().Contain($"ADD COLUMN IF NOT EXISTS {column}");
+        }
+    }
+
+    [Fact]
     public void Migration_0030_CreatesAuditSchema()
     {
         var root = LocateMigrationsRoot();
@@ -177,10 +198,10 @@ public sealed class MigrationOrderApplyTests
         // `ADD COLUMN IF NOT EXISTS`) but the file numbers were
         // rebased so the sequence stays consecutive (the
         // MigrationOrderTests.EnsureConsecutiveNumbering contract).
-        const int ExpectedCount = 38;
+        const int ExpectedCount = 40;
         files.Length.Should().Be(ExpectedCount,
-            $"Wave 11.2a (3 migrations) + Wave 11.3 (1 migration) + Wave 11.4 (2 migrations = 0037 + 0038): "
-            + $"{ExpectedCount} total.");
+            $"Wave 11.2a (3 migrations) + Wave 11.3 (1 migration) + Wave 11.4 (2 migrations = 0037 + 0038) + schema-alignment migration 0039: "
+            + $"partition migration 0040: {ExpectedCount} total.");
 
         for (int i = 0; i < files.Length; i++)
         {

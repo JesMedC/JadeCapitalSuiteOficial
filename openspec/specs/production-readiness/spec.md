@@ -134,6 +134,29 @@ The system MUST implement `IValidateOptions<StripeOptions>` at `src/2.Modules/Bi
 - THEN the script MUST: create a Customer, create a Checkout session, simulate the webhook, verify the subscription is persisted, cancel via Portal, verify the cancellation webhook
 - AND exit 0 on success, non-zero on any step failure
 
+### Requirement: Archive and changelog consistency gate
+
+CI MUST reject archive/changelog mismatch against the archive manifest.
+
+#### Scenario: Archive is unlisted
+- GIVEN an unlisted manifest archive
+- WHEN consistency runs
+- THEN CI MUST fail naming the archive key
+
+#### Scenario: Changelog claim lacks an archive
+- GIVEN an unmatched changelog claim
+- WHEN consistency runs
+- THEN CI MUST fail naming the claim
+
+### Requirement: Non-delivering exact-commit RC readiness
+
+`v1.1.0-rc1` readiness MUST identify its tested commit without tagging or publishing.
+
+#### Scenario: Readiness evidence is non-delivering
+- GIVEN gates pass at SHA S
+- WHEN readiness is recorded
+- THEN evidence MUST name S; tag and publications MUST be absent
+
 ## Cross-references
 
 - Closes gaps B5 (coverage report), B9 partial (Sentry hooks in 10.6 companion spec), B11 (SEO), B13 (LICENSE + CHANGELOG + CONTRIBUTING + SECURITY.md), B14 (README.es.md), B15 (ADRs), B17 (Stripe prod key validation — A4 wedge), A4 (Stripe prod key validation)

@@ -49,6 +49,6 @@ Chain strategy: feature-branch-chain
 
 ## Phase 5: Nginx Nonce
 
-- [ ] 5.1 RED — Extend `verify-security-headers.sh`: build/test nginx; fetch twice; match header nonce to every script; require distinct responses/no marker, style `unsafe-inline`, `frame-ancestors 'none'`, and no script `unsafe-inline`.
-- [ ] 5.2 GREEN — Update `frontend/src/index.html`, nginx config, and frontend Dockerfile to inject one request ID into CSP and HTML with upstream compression disabled.
-- [ ] 5.3 REFACTOR — Run `nginx -t`, harness, full backend/frontend tests, and solution build.
+- [x] 5.1 RED — Extend `verify-security-headers.sh`: build/test nginx; fetch twice; match header nonce to every script; require distinct responses/no marker, style `unsafe-inline`, `frame-ancestors 'none'`, and no script `unsafe-inline`.
+- [x] 5.2 GREEN — Update `frontend/src/index.html`, nginx config, and frontend Dockerfile to inject one request ID into CSP and HTML with upstream compression disabled.
+- [x] 5.3 REFACTOR — Run `nginx -t`, harness, full backend/frontend tests, and solution build.

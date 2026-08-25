@@ -60,6 +60,7 @@ public sealed class ScannerFilter : AggregateRoot<Guid>
         if (minSpread.HasValue && maxSpread.HasValue && minSpread > maxSpread)
             return Result.Failure<ScannerFilter>(TradingDomainErrors.Scanner.MinGreaterThanMax);
 
+        var now = clock.UtcNow;
         var filter = new ScannerFilter
         {
             Id = Guid.NewGuid(),
@@ -72,9 +73,10 @@ public sealed class ScannerFilter : AggregateRoot<Guid>
             VolatilityWindow = window,
             ActiveHours = activeHoursJson,
             IsActive = true,
+            UpdatedAt = now,
         };
-        filter.SetCreatedAt(clock.UtcNow);
-        filter.RaiseDomainEvent(new ScannerFilterCreatedDomainEvent(filter.Id, userId, clock.UtcNow));
+        filter.SetCreatedAt(now);
+        filter.RaiseDomainEvent(new ScannerFilterCreatedDomainEvent(filter.Id, userId, now));
         return Result.Success(filter);
     }
 

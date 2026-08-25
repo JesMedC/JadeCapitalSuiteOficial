@@ -14,7 +14,7 @@
          runner operates on IdentityDbContext; an in-process provider lets
          the unit tests exercise EF-level behavior without a real Postgres
          or Testcontainers dependency. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.19" />
     <!-- Wave 11 slice 11.1 — Testcontainers + Respawn for the
          GdprAuditAnonymizer test fixture. The anonymizer's raw SQL
          uses the unquoted `audit.events` schema-qualified reference
@@ -24,9 +24,8 @@
          the real anonymizer SQL against a real Postgres instance.
          Mirrors the `JadeApiFactory` pattern from
          tests/IntegrationTests/JadeCapital.Api.IntegrationTests. -->
-    <PackageReference Include="Testcontainers" Version="4.0.0" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.0.0" />
-    <PackageReference Include="Respawn" Version="6.2.1" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageReference Include="Respawn" Version="7.0.0" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
     <PackageReference Include="coverlet.collector" Version="6.0.2" />

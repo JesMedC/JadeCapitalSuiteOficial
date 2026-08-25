@@ -1,6 +1,7 @@
 using JadeCapital.Identity.Application.Features.Auth.Consent;
 using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Time;
 using Microsoft.Extensions.Options;
 using NSubstitute.ReturnsExtensions;
@@ -46,7 +47,12 @@ public class RegisterUserHandlerTests
         _users.FindByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ReturnsNull();
         _hasher.Hash(Arg.Any<string>()).Returns("hashed_pwd");
-        _tokens.CreateAccessToken(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IEnumerable<string>?>())
+        _tokens.CreateAccessToken(
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IEnumerable<string>?>(),
+                Arg.Is<TenantId>(id => id.Value == Guid.Parse("11111111-1111-1111-1111-111111111111")))
             .Returns(("access.jwt", fixedNow.AddMinutes(15)));
         _tokens.CreateOpaqueRefreshToken().Returns("opaque_refresh_abc");
         _tokens.HashToken(Arg.Any<string>()).Returns("hashed_refresh");
@@ -63,7 +69,9 @@ public class RegisterUserHandlerTests
         result.Value.Email.Should().Be(Email());
         result.Value.AccessToken.Should().Be("access.jwt");
         result.Value.RefreshToken.Should().Be("opaque_refresh_abc");
-        await _users.Received(1).AddAsync(Arg.Is<User>(u => u.Email == Email()), Arg.Any<CancellationToken>());
+        await _users.Received(1).AddAsync(
+            Arg.Is<User>(u => u.Email == Email() && u.TenantId == new TenantId(Guid.Parse("11111111-1111-1111-1111-111111111111"))),
+            Arg.Any<CancellationToken>());
         await _refresh.Received(1).AddAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
         await _uow.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
 

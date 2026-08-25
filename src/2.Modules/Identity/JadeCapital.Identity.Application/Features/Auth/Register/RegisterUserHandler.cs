@@ -4,6 +4,7 @@ using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Common;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Shared.Infrastructure.Email;
+using JadeCapital.Shared.Kernel.MultiTenancy;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
 using JadeCapital.Shared.Kernel.Validation;
@@ -37,6 +38,9 @@ namespace JadeCapital.Identity.Application.Features.Auth.Register;
 
 public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, Result<RegisterUserResult>>
 {
+    private static readonly TenantId PersonalTenantId =
+        new(Guid.Parse("11111111-1111-1111-1111-111111111111"));
+
     private readonly IUserRepository _users;
     private readonly IRefreshTokenRepository _refreshTokens;
     private readonly IPasswordHasher _hasher;
@@ -98,6 +102,7 @@ public sealed class RegisterUserHandler : IRequestHandler<RegisterUserCommand, R
         var userResult = User.Register(userId, email, req.DisplayName, hash, UserRole.Trader);
         DomainGuard.EnsureSuccess(userResult);
         var user = userResult.Value;
+        DomainGuard.EnsureSuccess(user.AssignToTenant(PersonalTenantId));
 
         // GDPR Art. 7 consent ledger (0037). The validator has already
         // gated AcceptTerms=true + AcceptPrivacy=true + ConsentIp non-

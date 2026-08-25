@@ -169,21 +169,19 @@ The webhook handler MUST dispatch on `event.type` for `customer.subscription.cre
 
 ### Requirement: Stub fallback for dev / CI
 
-When `StripeOptions.ApiKey` is null or empty, the gateway MUST be replaced with `StubStripeGateway` that returns synthetic responses with predictable shapes. The stub MUST return `cus_stub_{userId:N}` for Customer IDs, `https://stub.example.com/checkout/{sessionId}` for Checkout URLs, `https://stub.example.com/portal/{sessionId}` for Portal URLs, and a synthetic parsed event for `VerifyWebhookAsync`.
+Billing MUST bind `StripeOptions.SecretKey` only from `Stripe:SecretKey` (`Stripe__SecretKey`). A key MUST select `StripeGateway`; otherwise DI MUST select `StubStripeGateway`. `ApiKey` MUST NOT remain an alias. Existing stub shapes MUST remain unchanged.
 
-#### Scenario: Dev environment without Stripe key
+#### Scenario: Empty SecretKey selects stub
 
-- GIVEN `Stripe__ApiKey` env is not set
-- WHEN the application starts
-- THEN DI MUST register `StubStripeGateway` as `IStripeGateway`
-- AND `CreateOrGetCustomerAsync` MUST return `cus_stub_{userId:N}` without calling Stripe
+- GIVEN an empty `Stripe__SecretKey`
+- WHEN Billing composes
+- THEN DI MUST resolve `StubStripeGateway` without Stripe authentication
 
-#### Scenario: CI environment with Stripe key
+#### Scenario: SecretKey reaches gateway
 
-- GIVEN `Stripe__ApiKey = "sk_test_..."` env is set
-- WHEN the application starts
-- THEN DI MUST register `StripeGateway` as `IStripeGateway`
-- AND `CreateOrGetCustomerAsync` MUST call the real Stripe API
+- GIVEN deployment supplies `Stripe__SecretKey = "sk_test_..."`
+- WHEN Billing composes
+- THEN DI MUST resolve `StripeGateway` with that key, regardless of any `ApiKey` value
 
 ### Requirement: API version pinning
 

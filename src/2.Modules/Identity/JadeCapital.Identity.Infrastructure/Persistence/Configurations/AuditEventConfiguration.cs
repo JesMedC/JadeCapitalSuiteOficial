@@ -46,7 +46,10 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         // (AuditEvent) unless overridden. Override here to keep the
         // schema and column names aligned with the migration.
         b.ToTable("events");
-        b.HasKey(e => e.Id);
+        // PostgreSQL requires every unique key on a partitioned table to include
+        // the partition key. The composite identity also prevents EF from
+        // collapsing equal ids that occurred in different partitions.
+        b.HasKey(e => new { e.Id, e.OccurredAt });
 
         b.Property(e => e.Id).HasColumnName("id");
         b.Property(e => e.EntityType)
