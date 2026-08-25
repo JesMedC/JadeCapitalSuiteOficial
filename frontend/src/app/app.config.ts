@@ -1,7 +1,6 @@
 import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
 import * as Sentry from '@sentry/angular';
 
 import { routes } from './app.routes';
@@ -29,6 +28,5 @@ export const appConfig: ApplicationConfig = {
       withInMemoryScrolling({ scrollPositionRestoration: 'top', anchorScrolling: 'enabled' }),
     ),
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
-    provideAnimations(),
   ],
 };
