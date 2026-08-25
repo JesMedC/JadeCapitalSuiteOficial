@@ -94,7 +94,7 @@ public class StripeGatewayContractTests
             parameters.Should().NotBeEmpty($"{m.Name} must take at least a ct");
 
             var last = parameters[^1];
-            last.ParameterType.Should().Be(typeof(CancellationToken),
+            last.ParameterType.Should().Be<CancellationToken>(
                 $"{m.Name} last parameter must be CancellationToken");
 
             last.HasDefaultValue.Should().BeTrue(
