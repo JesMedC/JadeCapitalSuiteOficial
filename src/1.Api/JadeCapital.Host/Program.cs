@@ -120,6 +120,7 @@ builder.Services.AddMailOptions(builder.Configuration);
 builder.Services.AddMailpitSmtpEmailSender();
 
 // Uniform-timing gate used by /api/auth/forgot-password.
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
 // Slice 2a.1 — HTTP context accessor (consumed by HttpHeaderTimezoneAccessor)
@@ -213,6 +214,8 @@ builder.Services.AddSignalR(options =>
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
 
 // ===== Rate limiting =====
+var recoveryPermit = builder.Configuration.GetValue<int?>("RateLimit:RecoveryPermit") ?? 5;
+builder.Services.AddRecoveryThrottle(recoveryPermit);
 // Politica estricta para /api/auth/login y /register (anti brute-force / spam).
 // Limites configurables via RateLimit:AuthPermit / RateLimit:ApiPermit
 // (defaults: 10/min IP y 100/min IP respectivamente).
@@ -298,9 +301,6 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // Slice 0c — recovery throttle: 5 requests / IP / hour (override via RateLimit:RecoveryPermit).
-    var recoveryPermit = builder.Configuration.GetValue<int?>("RateLimit:RecoveryPermit") ?? 5;
-    options.AddRecoveryThrottle(recoveryPermit);
 });
 
 // ===== Health checks =====
@@ -361,6 +361,10 @@ app.UseExceptionHandler(eb => eb.Run(async ctx =>
 
     switch (ex)
     {
+        case BadHttpRequestException:
+            status = StatusCodes.Status400BadRequest;
+            problem = new() { Title = "Bad request", Status = status, Instance = ctx.Request.Path };
+            break;
         case ValidationException vex:
             status = StatusCodes.Status400BadRequest;
             problem = new() { Title = "Validation failed", Status = status, Instance = ctx.Request.Path };

@@ -42,7 +42,8 @@ public sealed class ForgotPasswordHandler : IRequestHandler<ForgotPasswordComman
             await _email.SendRecoveryEmailAsync(new RecoveryEmailMessage(user.Email, user.DisplayName, plaintext, credential.ExpiresAt), ct);
             return Result.Success();
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
         {
             _logger.LogWarning("Password recovery processing failed.");
             return Result.Failure(Error.Failure("password_recovery.processing_failed", "Password recovery processing failed."));

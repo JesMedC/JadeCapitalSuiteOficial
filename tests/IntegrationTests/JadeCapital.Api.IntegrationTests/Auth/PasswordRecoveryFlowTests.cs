@@ -1,14 +1,19 @@
 using System.Collections.Concurrent;
+using System.Text;
 using JadeCapital.Api.IntegrationTests.Infrastructure;
+using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Application.Features.Recovery;
 using JadeCapital.Identity.Domain.Authentication;
 using JadeCapital.Identity.Domain.Users;
 using JadeCapital.Identity.Infrastructure.Persistence;
 using JadeCapital.Shared.Infrastructure.Email;
+using JadeCapital.Shared.Kernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MediatR;
 using Npgsql;
 
 namespace JadeCapital.Api.IntegrationTests.Auth;
@@ -26,13 +31,19 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
 
     public PasswordRecoveryFlowTests(JadeApiFactory factory) { _factory = factory; }
 
-    private HttpClient NewClient(int? recoveryPermitOverride = null, JadeCapital.Shared.Infrastructure.Email.IEmailSender? emailSenderOverride = null)
+    private HttpClient NewClient(
+        int? recoveryPermitOverride = null,
+        IEmailSender? emailSenderOverride = null,
+        IUniformTimingGate? timingGateOverride = null,
+        IPasswordHasher? hasherOverride = null,
+        RecoveryDispatchProbe? dispatchProbe = null)
     {
         // Each test gets a fresh factory instance so the IP-based throttle doesn't
         // accumulate across tests. The InMemoryCapturingEmailSender from the base
         // factory is always reused (or replaced if a test supplies a faulting one),
         // so tests can assert against _factory.EmailSender.Captured.
-        if (recoveryPermitOverride is null && emailSenderOverride is null) return _factory.CreateClient();
+        if (recoveryPermitOverride is null && emailSenderOverride is null && timingGateOverride is null
+            && hasherOverride is null && dispatchProbe is null) return _factory.CreateClient();
 
         return _factory.WithWebHostBuilder(b =>
         {
@@ -53,67 +64,96 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
                     services.AddSingleton<JadeCapital.Shared.Infrastructure.Email.IEmailSender>(emailSenderOverride);
                 });
             }
+            b.ConfigureServices(services =>
+            {
+                if (timingGateOverride is not null)
+                {
+                    services.RemoveAll<IUniformTimingGate>();
+                    services.AddSingleton(timingGateOverride);
+                }
+                if (hasherOverride is not null)
+                {
+                    services.RemoveAll<IPasswordHasher>();
+                    services.AddSingleton(hasherOverride);
+                }
+                if (dispatchProbe is not null)
+                    services.AddSingleton<IPipelineBehavior<ForgotPasswordCommand, Result>>(dispatchProbe);
+            });
         }).CreateClient();
     }
 
-    private HttpClient NewClientWithHasher(IPasswordHasher hasher) => _factory.WithWebHostBuilder(b => b.ConfigureServices(services => { services.RemoveAll<IPasswordHasher>(); services.AddSingleton(hasher); })).CreateClient();
-
     [Fact]
-    public async Task ForgotPassword_Always200Generic()
+    public async Task KnownAndUnknown_AwaitByteEquivalentCanonicalResponses()
     {
-        var client = NewClient(recoveryPermitOverride: 100);
+        var gate = new ControllableTimingGate();
+        var client = NewClient(recoveryPermitOverride: 100, timingGateOverride: gate);
         var knownEmail = $"known{Guid.NewGuid():N}@test.com";
         var reg = await client.PostAsJsonAsync("/api/auth/register",
             new RegisterRequest(knownEmail, "Known", "Passw0rd!Str0ng"));
         reg.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var knownResp = await client.PostAsJsonAsync("/api/auth/forgot-password",
+        var knownTask = client.PostAsJsonAsync("/api/auth/forgot-password",
             new { email = knownEmail });
-        var unknownResp = await client.PostAsJsonAsync("/api/auth/forgot-password",
+        var unknownTask = client.PostAsJsonAsync("/api/auth/forgot-password",
             new { email = $"ghost{Guid.NewGuid():N}@test.com" });
 
-        knownResp.StatusCode.Should().Be(HttpStatusCode.OK);
-        unknownResp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var knownBody = await knownResp.Content.ReadFromJsonAsync<ForgotResp>();
-        var unknownBody = await unknownResp.Content.ReadFromJsonAsync<ForgotResp>();
-        knownBody!.Accepted.Should().BeTrue();
-        unknownBody!.Accepted.Should().BeTrue();
+        await gate.WaitForEntriesAsync(2);
+        gate.BeginCount.Should().Be(2);
+        knownTask.IsCompleted.Should().BeFalse();
+        unknownTask.IsCompleted.Should().BeFalse();
+        gate.ReleaseAll();
+        var knownBody = await AssertCanonicalAsync(await knownTask);
+        var unknownBody = await AssertCanonicalAsync(await unknownTask);
+        knownBody.Should().Equal(unknownBody);
     }
 
     [Fact]
-    public async Task TimingBodyStatusIndistinguishable()
+    public async Task SixthRequest_AwaitsCanonicalResponse_WithoutDispatchOrSideEffects()
     {
-        var client = NewClient(recoveryPermitOverride: 100);
-        var knownEmail = $"timing{Guid.NewGuid():N}@test.com";
-        var reg = await client.PostAsJsonAsync("/api/auth/register",
-            new RegisterRequest(knownEmail, "Timing", "Passw0rd!Str0ng"));
-        reg.StatusCode.Should().Be(HttpStatusCode.Created);
-
-        var knownResp = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = knownEmail });
-        var unknownResp = await client.PostAsJsonAsync("/api/auth/forgot-password",
-            new { email = $"ghost{Guid.NewGuid():N}@test.com" });
-
-        knownResp.StatusCode.Should().Be(unknownResp.StatusCode);
-        var knownRaw = await knownResp.Content.ReadAsStringAsync();
-        var unknownRaw = await unknownResp.Content.ReadAsStringAsync();
-        knownRaw.Should().Be(unknownRaw);
-        knownResp.Content.Headers.ContentType?.MediaType
-            .Should().Be(unknownResp.Content.Headers.ContentType?.MediaType);
-    }
-
-    [Fact]
-    public async Task Throttle5PerHourPerIp()
-    {
-        var client = NewClient(recoveryPermitOverride: 5);
-        var responses = new List<HttpStatusCode>();
-        for (var i = 0; i < 7; i++)
+        var gate = new ControllableTimingGate();
+        var probe = new RecoveryDispatchProbe();
+        var client = NewClient(5, timingGateOverride: gate, dispatchProbe: probe);
+        var (email, userId) = await RegisterAsync(client, "throttle");
+        ResetCaptures();
+        for (var i = 0; i < 5; i++)
         {
-            var r = await client.PostAsJsonAsync("/api/auth/forgot-password",
-                new { email = $"throttle{i}-{Guid.NewGuid():N}@test.com" });
-            responses.Add(r.StatusCode);
+            var request = client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
+            await gate.WaitForEntriesAsync(1);
+            request.IsCompleted.Should().BeFalse();
+            gate.ReleaseNext();
+            await AssertCanonicalAsync(await request);
         }
-        responses.Take(5).Should().AllBeEquivalentTo(HttpStatusCode.OK);
-        responses.Skip(5).Should().AllBeEquivalentTo(HttpStatusCode.TooManyRequests);
+
+        var dispatches = probe.Count;
+        var emails = _factory.EmailSender.Captured.Count;
+        var credentials = (await CredentialsAsync(userId)).Count;
+        var sixth = client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
+        await gate.WaitForEntriesAsync(1);
+
+        sixth.IsCompleted.Should().BeFalse();
+        gate.BeginCount.Should().Be(6);
+        probe.Count.Should().Be(dispatches).And.Be(5);
+        _factory.EmailSender.Captured.Should().HaveCount(emails).And.HaveCount(5);
+        (await CredentialsAsync(userId)).Should().HaveCount(credentials).And.HaveCount(5);
+        gate.ReleaseNext();
+        await AssertCanonicalAsync(await sixth);
+    }
+
+    [Fact]
+    public async Task MalformedJson_Remains400WithoutRecoveryWork()
+    {
+        var gate = new ControllableTimingGate();
+        var probe = new RecoveryDispatchProbe();
+        var client = NewClient(1, timingGateOverride: gate, dispatchProbe: probe);
+        ResetCaptures();
+
+        var response = await client.PostAsync("/api/auth/forgot-password",
+            new StringContent("{", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        gate.BeginCount.Should().Be(0);
+        probe.Count.Should().Be(0);
+        _factory.EmailSender.Captured.Should().BeEmpty();
     }
 
     [Fact]
@@ -146,9 +186,11 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
     {
         var client = NewClient(100); var (email, userId) = await RegisterAsync(client, "rollback");
         await client.PostAsJsonAsync("/api/auth/forgot-password", new { email }); var prior = (await CredentialsAsync(userId)).Should().ContainSingle().Which;
-        var hasher = new ConstraintFailingHasher(); ResetCaptures();
-        var response = await NewClientWithHasher(hasher).PostAsJsonAsync("/api/auth/forgot-password", new { email });
-        response.StatusCode.Should().Be(HttpStatusCode.OK); (await response.Content.ReadFromJsonAsync<ForgotResp>())!.Accepted.Should().BeTrue();
+        var hasher = new ConstraintFailingHasher(); var gate = new ControllableTimingGate(); ResetCaptures();
+        var response = NewClient(100, timingGateOverride: gate, hasherOverride: hasher)
+            .PostAsJsonAsync("/api/auth/forgot-password", new { email });
+        await gate.WaitForEntriesAsync(1); response.IsCompleted.Should().BeFalse(); gate.ReleaseNext();
+        await AssertCanonicalAsync(await response);
         var remaining = (await CredentialsAsync(userId)).Should().ContainSingle().Which;
         remaining.Id.Should().Be(prior.Id); remaining.Status.Should().Be(TemporaryCredentialStatus.Activated);
         _factory.EmailSender.Captured.Should().BeEmpty(); AssertLogsSafe(email, hasher.Plaintext, hasher.HashValue);
@@ -159,17 +201,17 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
     {
         // Swap the in-memory sender for a faulting one for this test only.
         var faultingSender = new FaultingEmailSender();
-        var client = NewClient(recoveryPermitOverride: 100, emailSenderOverride: faultingSender);
+        var gate = new ControllableTimingGate();
+        var client = NewClient(100, faultingSender, gate);
 
         var email = $"smtp{Guid.NewGuid():N}@test.com";
         var reg = await client.PostAsJsonAsync("/api/auth/register",
             new RegisterRequest(email, "SmtpFail", "Passw0rd!Str0ng"));
         reg.StatusCode.Should().Be(HttpStatusCode.Created);
         ResetCaptures();
-        var resp = await client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
-        // Uniform 200 generic — SMTP failure must NOT be observable.
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await resp.Content.ReadFromJsonAsync<ForgotResp>())!.Accepted.Should().BeTrue();
+        var response = client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
+        await gate.WaitForEntriesAsync(1); response.IsCompleted.Should().BeFalse(); gate.ReleaseNext();
+        await AssertCanonicalAsync(await response);
         var message = faultingSender.Captured.Should().ContainSingle().Which;
 
         // A post-accept transport failure cannot compensate the committed row.
@@ -183,6 +225,20 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
         var rows = await CredentialsAsync(userId);
         rows.Select(t => (t.Generation, t.Status)).Should().Equal(
             (1, TemporaryCredentialStatus.Superseded), (2, TemporaryCredentialStatus.Activated));
+    }
+
+    [Fact]
+    public async Task HandlerException_AwaitsCanonicalResponse()
+    {
+        var gate = new ControllableTimingGate();
+        var probe = new RecoveryDispatchProbe(throwOnDispatch: true);
+        var client = NewClient(100, timingGateOverride: gate, dispatchProbe: probe);
+
+        var response = client.PostAsJsonAsync("/api/auth/forgot-password", new { email = "failure@test.com" });
+        await gate.WaitForEntriesAsync(1);
+        response.IsCompleted.Should().BeFalse();
+        gate.ReleaseNext();
+        await AssertCanonicalAsync(await response);
     }
 
     [Fact]
@@ -207,14 +263,24 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
         var locked = await RunLockedAsync(userId,
             "UPDATE identity.users SET locked_until = now() + interval '1 hour' WHERE id = @id RETURNING id",
             () => client.PostAsJsonAsync("/api/auth/forgot-password", new { email }));
-        locked.Should().OnlyContain(r => r.StatusCode == HttpStatusCode.OK); var sentinelEmail = "system@anonymized.local";
-        (await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = sentinelEmail })).StatusCode.Should().Be(HttpStatusCode.OK);
+        foreach (var response in locked) await AssertCanonicalAsync(response);
+        var sentinelEmail = "system@anonymized.local";
+        await AssertCanonicalAsync(await client.PostAsJsonAsync("/api/auth/forgot-password", new { email = sentinelEmail }));
         _factory.EmailSender.Captured.Should().BeEmpty(); (await CredentialsAsync(userId)).Should().BeEmpty();
         (await CredentialsAsync(User.NonHumanSentinelId)).Should().BeEmpty();
         AssertLogsSafe(email, sentinelEmail);
     }
 
-    private sealed record ForgotResp(bool Accepted);
+    private static readonly byte[] AcceptedBody = Encoding.UTF8.GetBytes("{\"accepted\":true}");
+
+    private static async Task<byte[]> AssertCanonicalAsync(HttpResponseMessage response)
+    {
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType?.ToString().Should().Be("application/json; charset=utf-8");
+        var body = await response.Content.ReadAsByteArrayAsync();
+        body.Should().Equal(AcceptedBody);
+        return body;
+    }
 
     private sealed record RegisterRequest(
         string Email,
@@ -301,5 +367,39 @@ public class PasswordRecoveryFlowTests : IClassFixture<JadeApiFactory>
         private string _plaintext = string.Empty; public string Plaintext => Volatile.Read(ref _plaintext); public string HashValue { get; } = new('x', 256);
         public string Hash(string password) { Interlocked.Exchange(ref _plaintext, password); return HashValue; }
         public bool Verify(string password, string hash) => false;
+    }
+
+    private sealed class RecoveryDispatchProbe(bool throwOnDispatch = false) : IPipelineBehavior<ForgotPasswordCommand, Result>
+    {
+        private int _count;
+        public int Count => Volatile.Read(ref _count);
+        public async Task<Result> Handle(ForgotPasswordCommand request, RequestHandlerDelegate<Result> next, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _count);
+            if (throwOnDispatch) throw new InvalidOperationException("Simulated handler failure.");
+            return await next();
+        }
+    }
+
+    private sealed class ControllableTimingGate : IUniformTimingGate
+    {
+        private readonly ConcurrentQueue<TaskCompletionSource<bool>> _releases = new();
+        private readonly System.Threading.Channels.Channel<bool> _entered = System.Threading.Channels.Channel.CreateUnbounded<bool>();
+        private int _beginCount;
+        public int BeginCount => Volatile.Read(ref _beginCount);
+        public UniformTimingDeadline Begin() { Interlocked.Increment(ref _beginCount); return default; }
+        public async Task AwaitAsync(UniformTimingDeadline deadline, CancellationToken ct = default)
+        {
+            var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _releases.Enqueue(release); _entered.Writer.TryWrite(true).Should().BeTrue();
+            await release.Task.WaitAsync(ct);
+        }
+        public async Task WaitForEntriesAsync(int count)
+        {
+            for (var i = 0; i < count; i++)
+                await _entered.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        public void ReleaseNext() { _releases.TryDequeue(out var release).Should().BeTrue(); release!.SetResult(true); }
+        public void ReleaseAll() { while (_releases.TryDequeue(out var release)) release.SetResult(true); }
     }
 }

@@ -5,8 +5,8 @@ using JadeCapital.Identity.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JadeCapital.Identity.Api;
 
@@ -14,8 +14,7 @@ namespace JadeCapital.Identity.Api;
 /// Composition surface for the Identity module's API surface. Slice 0c adds:
 ///   * <see cref="MapIdentityApi"/> — endpoint mapping entry point.
 ///   * <see cref="IUniformTimingGate"/> — pads sensitive paths (forgot-password)
-///     to the 14s ± 250ms budget per identity-password-recovery spec, using a
-///     dummy PBKDF2 chain so the response time is invariant in account state.
+///     to the 14s ± 250ms budget per identity-password-recovery spec.
 ///   * <see cref="AddAdminOnly"/> — Admin authorization policy skeleton (full
 ///     wiring lives in slice 0f).
 ///   * <see cref="AddRecoveryThrottle"/> — 5-per-hour-per-IP rate limit policy
@@ -23,12 +22,12 @@ namespace JadeCapital.Identity.Api;
 /// </summary>
 public static class IdentityApiRegistration
 {
-/// <summary>
-/// Map all Identity-module endpoints. Combines <c>MapAuthEndpoints</c> (auth,
-/// recovery, refresh) + <c>MapRiskProfileEndpoints</c> (slice 1a.1b —
-/// GET/PUT /api/risk-profile) + <c>MapTenantEndpoints</c> (slice 6c.3 —
-/// tenant admin: list / invite / remove users + update).
-/// </summary>
+    /// <summary>
+    /// Map all Identity-module endpoints. Combines <c>MapAuthEndpoints</c> (auth,
+    /// recovery, refresh) + <c>MapRiskProfileEndpoints</c> (slice 1a.1b —
+    /// GET/PUT /api/risk-profile) + <c>MapTenantEndpoints</c> (slice 6c.3 —
+    /// tenant admin: list / invite / remove users + update).
+    /// </summary>
     public static IEndpointRouteBuilder MapIdentityApi(this IEndpointRouteBuilder app)
     {
         app.MapAuthEndpoints();
@@ -45,9 +44,9 @@ public static class IdentityApiRegistration
 
     /// <summary>Registers the rate limit policy used by the recovery endpoints (5 requests / IP / hour by default;
     /// overridable via <c>RateLimit:RecoveryPermit</c> in configuration for fast-running integration tests).</summary>
-    public static RateLimiterOptions AddRecoveryThrottle(this RateLimiterOptions options, int permitLimit = 5)
+    public static IServiceCollection AddRecoveryThrottle(this IServiceCollection services, int permitLimit = 5)
     {
-        options.AddPolicy("recovery", ctx =>
+        services.AddSingleton(PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
         {
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             return RateLimitPartition.GetFixedWindowLimiter(
@@ -59,8 +58,8 @@ public static class IdentityApiRegistration
                     QueueLimit = 0,
                     AutoReplenishment = true
                 });
-        });
-        return options;
+        }));
+        return services;
     }
 
     /// <summary>Registers the restricted-scope authorization policy used by the forced-change endpoint.</summary>
@@ -92,53 +91,40 @@ public static class IdentityApiRegistration
 /// <summary>
 /// Uniform-timing gate. Pads sensitive paths to a fixed budget so attackers
 /// cannot distinguish between account-existing / not-found / throttle / transport
-/// failure based on response latency. The dummy PBKDF2 chain runs the same
-/// number of iterations regardless of branch, achieving time-invariant response
-/// at the cost of ~14s CPU per request.
+/// failure based on response latency.
 /// </summary>
+public readonly record struct UniformTimingDeadline(long StartedAt, TimeSpan Target);
+
 public interface IUniformTimingGate
 {
-    /// <summary>
-    /// Block the current request until the uniform budget elapses. The jitter is
-    /// ±250ms per spec.
-    /// </summary>
-    Task AwaitAsync(double targetSeconds, CancellationToken ct = default);
+    UniformTimingDeadline Begin();
+    Task AwaitAsync(UniformTimingDeadline deadline, CancellationToken ct = default);
 }
 
 public sealed class UniformTimingGate : IUniformTimingGate
 {
-    private const int DummyIterations = 100_000; // matches Pbkdf2PasswordHasher minimum
+    private static readonly EventId OverrunEvent = new(1001, "UniformTimingOverrun");
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<UniformTimingGate> _logger;
 
-    public UniformTimingGate(ILogger<UniformTimingGate> logger) { _logger = logger; }
+    public UniformTimingGate(TimeProvider timeProvider, ILogger<UniformTimingGate> logger)
+    { _timeProvider = timeProvider; _logger = logger; }
 
-    public async Task AwaitAsync(double targetSeconds, CancellationToken ct = default)
+    public UniformTimingDeadline Begin() => new(
+        _timeProvider.GetTimestamp(),
+        TimeSpan.FromMilliseconds(Random.Shared.Next(13_750, 14_251)));
+
+    public async Task AwaitAsync(UniformTimingDeadline deadline, CancellationToken ct = default)
     {
-        // Jitter ±250ms per spec; we keep the original budget inside that band.
-        var jitterMs = Random.Shared.Next(-250, 250);
-        var targetMs = (int)(targetSeconds * 1000) + jitterMs;
-        var start = DateTimeOffset.UtcNow;
-
-        // Dummy PBKDF2 chain: 100k iterations × 32 bytes is a budget-filler
-        // that produces identical CPU work on every code path.
-        var dummy = new byte[32];
-        var salt = new byte[16];
-        for (var i = 0; i < DummyIterations; i++)
+        var elapsed = _timeProvider.GetElapsedTime(deadline.StartedAt);
+        var remaining = deadline.Target - elapsed;
+        if (remaining > TimeSpan.Zero)
         {
-            Microsoft.AspNetCore.Cryptography.KeyDerivation.KeyDerivation.Pbkdf2(
-                "uniform-timing-dummy", salt,
-                Microsoft.AspNetCore.Cryptography.KeyDerivation.KeyDerivationPrf.HMACSHA256,
-                1, dummy.Length);
+            await Task.Delay(remaining, _timeProvider, ct);
+            return;
         }
 
-        var elapsed = (DateTimeOffset.UtcNow - start).TotalMilliseconds;
-        var remaining = targetMs - elapsed;
-        if (remaining > 0)
-        {
-            try { await Task.Delay(TimeSpan.FromMilliseconds(remaining), ct); }
-            catch (OperationCanceledException) { /* caller aborted; respect */ }
-        }
-
-        _logger.LogDebug("Uniform timing gate released at {Elapsed} ms (budget {Budget} ms).", elapsed, targetMs);
+        if (elapsed > deadline.Target)
+            _logger.LogWarning(OverrunEvent, "Uniform timing target overrun.");
     }
 }

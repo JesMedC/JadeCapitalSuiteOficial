@@ -133,9 +133,8 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
             foreach (var s in existing) services.Remove(s);
             services.AddSingleton<IEmailSender>(EmailSender);
 
-            // Replace the slow (14s) uniform-timing gate with a no-op so test
-            // runs aren't gated on real PBKDF2 work. The Indistinguishable test
-            // still proves both branches return the same response shape.
+            // Keep unrelated integration tests fast. Recovery timing tests inject
+            // a controllable gate, while unit tests exercise the production gate.
             var gateDescriptors = services.Where(s => s.ServiceType == typeof(IUniformTimingGate)).ToList();
             foreach (var s in gateDescriptors) services.Remove(s);
             services.AddSingleton<IUniformTimingGate>(new NoopTimingGate());
@@ -152,7 +151,8 @@ public sealed class JadeApiFactory : WebApplicationFactory<Program>, IAsyncLifet
     /// unit tests; integration tests prove shape, not 14s latency.</summary>
     private sealed class NoopTimingGate : IUniformTimingGate
     {
-        public Task AwaitAsync(double targetSeconds, CancellationToken ct = default) => Task.CompletedTask;
+        public UniformTimingDeadline Begin() => default;
+        public Task AwaitAsync(UniformTimingDeadline deadline, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     /// <summary>Tees every log line into an in-memory list so tests can assert
