@@ -9,6 +9,7 @@ using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using System.Threading.RateLimiting;
 using LoginResult = JadeCapital.Identity.Application.Features.Auth.Login.LoginResult;
 
 namespace JadeCapital.Identity.Api.Endpoints;
@@ -59,8 +60,6 @@ public static class AuthEndpoints
             .WithName("ForgotPassword")
             .WithSummary("Solicita recuperacion de contrasena via SMTP.")
             .Produces<ForgotPasswordResponse>(StatusCodes.Status200OK)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests)
-            .RequireRateLimiting("recovery")
             .AllowAnonymous();
 
         // Slice 0c — Forced change with recovery grant (issued after temp login).
@@ -138,14 +137,20 @@ public static class AuthEndpoints
     private static async Task<IResult> ForgotPasswordAsync(
         [Microsoft.AspNetCore.Mvc.FromBody] ForgotPasswordRequest req,
         [Microsoft.AspNetCore.Mvc.FromServices] ISender sender,
+        [Microsoft.AspNetCore.Mvc.FromServices] IUniformTimingGate timingGate,
+        [Microsoft.AspNetCore.Mvc.FromServices] PartitionedRateLimiter<HttpContext> recoveryLimiter,
         HttpContext http,
         CancellationToken ct)
     {
-        // Uniform-timing gate: even on the unknown-email path the response
-        // returns inside the 14s ± 250ms budget enforced by IUniformTimingGate.
-        var ip = http.Connection.RemoteIpAddress?.ToString();
-        var cmd = new ForgotPasswordCommand(req.Email ?? string.Empty);
-        await sender.Send(cmd, ct);
+        var deadline = timingGate.Begin();
+        using var lease = recoveryLimiter.AttemptAcquire(http);
+        if (lease.IsAcquired)
+        {
+            try { await sender.Send(new ForgotPasswordCommand(req.Email ?? string.Empty), ct); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception) { /* Public recovery failures are intentionally indistinguishable. */ }
+        }
+        await timingGate.AwaitAsync(deadline, ct);
         // Always 200 generic — never reveal whether the email exists.
         return Results.Ok(new ForgotPasswordResponse(true));
     }
