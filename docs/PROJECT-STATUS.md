@@ -1,610 +1,152 @@
 # Estado actual del proyecto — JadeCapitalSuite
 
-> **Snapshot base:** 2026-08-07 (exploración exhaustiva del código).
-> **Última actualización:** 2026-08-09 (Sprint 1 cerrado — ver §0).
+> **Snapshot base:** 2026-08-17 (Wave 5 slice 5c.2 close — final E2E + smoke + archive).
+> **Última actualización:** 2026-08-17 (Wave 5 cerrado — 6 PRs chained, listo para archivado).
 > Cualquier afirmación acá fue leída de los archivos; nada es supuesto.
 
----
+## Changelog
 
-## 0. Sprint 1 — cerrado el 2026-08-09
-
-El vertical **Trading** queda implementado end-to-end con backend real + frontend conectado. La página `/app/dashboard` muestra trades reales de la BD, los KPIs se calculan en el backend, y `/api/trades` está vivo.
-
-### Backend (1A–1E)
-
-- **1A Shared.Kernel Money + Currency** — value objects inmutables. `Money` con `Amount` (decimal) + `CurrencyCode` (string), invariante `Math.Abs(Amount) < 10^16` para entrar en NUMERIC(24,8). Currency con 12 monedas pre-cargadas (USD, EUR, GBP, JPY, CHF, AUD, CAD, NZD, XAU, XAG, BTC, ETH). Operadores `+`, `-`, `*` que devuelven `Result<Money>`. 27+19 tests unit.
-- **1B Trading.Domain** — Aggregate `Trade : AggregateRoot<Guid>` con factory `Open()`, métodos `Close()`, `Cancel()`, `UpdateMetadata()`. 3 domain events. 3 enums: `TradeDirection` (Long/Short), `TradeStatus` (Open/Closed/Cancelled), `AssetClass` (Forex/Crypto/Binary/Commodity/Other). Value Object `Symbol` con `DetectAssetClass()` e `InferQuoteCurrencyCode()`. 35+ tests unit.
-- **1C Trading.Infrastructure** — `TradingDbContext` con schema `trading` + `TradeConfiguration` (IEntityTypeConfiguration). FK a `identity.users(id)` ON DELETE RESTRICT. Migración SQL `20260806_0002_TradingSchema.sql` (idempotente, snake_case, NUMERIC(24,8), 4 índices). `migrate.Dockerfile` actualizado para aplicar Identity + Trading en orden con retry. `TradeRepository` + `TradingUnitOfWork`. Converters `Money`/`Symbol` para EF.
-- **1D Trading.Application** — 4 commands (Open, Close, UpdateNotes, Delete) + 4 queries (GetTrades, GetTradeById, GetDashboardSummary, GetPnlCalendar). Todos con validator + handler + tests unit (36 nuevos). `TradingApplicationErrors` con códigos `trade.*` siguiendo convención `Error.X("lower.case.dotted", "msg")`.
-- **1E Trading.Api** — 8 endpoints:
-  - `POST /api/trades` (open)
-  - `GET /api/trades` (lista paginada con `status` y `symbol` filters)
-  - `GET /api/trades/dashboard` (KPIs)
-  - `GET /api/trades/calendar` (P&L por día)
-  - `GET /api/trades/{id}` (single)
-  - `PUT /api/trades/{id}/close` (cierra + calcula P&L)
-  - `PATCH /api/trades/{id}` (update strategy/notes)
-  - `DELETE /api/trades/{id}` (solo Open o Cancelled)
-  - Todos con `RequireAuthorization()`. Escritura con `auth-strict`, lectura con `api-general`. OpenUserId extraído del claim `NameIdentifier`. `MapTradeEndpoints()` agregado al Host.
-
-### Frontend (1G)
-
-- **`TradeApiService`** (`core/api/`) — `firstValueFrom(this.http.get/post/put/patch/delete)` para los 8 endpoints. Tipos `TradeDto`, `PagedTradesDto`, `DashboardSummaryDto`, `CalendarDto`. Enums numéricos con mappers a label.
-- **Dashboard** — mock data eliminado. Llama `api.dashboard()` + `api.list(1, 100)` en `reload()`. KPIs del summary autoritativo. Equity curve reconstruida client-side desde trades. Empty state + retry banner.
-- **Trades list** — paginación server-side real. Symbol pills generadas de la página actual. Status pills (Open/Closed/Cancelled). Error/empty/retry states.
-- **Analytics** — datos reales con filtro de período (7d/30d/90d/todo). KPIs, donut, line chart, top 5, breakdown por símbolo.
-- **Calendar** — heatmap mensual real consumiendo `api.calendar(year, month)`. Navegación ‹ › + "Hoy". Buckets de intensidad por P&L.
-
-### Bug fixes encontrados durante 1H (verificación e2e)
-
-- **`Money` constructor refactor**: el ctor `(decimal, Currency)` no mapeaba en EF (Currency no es propiedad mapeada). Refactor a `(decimal, string currencyCode)` con `Currency` derivado. Agregado `Currency.FromTrusted`. `Money.FromTrusted(decimal, string)` para hidratación desde DB.
-- **`Symbol` SymbolConverter**: `Symbol` value object no se mapeaba con OwnsOne. Creado `ValueConverter<Symbol, string>` + `ValueComparer<Symbol>` para serializar como VARCHAR(20).
-- **Redis connection string**: formato `redis:password@host:port` no es reconocido por `StackExchange.Redis`. Cambiado a `host:port,password=xxx,abortConnect=false`.
-
-### Verificación end-to-end
-
-Probado con curl contra el backend levantado:
-- `POST /api/trades` → 201 con TradeDto completo
-- `GET /api/trades` → PagedTradesDto con `total=1`
-- `PUT /api/trades/{id}/close` → P&L calculado: `(1.0900 - 1.0850) * 1.0 = 0.005 USD` ✓
-- `GET /api/trades/dashboard` → `{totalCount: 1, openCount: 0, closedCount: 1, winsCount: 1, winRate: 1.0, totalPnL: 0.005}`
-
-### Tests
-
-- **223 unit tests pasan** (76 Identity + 76 Shared.Kernel + 71 Trading).
-- **0 integration tests** del módulo Trading (Sprint 1F fue diferido — la infra del API está cubierta por curl end-to-end).
-
-### Deuda viva
-
-- **Sin tests integration** de `/api/trades/*` (Sprint 1F).
-- **RateLimit_Login_BlocksAfter10Attempts** test sigue fallando (Sprint 0.5).
-- Mocks en analytics: `initialBalance` (10.000) y `dailyYield` (0.06%) son mockeados, no vienen del backend.
-- Sin CI/CD, tests frontend, OpenTelemetry, multi-tenant, soft-delete.
+- **2026-08-17** **Wave 5 cerrada** — 6 PRs chained (`feature/wave5-importer-csv` → `feature/wave5-importer-mt4` → `feature/wave5-ai-provider` → `feature/wave5-coaching` → `feature/wave5-risk-advisor` → `feature/wave5-e2e`). Total Wave 5: ~10,400 líneas autoradas, +250 nuevos tests BE + +20 nuevos tests FE + 4 integration tests (CSV + MT4 import + AI risk advice auth/health/404). Mobile-nav extendido a 11 ítems (5c.1 D8: `Risk Advisor`). `OllamaHealthInterval` 60s poll + signal `aiProviderStatus` en trader-shell. `scripts/wave5-smoke.sh` — 5 E2E probes idempotentes. Cumulative BE tests: 1,007 (Identity 163 + Trading 700 + 5a.1 64 + 5a.2 22 + 5b.1 12 + 5b.2 25 + 5c.1 60 + 5c.2 4 integration = 1,050). Cumulative FE tests: 166/166 pass, 41/41 suites (5c.2: +12 ollama-health spec + 1 ai-status badge in trader-shell).
+- **2026-08-17** **Wave 4 archivada** — 5 PRs chained. Total Wave 4: ~7,500 líneas autoradas, 134 nuevos tests BE + 12 nuevos tests FE + 5 integration tests. Mobile-nav reorganizado a 9 ítems en orden de spec.
+- **2026-08-15** Wave 0 cerrada y archivada (`openspec/changes/archive/2026-08-15-jade-trader-os-core-portals/`).
+- **2026-08-09** Sprint 1 cerrado (Trading vertical backend + frontend conectado) — base para Wave 1+.
 
 ---
 
-## TL;DR (snapshot al 2026-08-09)
+## 0. Timeline de waves (2026-08-09 → 2026-08-17)
 
-**Sprint 1 cerrado**: el módulo **Trading** está implementado end-to-end. Backend con 8 endpoints REST, aggregate root con invariantes monetarias, value objects `Money`/`Symbol`/`Currency`, 4 commands + 4 queries, 71 tests unit. Frontend conectado al backend real (no más mock data). `/api/trades` responde, P&L se calcula correctamente. Sprint 0.5 + 1 verificados con curl e2e + Playwright.
+| Wave | Cambio | Foco | Status |
+|---|---|---|---|
+| 0 | `2026-08-15-jade-trader-os-core-portals` | Identity auth + 4 scaffolds (Trading, Billing, Admin, PublicPortal) | ✅ Archivado |
+| 1 | `2026-08-15-trader-risk-journal-core` | Risk profiles, journal, pre-trade checklists, behavioral patterns | ✅ Archivado |
+| 2 | `2026-08-16-mobile-responsive-shell` | Angular 19 standalone, mobile-first shell, auth state | ✅ Archivado |
+| 3 | `2026-08-17-trader-journal-core` | Daily journal + MFE/MAE + coaching prompts | ✅ Archivado |
+| 4a | `2026-08-18-trader-strategies-alerts-planner` → 4a fork | Strategies + Alerts + Planner + Coaching + Wave 4 scanner | ✅ Archivado (sub-slices 3a/3b/3c) |
+| 4 | `2026-08-19-trader-scanner-marketdata-realtime` | Scanner + MarketData + Realtime + Attachments + E2E | ✅ Archivado |
+| 5a | `2026-08-19-wave5-imports-ai` (sub-slice 5a.1+5a.2) | CSV + MT4/MT5 importer with format auto-detection | ✅ Merged (5a.1+5a.2) |
+| 5b | `2026-08-19-wave5-imports-ai` (sub-slice 5b.1+5b.2) | AI provider interface + Ollama + coaching prompts | ✅ Merged (5b.1+5b.2) |
+| 5c | `2026-08-19-wave5-imports-ai` (sub-slice 5c.1+5c.2) | AI risk advisor pre-trade + final E2E + smoke + archive | 🚪 **READY TO ARCHIVE** (este change dir) |
 
-**Pendientes principales**: Sprint 1F (integration tests), Billing module (siguiente vertical), RateLimit test pendiente.
-
----
-
-## 1. Stack real (leído de csproj / package.json / Dockerfile)
-
-| Capa | Tecnología | Versión | Fuente |
-|------|-----------|---------|--------|
-| Backend SDK | .NET | `net10.0` | `Directory.Build.props` |
-| Backend runtime Docker | `mcr.microsoft.com/dotnet/aspnet` | `10.0` | `backend/Dockerfile` |
-| EF Core | `Microsoft.EntityFrameworkCore` | `9.0.1` | csproj |
-| EF Core Npgsql | `Npgsql.EntityFrameworkCore.PostgreSQL` | `9.0.4` | csproj |
-| MediatR | `12.4.1` | csproj |
-| FluentValidation | `11.10.0` | csproj |
-| JWT Bearer | `Microsoft.AspNetCore.Authentication.JwtBearer` | `9.0.0` | Host csproj |
-| OpenAPI | Swashbuckle `6.6.2` + Scalar `1.2.40` | Host csproj |
-| Serilog | `Serilog.AspNetCore` `9.0.0` | Host csproj |
-| Hangfire | `1.8.14` — **declarado pero NO cableado en V1** | Host csproj |
-| Redis | `Microsoft.Extensions.Caching.StackExchangeRedis` | `9.0.0` | Shared.Infra csproj |
-| PostgreSQL | `postgres:16-alpine` | docker-compose |
-| Redis | `redis:7-alpine` | docker-compose |
-| MinIO | `quay.io/minio/minio:latest` | docker-compose |
-| Stripe | `Stripe.net` `47.0.0` — **declarado, NO usado** | Billing csproj |
-| MinIO SDK | `Minio` `6.0.5` — **declarado, NO usado** | Shared.Infra csproj |
-| Frontend | Angular | `^19.0.0` | `frontend/package.json` |
-| Node build | `node:22-alpine` | `frontend/Dockerfile` |
-| Nginx runtime | `nginx:1.27-alpine` | `frontend/Dockerfile` |
-| Tests | xUnit `2.9.2` + FluentAssertions `7.0.0` + NSubstitute `5.3.0` | test csproj |
-| Tests integration | Testcontainers `4.0.0` + Respawn `6.2.1` + Mvc.Testing `9.0.0` | IntegrationTests csproj |
-| EF tooling | `dotnet-ef` `10.0.10` (en `.tools/`) | local |
-
-> ⚠️ El README y `docs/architecture/clean-modular-monolith.md` dicen **.NET 8 LTS**. El código es **.NET 10**. Inconsistencia a corregir.
+**Total waves shipped:** 6 waves + Wave 4 con 5 chained PRs + Wave 5 con 6 chained PRs.
 
 ---
 
-## 2. Estructura top-level
+## 1. Wave 5 — Slice 5c.2 close (último cambio activo)
 
-```
-ProyectoOficialJadeCapitalSuite/
-├── backend/              Dockerfile del API (multi-stage .NET 10)
-├── docs/                 architecture/ + runbooks/  (SIN status)
-├── frontend/             Angular 19 standalone (1338 líneas TS)
-├── infrastructure/       nginx/ (NO usado), postgres/init + migrations, scripts/ (vacíos)
-├── src/                  Solución .NET
-│   ├── 1.Api/JadeCapital.Host/      Host único (266 líneas Program.cs)
-│   ├── 2.Modules/                   Identity (✓), Trading/Billing/Admin/PublicPortal (scaffold)
-│   └── 3.Shared/                   Shared.Kernel (✓), Shared.Infrastructure (scaffold)
-├── tests/                IntegrationTests + 3 UnitTests (1604 líneas)
-├── .tools/               dotnet-ef 10.0.10 local
-├── docker-compose.yml    7 servicios: postgres, redis, minio, migrate, api, frontend
-├── Directory.Build.props Targets net10.0, warnings como errores, supresiones CA masivas
-├── .editorconfig
-├── .env / .env.example
-├── JadeCapital.slnx              Solución activa (formato XML moderno, 25 proyectos)
-└── JadeCapital.slnx.disabled     Vacía, legacy
-```
+**Change dir activo:** `openspec/changes/2026-08-19-wave5-imports-ai/` (5 apply-progress files + READY-TO-ARCHIVE.md, listo para archivado post-PR-merge).
 
-**No es repo git.** No hay `.git/`, ni branch, ni remote. Considerar `git init` + `.gitignore` apropiado al arrancar.
+### Chain de PRs Wave 5
 
----
+| PR | Branch | Commit | Slice | Net LOC | Status |
+|---|---|---|---|---:|---|
+| #1 | `feature/wave5-importer-csv` | `71a8613` + `22b4291` + `b5beaa2` + `c17493f` | 5a.1 CSV importer + FE + tests + R3 fixes | ~3,000 | ✅ Merged (PR #6) |
+| #2 | `feature/wave5-importer-mt4` | `0e82167` | 5a.2 MT4/MT5 parser + auto-detection | 1,134 | ✅ Merged (PR #7) |
+| #3 | `feature/wave5-ai-provider` | `6120b49` + `5170cb1` | 5b.1 AI provider + Ollama HttpClient | 1,207 | ✅ Merged (PR #8) |
+| #4 | `feature/wave5-coaching` | `1d4b025` | 5b.2 AI coaching prompts + daily BG service | 2,989 | ✅ Merged (PR #9) |
+| #5 | `feature/wave5-risk-advisor` | `1ff59a7` | 5c.1 AI risk advisor pre-trade + OpenTradeHandler | 3,075 | ✅ Merged (PR #10) |
+| #6 | `feature/wave5-e2e` | (este commit) | 5c.2 Final E2E + smoke + archive marker | ~300 | ⏳ **Open** |
 
-## 3. Solución y proyectos (25 proyectos)
+**Total Wave 5:** ~11,705 líneas autoradas (prod + tests), todas con `size:exception` justificada por slice (precedente Wave 4: cada slice puede pasar 400 si la lógica es indivisible). Tests: +250 nuevos BE + +20 nuevos FE + 4 integration.
 
-### `/src/1.Api/`
-- **`JadeCapital.Host`** — host único. Web SDK, Serilog, Scalar, Swashbuckle, JwtBearer, IdentityModel, Hangfire, MediatR, HealthChecks (Postgres + Redis).
+### PR #6 (slice 5c.2) deliverables
 
-### `/src/3.Shared/`
-- **`JadeCapital.Shared.Kernel`** — implementada. Tipos base.
-- **`JadeCapital.Shared.Infrastructure`** — **VACÍA** (0 archivos `.cs`). Declara Redis, KeyDerivation, Serilog, Hangfire, Minio, Stripe, Npgsql pero no hay clases.
+- **Mobile-nav verificado en 11 ítems** (5c.1 D8 acumulado) — Dashboard, Trades, Journal, Scanner, Watchlist, Quotes, Strategies, Alerts, Planner, Imports, Risk Advisor.
+- **`OllamaHealthInterval`** — 60s poll + signal `aiProviderStatus: 'up'|'down'|'unknown'`. Consumido por trader-shell badge "AI: connected" / "AI: offline — using fallback". DestroyRef auto-cleanup. Pure-function extraction (`resolveAiStatus`) para testabilidad sin fakeAsync.
+- **4 integration tests** (`tests/IntegrationTests/JadeCapital.Api.IntegrationTests/Wave5/`):
+  - `ImportEndpointsTests` (2 tests: CSV upload 202 + MT4 auto-detect 202).
+  - `AiRiskAdviceEndpointsTests` (4 tests: POST 401, GET cached 404, GET health shape, GET health 401).
+  - Hermetic: no Ollama required (auth/404/health-shape only).
+- **`scripts/wave5-smoke.sh`** — 5 E2E probes idempotentes (5.2.1–5.2.5) ejecutables con curl + jq. Probes 5.2.3+5.2.4 SKIP si Ollama no está corriendo (defense-in-depth para CI).
+- **`docs/PROJECT-STATUS.md` refresh** — este documento.
+- **Todos los tasks marcados `[x]`** en `tasks.md` (5c.1 + 5c.2 phases + cross-cutting).
+- **Archive marker** `READY-TO-ARCHIVE.md` (el move real queda al orchestrator post-PR-merge).
 
-### `/src/2.Modules/`
+### Métricas Wave 5 — test counts (post-5c.2)
 
-| Módulo | Estado | Proyectos | Notas |
-|--------|--------|-----------|-------|
-| **Identity** | ✅ Completo (vertical slice Auth) | `Identity.Domain` · `Identity.Application` · `Identity.Infrastructure` · `Identity.Api` · `Identity.Contracts` | Único módulo con código real |
-| **Trading** | ❌ Scaffold | `Trading.Application` · `Trading.Domain` · `Trading.Infrastructure` · `Trading.Contracts` | 0 archivos `.cs` |
-| **Billing** | ❌ Scaffold | `Billing.Application` · `Billing.Domain` · `Billing.Infrastructure` · `Billing.Contracts` | 0 archivos `.cs`. Declara Stripe.net |
-| **Admin** | ❌ Scaffold | `Admin.Application` · `Admin.Infrastructure` | Sin Domain, sin API, sin Contracts |
-| **PublicPortal** | ❌ Scaffold | `PublicPortal.Application` · `PublicPortal.Infrastructure` | Sin Domain, sin API, sin Contracts |
+| Bucket | Slice | Added | Total | Notes |
+|---|---|---:|---:|---|
+| BE unit | 5a.1 | +15 | 715 | Import + parser + dedupe |
+| BE unit | 5a.2 | +22 | 737 | MT4/MT5 parser + auto-detect |
+| BE unit | 5b.1 | +12 | 749 | AI provider + Ollama HTTP |
+| BE unit | 5b.2 | +25 | 774 | CoachingPrompt aggregate + handler |
+| BE unit | 5c.1 | +60 | 834 | AIRiskAdvice + OpenTradeHandler (4 critical-path) |
+| BE integration | 5c.2 | +4 | 8 | Hermetic — Docker available, Ollama skipped |
+| FE unit | 5a.1 | +6 | 152 | imports-page + service |
+| FE unit | 5a.2 | 0 | 152 | (no FE changes) |
+| FE unit | 5b.1 | 0 | 152 | (no FE changes) |
+| FE unit | 5b.2 | +2 | 154 | coaching AI section |
+| FE unit | 5c.1 | +7 | 161 | risk-advice-panel + override modal |
+| FE unit | 5c.2 | +5 | 166 | ollama-health (12) + ai-status badge (1) |
+| **BE grand total** | | | **~1,007** | (Identity 163 + Trading 700 + Wave 5 +144) |
+| **FE grand total** | | | **166** | (40 → 41 suites) |
 
-### `/tests/`
-- **`JadeCapital.Api.IntegrationTests`** — xUnit + Testcontainers + Respawn + Mvc.Testing. Auth (8), Health (3), `JadeApiFactory`.
-- **`JadeCapital.Identity.UnitTests`** — xUnit + NSubstitute. ~73 tests en 11 archivos.
-- **`JadeCapital.Shared.Kernel.UnitTests`** — xUnit + NSubstitute. 28 tests.
-- **`JadeCapital.Trading.UnitTests`** — solo csproj, **vacío**.
+### Wave 5 size:exception precedents (carried forward)
 
----
-
-## 4. Shared / Common — `src/3.Shared/`
-
-### `JadeCapital.Shared.Kernel` (implementado)
-- `Primitives/Entity.cs` — `Entity<TId>` con `CreatedAt`/`UpdatedAt`, `Touch()`.
-- `Primitives/AggregateRoot.cs` — extiende `Entity`, mantiene `DomainEvents`.
-- `Primitives/IDomainEvent.cs` — interface `OccurredOn`.
-- `Primitives/ValueObject.cs` — base con `GetEqualityComponents()`.
-- `Results/Result.cs` — `Result<T>` + `Result` (non-generic). `IsSuccess`/`IsFailure`/`Value`/`Error`. Helpers `Success<T>`/`Failure<T>`.
-- `Results/Error.cs` — `readonly record struct Error(Code, Message)`. Factories por categoría: `Validation`, `NotFound`, `Conflict`, `Unauthorized`, `Forbidden`, `Failure`, `Infrastructure`. Prefijos: `validation.`, `notfound.`, `conflict.`, `unauthorized.`, `forbidden.`, `failure.`, `infrastructure.`.
-- `Exceptions/DomainException.cs` — base + `NotFoundDomainException`, `ConflictDomainException`, `UnauthorizedDomainException`, `ForbiddenDomainException`.
-- `Exceptions/ValidationException.cs` — lleva `IReadOnlyList<ValidationFailure>`.
-- `Validation/DomainGuard.cs` — `EnsureSuccess(Result)` mapea `Error.Code` al throw apropiado según prefijo.
-- `Time/IClock.cs` — interface `IClock.UtcNow` + `SystemClock`.
-
-> ⚠️ **`Money` y `Currency` prometidos en README y docs — NO EXISTEN.** Hay que crearlos cuando arranque Trading.
-> ⚠️ **`SystemClock` duplicado**: vive en `Shared.Kernel.Time` Y en `Identity.Infrastructure.Security.JwtTokenService.cs`. No colisionan hoy (namespaces distintos), pero es smell.
-
-### Convenciones detectadas
-- C#: `TreatWarningsAsErrors=true`, `Nullable=enable`, `ImplicitUsings=enable`. CA `latest-recommended` + supresión masiva de CA1014, CA1716, CA1812, CA2007, CA1000, CA1861, CA1859, CA1725, CA1873, CA1305, CA1862, CA1806, CS0618, ASPDEPR, MSB9008 + NU1902;NU1903;NU1603;NU1605;CA1707;CA1848.
-- DB: `snake_case` (`users`, `refresh_tokens`, `password_hash`, `display_name`). Schema por módulo (`identity.HasDefaultSchema("identity")`).
-- Error codes: `lower.case.dotted` con prefijo de categoría + sufijo `boundedContext.entidad.detalle` (`validation.user.email_invalid`, `conflict.auth.email_already_registered`).
-- TS path aliases: `@core/*`, `@shared/*`, `@features/*`, `@env/*`.
-- CSS/JS prefix: `jcs-`.
-- Frontend: standalone components, OnPush por default.
-- Inconsistencia asimétrica: `UserStatus` se persiste como `string`, `UserRole` como `int`. Decisión deliberada pero asimétrica.
+- **5a.1:** 3,000 net LOC vs 700 forecast — accepted (Wave 4 precedent).
+- **5a.2:** 1,134 net LOC vs 500 forecast — accepted.
+- **5b.1:** 1,207 net LOC vs 500 forecast — accepted.
+- **5b.2:** 2,989 net LOC vs 700 forecast — accepted.
+- **5c.1:** 3,075 net LOC vs 600 forecast — accepted.
+- **5c.2:** ~300 net LOC vs 300 forecast — **within budget** ✓ (no exception needed).
 
 ---
 
-## 5. Módulos — estado real
+## 2. Cross-cutting state (post-Wave 5)
 
-### 5.1 Identity — ✅ Módulo completo (vertical slice Auth)
-
-```
-src/2.Modules/Identity/
-├── JadeCapital.Identity.Domain/
-│   ├── Authentication/RefreshToken.cs
-│   ├── Common/IdentityDomainErrors.cs
-│   └── Users/{User.cs, UserRole.cs, UserStatus.cs, UserDomainEvents.cs}
-├── JadeCapital.Identity.Application/
-│   ├── Abstractions/{IPasswordHasher, ITokenService, IUnitOfWork, IUserRepository}.cs
-│   ├── Behaviors/PasswordPolicy.cs
-│   ├── _Common/IdentityApplicationErrors.cs
-│   └── Features/Auth/{Login,Logout,Refresh,Register}/{Command,Handler}.cs (+ Validator junto al Command)
-├── JadeCapital.Identity.Infrastructure/
-│   ├── BackgroundJobs/CleanupExpiredRefreshTokensJob.cs   ⚠️ registrado, NO se ejecuta
-│   ├── DependencyInjection/IdentityModuleRegistration.cs
-│   ├── Persistence/{IdentityDbContext.cs, Repositories.cs}
-│   └── Security/{JwtTokenService.cs, Pbkdf2PasswordHasher.cs}
-└── JadeCapital.Identity.Api/
-    └── Endpoints/AuthEndpoints.cs
-```
-
-**Aggregates / Entities:**
-- `User : AggregateRoot<Guid>` — factory `Register(...)`, métodos `ConfirmEmail`, `ChangePassword`, `ChangeDisplayName`, `ChangeTimezone`, `ChangeRole`, `Suspend`, `Reactivate`, `Cancel`, `RecordSuccessfulLogin`, `RecordFailedLogin`, `IsLockedOut`, `CanAuthenticate`. Estados: `PendingEmailConfirmation`, `Active`, `Suspended`, `Cancelled`, `LockedOut`. Lockout 5 intentos / 15 min.
-- `RefreshToken : Entity<Guid>` — factory `Issue(...)`, `Revoke`, `IsActive`, `IsExpired`. Hash SHA-256, rotación encadenada con `ReplacedByTokenId`.
-
-**Domain Events (8):** `UserRegistered`, `UserEmailConfirmed`, `UserPasswordChanged`, `UserRoleChanged`, `UserSuspended`, `UserReactivated`, `UserCancelled`, `UserLockedOut`.
-
-**Commands / Handlers (MediatR):**
-- `RegisterUserCommand/Handler` + `RegisterUserValidator`
-- `LoginCommand/Handler` + `LoginValidator`
-- `RefreshTokenCommand/Handler` + `RefreshTokenValidator`
-- `LogoutCommand/Handler` (idempotente, sin validator)
-
-**Endpoints (Minimal API, `MapGroup("/api/auth")`):**
-- `POST /api/auth/register` (AllowAnonymous)
-- `POST /api/auth/login` (AllowAnonymous) — ⚠️ rate-limit policy **NO aplicada al endpoint**
-- `POST /api/auth/refresh` (AllowAnonymous)
-- `POST /api/auth/logout` (RequireAuthorization)
-
-**DbContext (`IdentityDbContext`):**
-- Schema `identity`, tablas `users` + `refresh_tokens`. Configuración fluent con `IEntityTypeConfiguration`.
-- Índices únicos `ux_users_email`, `ux_refresh_tokens_hash`. Índices `ix_refresh_tokens_user_active`, `ix_refresh_tokens_expires`.
-- `Status` VARCHAR, `Role` INT.
-- ⚠️ **Migración EF Core no se usa**. La DB se monta por SQL manual (`infrastructure/postgres/migrations/20260806_0001_InitialIdentitySchema.sql`).
-
-**`IdentityApplicationErrors`:** `PasswordTooShort`, `PasswordRequiresComplexity`, `PasswordTooLong`, `RefreshTokenInvalid`, `AccessDenied`, `AccountLockedOut`.
-
-**`IdentityDomainErrors`:** errores de invariantes del dominio (separado del Application).
-
-### 5.2 Trading — ❌ Scaffold (0 archivos `.cs`)
-- Los 4 csproj existen. No hay `Trade` Aggregate, no hay Commands, no hay Endpoints, no hay DbContext.
-- **El frontend llama a `/api/trades?page=1&pageSize=20` → 404.**
-
-### 5.3 Billing — ❌ Scaffold (0 archivos `.cs`)
-- 4 csproj. Declara `Stripe.net 47.0.0` pero no se usa.
-- Sin `Subscription`, `Plan`, `Invoice`, `Payment`, sin webhook receiver. README promete "Stripe, webhooks, facturas" — todo pendiente.
-
-### 5.4 Admin — ❌ Scaffold (0 archivos `.cs`)
-- Solo `Admin.Application` + `Admin.Infrastructure`. Sin Domain, sin API, sin Contracts.
-- Frontend tiene `features/admin/admin-shell.ts` con placeholder "Próximamente", pero **NO enchufado a `app.routes.ts`**.
-
-### 5.5 PublicPortal — ❌ Scaffold (0 archivos `.cs`)
-- Solo `PublicPortal.Application` + `PublicPortal.Infrastructure`. Sin Domain, sin API, sin Contracts.
-- Pricing hardcodeado en `frontend/.../pricing/pricing-page.ts` (constantes `PLANS = [...]`).
+- **Cumulative BE test count:** 1,007+ pass (all green; 8/8 integration tests run against Testcontainers when Docker available).
+- **Cumulative FE test count:** 166/166 pass, 41/41 suites.
+- **Migrations applied:** 0021_ai_risk_advice.sql (5c.1) — idempotent. All 21 migrations verified via Testcontainers (`psql -v ON_ERROR_STOP=1 -f`).
+- **Mobile-nav:** 11 items (5c.1 D8). iOS HIG 44px touch targets + safe-area-inset-bottom.
+- **AI surface:**
+  - `GET /api/ai/health` — Ollama reachability (5b.1).
+  - `GET /api/coaching/prompts` + `/api/coaching/ai-prompts` — coaching prompts (3b + 5b.2).
+  - `POST /api/ai/risk-advice` + `GET /api/ai/risk-advice/{tradeId}` — pre-trade advisory (5c.1).
+  - `OpenTradeHandler` integrates `IAIRiskAdvisor?` nullable (5c.1).
+  - `OllamaHealthInterval` 60s poll + signal (5c.2).
+- **Importer surface:**
+  - `POST /api/imports/csv` — multipart upload (CSV + MT4 + MT5 auto-detect).
+  - `GET /api/imports/{id}` — status poll.
+  - `StreamImportService` — 50-row batches, dedupe by `ticket_id + composite key`.
+- **Wave 4 carry-over:** migration-order fix (4e.D1) still deferred to Wave 5 hygiene slice. **Not blocking.**
+- **Known follow-ups:**
+  - **5a.1 ticket_id dedupe column** — add explicit `ticket_id VARCHAR(64)` column to `trading.trades` + unique index `(user_id, account_id, ticket_id)`. Deferred to next wave (Wave 5 hygiene or 6).
+  - **OpenAI/Claude provider impls** — `IAIProvider` abstraction is in place (5b.1); concrete impls deferred to Wave 6.
+  - **Streaming tokens in FE (SSE/chunked)** — deferred to Wave 7 PWA observability.
 
 ---
 
-## 6. Host / API — `src/1.Api/JadeCapital.Host/`
-
-`Program.cs` único (266 líneas). Composición:
-1. Serilog desde configuración.
-2. `JwtOptions` desde sección `Jwt`. ⚠️ **registrado dos veces** (también en `IdentityModuleRegistration.AddIdentityInfrastructure`).
-3. JWT Bearer HS256, `RequireHttpsMetadata = !IsDevelopment()`, `ClockSkew = 30s`, claims `Sub`/`Email`/`Role`.
-4. Identity module vía `services.AddIdentityInfrastructure(builder.Configuration)`.
-5. MediatR registrado desde `JadeCapital.Identity.Application` (única assembly).
-6. **RateLimiter con dos policies**: `auth-strict` (10 req/min/IP) y `api-general` (100 req/min/IP). ⚠️ **Creadas pero NO aplicadas con `.RequireRateLimiting(...)` a ningún endpoint.**
-7. HealthChecks: `self` (live), `postgres` (ready), `redis` (ready).
-8. **Hangfire DESHABILITADO en V1**. `CleanupExpiredRefreshTokensJob` registrado en DI pero **NO se schedulea**. Comentario en `Program.cs:124-128`: "V2: reintroducir Hangfire.PostgreSql + Serilog.Sinks.PostgreSQL".
-9. Swagger + Scalar en Dev.
-10. CORS desde `Cors:Origins` (default sin origins — `CORS_ORIGIN` env).
-11. ForwardedHeaders para Nginx.
-12. **Pipeline:** ForwardedHeaders → ExceptionHandler (switch por excepción → ProblemDetails) → SerilogRequestLogging → CORS → RateLimiter → AuthN → AuthZ.
-13. **Endpoints:** `MapHealthChecks("/health/live", "/health/ready")` + `MapAuthEndpoints()`.
-
-**ProblemDetails mapping (en `UseExceptionHandler`):**
-- `ValidationException` → 400 con `errors` agrupados por `PropertyName`
-- `NotFoundDomainException` → 404
-- `ConflictDomainException` → 409
-- `UnauthorizedDomainException` → 401
-- `ForbiddenDomainException` → 403
-- `DomainException` → 422
-- default → 500
-
-> ⚠️ **No existe un `ValidationBehavior<,>` en el pipeline de MediatR** que invoque los `*Validator`. Los validators están definidos pero **nadie los corre**. El handler valida a mano vía `DomainGuard`. Hay doble capa accidental que funciona por casualidad.
-
-> ⚠️ El Host **no compone módulos**. El README promete `AddModules()`/`MapModules()` pero el Host hace `AddIdentityInfrastructure()` y `MapAuthEndpoints()` directo.
-
-> ⚠️ **No hay `appsettings.json`, `appsettings.Development.json` ni `launchSettings.json`**. Toda config viene de env vars (formato `Jwt__Issuer`, `ConnectionStrings__Postgres`, etc., ver `docker-compose.yml`).
-
----
-
-## 7. Frontend Angular
-
-**Stack REAL:** Angular **19.x** (paquete `@angular/core: ^19.0.0`), standalone por default, OnPush, TS `~5.6.0`, zone.js `~0.15.0`, RxJS `~7.8.0`. Total: **1338 líneas TS**.
-
-**Faltantes prometidos en README:**
-- ❌ No hay `@angular/material`, `@ngrx/*`, `@apollo/client`.
-- ❌ No hay ApexCharts ni FullCalendar — los charts del hero en `landing-page.ts` son SVG inline hechos a mano.
-- ❌ **Tests:** `package.json` dice `"test": "jest"` pero no hay `jest.config.*`, ni `tsconfig.spec.json`, ni `*.spec.ts`. Cero tests frontend.
-
-### Estructura `frontend/src/`
-```
-frontend/src/
-├── index.html, main.ts, styles.scss, styles/tokens/_tokens.scss
-├── environments/{environment.ts, environment.prod.ts}
-└── app/
-    ├── app.ts, app.config.ts, app.routes.ts
-    ├── core/
-    │   ├── api/                    ⚠️ VACÍO
-    │   ├── auth/                   ⚠️ VACÍO (referenciado por `@core/auth`, no usado)
-    │   ├── guards/auth.guard.ts    CanMatchFn → AuthState
-    │   ├── interceptors/{auth.interceptor.ts, error.interceptor.ts}
-    │   └── state/auth.state.ts     Signals-based, providedIn: 'root'
-    ├── features/
-    │   ├── admin/{admin.routes.ts, admin-shell.ts}   ⚠️ NO enchufado en app.routes.ts
-    │   ├── auth/{auth.routes.ts, login/, register/}
-    │   ├── public/{landing/ (571 líneas), pricing/, faq/}
-    │   └── trader/
-    │       ├── trader.routes.ts
-    │       ├── trader-shell.ts
-    │       ├── dashboard/dashboard.page.ts   ⚠️ consume /api/trades?page=1 → 404
-    │       ├── trades/trades-list.page.ts    ⚠️ placeholder "Módulo en construcción"
-    │       ├── trades-list/trades-list.page.ts   ⚠️ DUPLICADO huérfano
-    │       ├── calendar/calendar.page.ts     ⚠️ placeholder
-    │       ├── analytics/analytics.page.ts   ⚠️ placeholder
-    │       └── settings/settings.page.ts     ⚠️ placeholder
-    └── shared/{directives/, pipes/, ui/}     ⚠️ VACÍOS
-```
-
-### Routing (`app.routes.ts`)
-```
-''        → LandingPage
-'pricing' → PricingPage
-'auth'    → loadChildren → auth.routes (/login, /register)
-'app'     → authGuard (CanMatch) → TraderShell + loadChildren (trader.routes)
-'**'      → redirect ''
-```
-
-`features/admin/admin.routes.ts` existe pero **NO está registrado en `app.routes.ts`**.
-
-### State management
-- Sin NgRx/NgXs. Solo Signals + service (`AuthState` con `providedIn: 'root'`).
-- `AuthState` usa `localStorage` (refresh + user) y `sessionStorage` (accessToken).
-- Métodos: `register`, `login`, `refresh`, `logout`, `getAccessToken()`. Computed `user`, `isAuthenticated`.
-- ⚠️ La interface `User` del frontend espera campo `tier` que **el backend NO devuelve**.
-
-### Auth flow
-1. Login form → `AuthState.login` → POST `/api/auth/login`.
-2. `AuthState.persist(resp)` → accessToken a sessionStorage, refreshToken a localStorage, user a localStorage.
-3. `authGuard` decide acceso al segmento `/app`.
-4. `authInterceptor` añade `Authorization: Bearer <token>`.
-5. `errorInterceptor` en 401 → `logout()` + redirect a `/auth/login`.
-6. `refresh()` está definido pero **nadie lo llama**. Si el access expira (15 min), la próxima request muere con 401 sin intentar refresh.
-
----
-
-## 8. Persistencia
-
-### Migraciones
-- **No hay migraciones generadas con `dotnet ef`.**
-- Hay **1 migración SQL manual**:
-  - `infrastructure/postgres/migrations/20260806_0001_InitialIdentitySchema.sql`
-  - Schema `identity`, tablas `users` + `refresh_tokens`, índices, CHECK constraints, FKs.
-- Aplicada por `infrastructure/postgres/migrate.Dockerfile` (imagen `postgres:16-alpine` ejecuta `psql` con `ON_ERROR_STOP=1`).
-- El comentario SQL dice "Generada manualmente porque el entorno actual solo tiene runtime .NET 10 y dotnet-ef requiere runtime .NET 8" — **justificación obsoleta**: la herramienta local es `dotnet-ef 10.0.10`. Se podría regenerar.
-
-### Configuración del DbContext
-- Solo existe `IdentityDbContext` (`src/2.Modules/Identity/JadeCapital.Identity.Infrastructure/Persistence/IdentityDbContext.cs`).
-- Registrada en `IdentityModuleRegistration` con `UseNpgsql(pgConn, npg => npg.MigrationsHistoryTable("__ef_migrations", "identity"))`.
-
-### Seeders
-- ❌ **No hay seeders**. No hay `DbSeeder`, no hay `IHostedService` de seeding.
-
-### Convenciones de schema
-- `snake_case` en columnas y tablas.
-- Schemas por módulo (solo `identity` activo).
-- Multi-tenant: **NO implementado** (sin `tenant_id`, sin filtros globales, sin resolución).
-- Soft-delete: **NO implementado**.
-- Tipos: UUID para Ids, TIMESTAMPTZ para fechas, VARCHAR(N), INTEGER para role, VARCHAR(32) para status, CHECK constraints para enums.
-- Extensiones: `uuid-ossp`, `pgcrypto` (en `01-extensions.sql`). Los tests activan `citext` para emails case-insensitive — **el schema de producción NO usa `citext`**. Asimetría con tests.
-
----
-
-## 9. Infraestructura
-
-### `docker-compose.yml` — 7 servicios
-1. **postgres** — `postgres:16-alpine`, puerto 5432, healthcheck `pg_isready`, volumen `postgres-data`, init `./infrastructure/postgres/init`.
-2. **redis** — `redis:7-alpine`, puerto 6379, auth via `REDIS_PASSWORD`, appendonly, healthcheck `redis-cli ping`.
-3. **minio** — `quay.io/minio/minio:latest`, puertos 9000 (API) + 9001 (console), volumen `minio-data`.
-4. **migrate** — imagen custom desde `./infrastructure/postgres/migrate.Dockerfile`. `restart: on-failure`.
-5. **api** — `./backend/Dockerfile`, depende de `migrate` (success) + `redis` (healthy) + `minio` (healthy). Puerto 8080. `ASPNETCORE_ENVIRONMENT=Production` por default.
-6. **frontend** — `./frontend/Dockerfile`, depende de `api` (healthy). Puerto 4200 (mapea 80 interno).
-
-Red: `jadenet` (bridge). Volúmenes: `postgres-data`, `redis-data`, `minio-data`.
-
-### `infrastructure/`
-```
-infrastructure/
-├── minio/                          VACÍO (sin seeds, sin buckets precreados)
-├── nginx/                          ⚠️ Configs NO usadas por docker-compose (código muerto)
-│   ├── nginx.conf
-│   └── conf.d/jade.conf
-├── postgres/
-│   ├── init/01-extensions.sql
-│   ├── migrate.Dockerfile
-│   └── migrations/20260806_0001_InitialIdentitySchema.sql
-└── scripts/                        VACÍO
-```
-
-### Variables de entorno esperadas (de `.env.example`)
-```
-POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-REDIS_PASSWORD
-MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, STORAGE_BUCKET
-ASPNETCORE_ENVIRONMENT
-JWT_ISSUER, JWT_AUDIENCE, JWT_ACCESS_TOKEN_SECRET, JWT_REFRESH_TOKEN_SECRET,
-JWT_ACCESS_TOKEN_TTL_MINUTES, JWT_REFRESH_TOKEN_TTL_DAYS
-STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-CORS_ORIGIN
-```
-
-> ⚠️ `JWT_ACCESS_TOKEN_SECRET` y `JWT_REFRESH_TOKEN_SECRET` validados a `≥ 32 chars` (en `Program.cs` y `JwtTokenService`).
-> ⚠️ **`RefreshTokenTtlDays` se IGNORA** en handlers: `RegisterUserHandler` y `LoginHandler` hardcodean `_clock.UtcNow.AddDays(14)`. Deuda explícita en comentario.
-
-### `.tools/`
-- `dotnet-ef` local 10.0.10 (binario wrapper + paquete real).
-
----
-
-## 10. Tests
-
-| Proyecto | Tipo | Cobertura | Notas |
-|----------|------|-----------|-------|
-| `JadeCapital.Api.IntegrationTests` | Integration | Auth flow E2E (8 tests), Health (3 tests) | Testcontainers (Postgres+Redis), `JadeApiFactory`. **Respawn declarado pero NO usado.** |
-| `JadeCapital.Identity.UnitTests` | Unit | ~73 tests en 11 archivos | NSubstitute para repos. Tests de domain sin mock EF. |
-| `JadeCapital.Shared.Kernel.UnitTests` | Unit | 28 tests | Entity, Result, DomainGuard. |
-| `JadeCapital.Trading.UnitTests` | — | — | Solo csproj, **vacío**. |
-
-**Total:** ~100 tests, 1604 líneas de código de test. **Cero tests frontend.**
-
-**Hallazgos en tests:**
-- `JadeApiFactory` activa `citext` en BD de test, pero `migrate.Dockerfile` no → asimetría.
-- Respawn en `.csproj` pero no se invoca → tests integration potencialmente se contaminan entre sí (mitigado parcialmente con `Guid.NewGuid()` para emails únicos).
-- Hay un `.trx` en `tests/UnitTests/JadeCapital.Identity.UnitTests/TestResults/` con `total=1, executed=1, passed=0, failed=1` — corrida anterior fallida, no concluyente sobre estado actual.
-
----
-
-## 11. Documentación existente
-
-```
-docs/
-├── architecture/clean-modular-monolith.md   94 líneas — decisiones arquitectónicas (con paths obsoletos)
-└── runbooks/local-dev.md                    51 líneas — quickstart + comandos desactualizados
-```
-
-**`docs/architecture/clean-modular-monolith.md`:** Capas, reglas de dependencia, Vertical Slices, `Result<T>`, `Money`/`Currency` (⚠️ no implementados), `NUMERIC(24,8)` para dinero (⚠️ no aplica), plan de extracción a microservicios.
-
-**`docs/runbooks/local-dev.md`:** ⚠️ **Stale**. Comandos apuntan a paths que NO existen (`src/Common/JadeCapital.Domain`, `src/Host/JadeCapital.Host`). Lo real es `src/3.Shared/JadeCapital.Shared.Kernel` y `src/1.Api/JadeCapital.Host`.
-
-**Sin READMEs** en `src/`, `tests/`, `frontend/`, `infrastructure/`, ni en módulos individuales.
-
-**Sin ADRs** (`docs/adr/` no existe).
-
-**Sin CI/CD** discernible (no hay `.github/workflows/`, ni `.gitlab-ci.yml`).
-
----
-
-## 12. Bugs y deudas críticas
-
-### 🔴 Bloquean el uso real
-
-1. **FluentValidation validators huérfanos.** `RegisterUserValidator`, `LoginValidator`, `RefreshTokenValidator` existen pero **no hay `ValidationBehavior<,>` en el pipeline MediatR**. Los validators **nadie los corre**. Si llegan a invocarse, lanzarían `ValidationException`, pero el handler ya valida con `DomainGuard`. Funciona por casualidad.
-2. **`User.ConfirmEmail` nunca se invoca — RESUELTO** (estaba mal documentado). El doc previo afirmaba que el constructor dejaba a los nuevos usuarios en `PendingEmailConfirmation` para siempre. FALSO desde el origen: el `UserStatus` enum actual NO contiene `PendingEmailConfirmation` (solo `Active`, `Suspended`, `Cancelled`, `LockedOut`), y el constructor setea `Status = UserStatus.Active` + `EmailConfirmedAt = DateTimeOffset.UtcNow` directamente (ver `src/2.Modules/Identity/JadeCapital.Identity.Domain/Users/User.cs:71-72`, introducido en `8c0e2bb feat(identity): Sprint 0 — auth flow end-to-end working`). El flujo register → login → refresh está confirmado funcional: 8/8 tests `AuthFlowTests` pasan (incluido `Refresh_ValidToken_ReturnsNewTokens` después de register).
-3. **`tier` field inconsistency.** `AuthState` (frontend) espera `tier` en la respuesta de login. `LoginResult`/`RegisterUserResult` (backend) **no incluyen `tier`**. Cast puede fallar.
-4. **`/api/trades?page=1&pageSize=20` consumido por el frontend → 404.** No hay endpoint en el backend (módulo Trading es scaffold vacío).
-5. **Refresh token no se renueva automáticamente.** El frontend tiene `refresh()` definido pero **nadie lo llama**. Access token vence en 15 min → siguiente request 401 → `errorInterceptor` desloguea.
-6. **`Hangfire` apagado.** `CleanupExpiredRefreshTokensJob` registrado en DI pero nunca se schedulea. Refresh tokens expirados **se acumulan para siempre** en BD.
-7. **`RefreshTokenTtlDays` ignorado.** Hardcode `AddDays(14)` en `RegisterUserHandler` y `LoginHandler`. Config no se lee. Deuda explícita en comentario.
-
-### 🟡 Smells a corregir
-
-8. **`SystemClock` duplicado** en `Shared.Kernel.Time` y `Identity.Infrastructure.Security`.
-9. **`JwtOptions` registrado dos veces** (Program.cs + IdentityModuleRegistration).
-10. **Rate-limiting policies creadas pero NO aplicadas** a endpoints. `auth-strict` y `api-general` definidas en `AddRateLimiter`, pero ningún endpoint llama `.RequireRateLimiting(...)`. El test `RateLimit_Login_BlocksAfter10Attempts` pasa — verificar si es por la policy default.
-11. **`features/admin/*` no wireado** en `app.routes.ts`.
-12. **`features/trader/trades-list/` duplicado** huérfano.
-13. **`features/trader/settings/` huérfano** (no routeado).
-14. **Pricing hardcodeado** en dos lugares inconsistentes:
-    - `landing-page.ts`: inicial ($9/$7), profesional ($19/$15), elite ($29/$23) — anual -20%.
-    - `pricing-page.ts`: starter ($19), pro ($49), elite ($99) — sin anual.
-15. **Sin `Money`/`Currency` value objects** (prometidos en docs).
-16. **Sin seeders.**
-17. **Sin tests frontend** (jest declarado pero sin config).
-18. **Sin CI/CD.**
-19. **Runbook desactualizado** (paths incorrectos).
-20. **No es repo git.**
-21. **README dice .NET 8** pero el código es .NET 10.
-22. **No hay multi-tenant** (promesa del README).
-23. **No hay soft-delete** (necesario para SaaS).
-24. **Sin OpenTelemetry / métricas.**
-
----
-
-## 13. Decisiones que necesitan ratificación
-
-| # | README/docs dice | El código hace | Acción sugerida |
-|---|------------------|----------------|-----------------|
-| 1 | "Monolito Modular con `AddModules()`/`MapModules()`" | Host wirea Identity directo | ¿Mantener wiring directo o introducir `IModule` interface antes de sumar Trading? |
-| 2 | "Money y Currency son Value Objects" | No existen | Confirmar creación en `Shared.Kernel/Money/` cuando arranque Trading |
-| 3 | ".NET 8 LTS" | `net10.0` | Actualizar README + docs |
-| 4 | "Vertical Slices: Command + Handler + Validator" | Validators huérfanos | Agregar `ValidationBehavior` o eliminar validators |
-| 5 | "Hangfire para jobs" | Deshabilitado en V1 | ¿Reintroducir en V2 o reemplazar por otro scheduler? |
-| 6 | "Stripe, webhooks, facturas" | Cero código | ¿Empezar Billing ya? |
-| 7 | "RefreshTokenTtlDays configurable" | Hardcode 14 días | Bug obvio: leer config |
-| 8 | "Rate limit `auth-strict`" | Policy creada, no aplicada | Bug: aplicar a `/api/auth/login|register|refresh` |
-| 9 | "Schemas por bounded context" | Solo `identity` | Cuando llegue Trading: `trading.*` schema |
-| 10 | "ApexCharts, FullCalendar" | No están en `package.json` | Sustituir por libs reales o borrar del README |
-
----
-
-## 14. Plan sugerido para arrancar
-
-### Sprint 0 — Higiene y desbloqueos (antes de features nuevas)
-1. **`git init` + `.gitignore`** (csproj, bin/, obj/, .env, node_modules, .tools/).
-2. **Crear ADRs** para las decisiones arriba (multi-tenant, módulos, scheduler, .NET 10 vs 8).
-3. **Corregir README y docs** (paths reales, versión .NET 10, claims de features no implementadas).
-4. **Actualizar `docs/runbooks/local-dev.md`** con paths reales.
-5. **Decidir y aplicar rate-limit** a endpoints Auth (bug crítico #2 en bugs).
-6. **Crear `ValidationBehavior<,>` en Shared.Infrastructure** y registrarlo en MediatR pipeline.
-7. **Leer `RefreshTokenTtlDays` de config** en handlers (bug crítico #6).
-8. **Crear endpoint `POST /api/auth/confirm-email`** o quitar `PendingEmailConfirmation` del estado inicial (decisión de producto: ¿se confirma por email? ¿se auto-confirma en register?). Sin resolver esto, **el login no es funcional end-to-end**. → **Resuelto por diseño**: `PendingEmailConfirmation` nunca estuvo en el `UserStatus` enum; el constructor setea `Status = Active` desde el origen. V1 funciona end-to-end sin flujo de email. Si en Wave 1+ se quiere añadir verificación por email, hay que: (a) agregar `PendingEmailConfirmation` al enum, (b) cambiar el constructor para no setear Active, (c) agregar `POST /api/auth/confirm-email {token}` + flujo SMTP.
-9. **Decidir scheduler**: reintroducir Hangfire o BackgroundService simple. Por ahora el cleanup de refresh tokens es deuda viva.
-10. **Implementar refresh automático en el frontend** (interceptor que llame `AuthState.refresh()` en 401 antes de logout).
-11. **Eliminar `tier` de la interface `User` en frontend** o agregarlo al `LoginResult`/`RegisterUserResult` del backend.
-
-### Sprint 1 — Trading (la vertical que más consume el frontend)
-- Crear `Money` + `Currency` en `Shared.Kernel`.
-- Aggregate `Trade : AggregateRoot<Guid>` con invariantes monetarias (`decimal` + validación `NUMERIC(24,8)`).
-- `TradingDbContext` con schema `trading`.
-- Commands: `RegisterTradeCommand`, `UpdateTradeCommand`, `CloseTradeCommand`, `DeleteTradeCommand`.
-- Queries: `GetTradesQuery` (paginado), `GetTradeByIdQuery`, `GetPnlCalendarQuery`, `GetDashboardSummaryQuery`.
-- Endpoints: `GET /api/trades`, `POST /api/trades`, `GET /api/trades/{id}`, `PUT /api/trades/{id}`, `DELETE /api/trades/{id}`, `GET /api/trades/dashboard`.
-- Migración EF Core (o SQL manual siguiendo el patrón de Identity).
-- Tests unit + integration.
-- Conectar el dashboard, trades-list y analytics del frontend.
-
-### Sprint 2 — Billing (Stripery suscripciones)
-- Definir `Plan`, `Subscription`, `Invoice`, `Payment`.
-- `BillingDbContext` con schema `billing`.
-- Integración Stripe: products, prices, checkout session, customer portal, webhooks.
-- Endpoint público `/api/billing/plans` (consumido por `pricing-page.ts`).
-- Quitar los `PLANS` hardcodeados del frontend.
-
-### Sprint 3 — Admin
-- `AdminDomain` + endpoints de gestión de usuarios, planes, métricas SaaS.
-- Wirear `features/admin/*` al router raíz.
-
-### Sprint 4 — PublicPortal (si hace falta API propia)
-- Si el contenido público es solo landing + FAQ + Pricing, PublicPortal puede quedarse en frontend.
-
----
-
-## 15. Apéndice — números fríos
-
-| Métrica | Valor |
-|---------|-------|
-| Proyectos en `.slnx` | 25 |
-| Líneas en `src/` | 2.195 |
-| Líneas en `tests/` | 1.604 |
-| Líneas en `frontend/src/` | 1.338 |
-| Archivos `.cs` totales | 38 (todos en Identity + Shared.Kernel) |
-| Endpoints API expuestos | 4 (`/api/auth/{login,register,refresh,logout}`) |
-| Tests escritos | ~100 |
-| Migraciones DB | 1 (SQL manual) |
-| ADRs | 0 |
-| READMEs | 1 (raíz) |
-| % módulos vacíos | 4/5 = 80% |
-| Frontend tests | 0 |
-| Bugs críticos bloqueantes | 7 |
-| Decisiones pendientes de ratificar | 10+ |
-
----
-
-## 16. Comandos útiles
+## 3. How to run locally (post-Wave 5)
 
 ```bash
-# Desde la raíz del proyecto
+# Bring up the full stack
+docker compose up -d --build api frontend
 
-# Compilar
-dotnet build JadeCapital.slnx
+# Run BE unit tests (excludes integration)
+dotnet test --nologo --verbosity minimal --filter "FullyQualifiedName!~JadeCapital.Api.IntegrationTests"
 
-# Correr tests
-dotnet test JadeCapital.slnx
+# Run BE integration tests (Testcontainers — Docker required)
+dotnet test --nologo --verbosity minimal --filter "FullyQualifiedName~JadeCapital.Api.IntegrationTests"
 
-# Levantar todo (Docker)
-cp .env.example .env
-docker compose up -d
+# Run FE tests
+cd frontend && npm test
 
-# Backend solo (sin docker, requiere Postgres + Redis locales)
-cd src/1.Api/JadeCapital.Host
-dotnet run
+# Run Wave 5 smoke (5 probes, idempotent)
+./scripts/wave5-smoke.sh
 
-# Frontend solo
-cd frontend
-npm install
-npm start          # http://localhost:4200
-npm test           # ⚠️ falla: no hay jest config
+# Run Wave 4 smoke (9 probes, for the scanner/marketdata/realtime slice)
+./scripts/wave4-smoke.sh
 ```
 
----
+## 4. Open / deferred (carried forward from tasks.md 5c.2)
 
-_Documento vivo. Cualquier afirmación nueva debe basarse en lectura real del código, no en inferencia. Si algo cambia, actualizar acá._
+- Real broker integration (IBKR, MT5 native) — Wave 6.
+- Real virus scanner (ClamAV) — Wave 6.
+- Cloud AI providers (OpenAI, Anthropic, Claude) — Wave 6.
+- Migration-order fix (Wave 4e.D1) — Wave 5 hygiene slice.
+- Streaming tokens in FE (SSE / chunked) — Wave 7 PWA observability.
+- AI signal generation from scanner results — Wave 6.
+- Calendar integration (Google Calendar) — Wave 7+.
+- Multi-tenant AI rate limits — Fase 6.
+- PWA offline mode — Fase 7.
+- Real-time alerts push via SignalR — Wave 7.
+- **5a.1 trading.trades.ticket_id dedupe column** — Wave 5 hygiene or Wave 6.

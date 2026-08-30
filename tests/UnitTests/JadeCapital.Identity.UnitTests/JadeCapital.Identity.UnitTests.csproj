@@ -10,10 +10,44 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="FluentAssertions" Version="7.0.0" />
     <PackageReference Include="NSubstitute" Version="5.3.0" />
+    <!-- Slice 6c.2: SQLite in-memory for BackfillTenantsRunnerTests. The
+         runner operates on IdentityDbContext; an in-process provider lets
+         the unit tests exercise EF-level behavior without a real Postgres
+         or Testcontainers dependency. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <!-- Wave 11 slice 11.1 — Testcontainers + Respawn for the
+         GdprAuditAnonymizer test fixture. The anonymizer's raw SQL
+         uses the unquoted `audit.events` schema-qualified reference
+         which SQLite rejects as "unknown database audit" (the
+         Anonymizer is a Postgres-only artifact per Wave 10.5). Adding
+         Testcontainers.PostgreSql + Respawn + Npgsql lets us exercise
+         the real anonymizer SQL against a real Postgres instance.
+         Mirrors the `JadeApiFactory` pattern from
+         tests/IntegrationTests/JadeCapital.Api.IntegrationTests. -->
+    <PackageReference Include="Testcontainers" Version="4.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.0.0" />
+    <PackageReference Include="Respawn" Version="6.2.1" />
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+    <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Domain\JadeCapital.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
+    <!-- Slice 6d.2 deviation: test project needs Trading.Infrastructure +
+         Billing.Infrastructure references for the per-module DbContexts
+         (TradingDbContext, BillingDbContext) used in the per-aggregate
+         integration tests (ImportJobRepositoryIntegrationTests +
+         SubscriptionRepositoryIntegrationTests). The cross-module test
+         access is documented in apply-progress-wave6-slice-6d-2.md. -->
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Application\JadeCapital.Trading.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Infrastructure\JadeCapital.Trading.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\2.Modules\Billing\JadeCapital.Billing.Infrastructure\JadeCapital.Billing.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

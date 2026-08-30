@@ -1,0 +1,141 @@
+# .github/workflows/nightly-scan.yml — Jade Capital Suite vulnerability scan
+#
+# Wave 10 slice 10.1 — weekly Sunday 02:00 UTC vulnerability scan covering:
+#   - .NET packages (root + transitive) via `dotnet list package --vulnerable`
+#   - npm packages via `npm audit --audit-level=high`
+#
+# Schedule is weekly (not nightly) per tasks.md brief — keeps GH Actions
+# minutes budget healthy at the v1 readiness stage. Workflow_dispatch lets
+# ops trigger an ad-hoc scan after a CVE disclosure.
+#
+# Fails on High/Critical vulnerabilities. Findings are intentionally NOT
+# wired to GitHub Issues in this slice (Wave 10.6 territory) — operators
+# inspect the run log.
+
+name: nightly-scan
+
+on:
+  schedule:
+    # Weekly Sunday 02:00 UTC (per task brief).
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      severity_threshold:
+        description: "Minimum severity to fail on"
+        required: false
+        default: "high"
+        type: choice
+        options:
+          - low
+          - moderate
+          - high
+          - critical
+
+concurrency:
+  group: nightly-scan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  vuln-scan:
+    name: Vulnerability scan (.NET + npm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Restore backend
+        run: dotnet restore JadeCapital.slnx --locked-mode --nologo --verbosity minimal
+
+      - name: Build backend (so transitive packages resolve)
+        run: dotnet build JadeCapital.slnx --nologo --verbosity minimal --no-restore
+
+      - name: .NET vulnerability audit
+        id: dotnet-audit
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          dotnet list JadeCapital.slnx package --vulnerable --include-transitive --format json > artifacts/dotnet-vulnerable.json || true
+          # Fail on High/Critical.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/dotnet-vulnerable.json")
+          data = json.loads(p.read_text()) if p.exists() else {"projects": []}
+          high_critical = []
+          for proj in data.get("projects", []):
+              for pkg in proj.get("frameworks", []):
+                  for top in pkg.get("topLevelPackages", []):
+                      for v in top.get("vulnerabilities", []) or []:
+                          sev = (v.get("severity") or "").lower()
+                          if sev in ("high", "critical"):
+                              high_critical.append((top.get("id"), top.get("resolvedVersion"), v.get("advisoryUrl"), sev))
+                  for t in pkg.get("transitivePackages", []):
+                      for v in t.get("vulnerabilities", []) or []:
+                          sev = (v.get("severity") or "").lower()
+                          if sev in ("high", "critical"):
+                              high_critical.append((t.get("id"), t.get("resolvedVersion"), v.get("advisoryUrl"), sev))
+          if high_critical:
+              print("High/Critical .NET vulnerabilities detected:")
+              for pkg, ver, url, sev in high_critical:
+                  print(f"  - [{sev}] {pkg}@{ver} :: {url}")
+              raise SystemExit(1)
+          print("No High/Critical .NET vulnerabilities.")
+          PY
+
+      - name: npm vulnerability audit
+        id: npm-audit
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifacts
+          # --omit=dev because devDependencies are build-time only; the
+          # production bundle is what ships to end users.
+          npm audit --audit-level=high --omit=dev --json > ../artifacts/npm-audit.json || AUDIT_EXIT=$?
+          AUDIT_EXIT=${AUDIT_EXIT:-0}
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/npm-audit.json")
+          try:
+              data = json.loads(p.read_text()) if p.exists() else {}
+          except json.JSONDecodeError:
+              # npm writes a partial JSON when audit-level triggers a failure.
+              data = {}
+          metadata = data.get("metadata", {}).get("vulnerabilities", {})
+          high = int(metadata.get("high", 0))
+          critical = int(metadata.get("critical", 0))
+          if high or critical:
+              print(f"npm audit: {critical} critical, {high} high.")
+              raise SystemExit(1)
+          print("No High/Critical npm vulnerabilities.")
+          PY
+
+      - name: Upload scan artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-scan-artifacts
+          path: artifacts/
+          retention-days: 30

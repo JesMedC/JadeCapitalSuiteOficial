@@ -24,12 +24,38 @@ export interface TradeDto {
   pnl: number | null;
   pnlCurrency: string | null;
   accountCurrency: string;
+  /** Slice 2c — Wave 2 MFE approximation. Null on open / cancelled trades. */
+  mfeAmount: number | null;
+  /** Slice 2c — Wave 2 MAE approximation (≤ 0). Null on open / cancelled trades. */
+  maeAmount: number | null;
+  mfeCurrency: string | null;
+  maeCurrency: string | null;
   strategy: string | null;
   notes: string | null;
   openedAt: string;
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Slice 1c.2 — pre-trade checklist payload sent inside the body of
+ * `POST /api/trades`. The shape mirrors the backend's
+ * `JadeCapital.Trading.Api.Endpoints.PreTradeChecklistPayload` exactly:
+ *
+ *   { Emotionality: short, SetupQuality: short, RiskRewardAtEntry: decimal,
+ *     RiskRewardTargetUsed: decimal, ConfluencesCount: byte }
+ *
+ * `System.Text.Json` deserializes the JSON numbers as plain JS numbers, so we
+ * keep the surface numeric (no enums on the wire). Emotionality/SetupQuality
+ * are 1..5; ConfluencesCount is 1..10.
+ */
+export interface PreTradeChecklistPayload {
+  emotionality: number;
+  setupQuality: number;
+  riskRewardAtEntry: number;
+  riskRewardTargetUsed: number;
+  confluencesCount: number;
 }
 
 export interface OpenTradeRequest {
@@ -44,6 +70,8 @@ export interface OpenTradeRequest {
   entryPriceCurrency: string;
   strategy: string | null;
   notes: string | null;
+  /** Optional pre-trade checklist (slice 1c.2). Omit/null to keep the legacy OpenTrade path. */
+  checklist?: PreTradeChecklistPayload | null;
 }
 
 export interface PagedTradesDto {

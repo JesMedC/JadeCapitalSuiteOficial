@@ -10,9 +10,36 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="FluentAssertions" Version="7.0.0" />
     <PackageReference Include="NSubstitute" Version="5.3.0" />
+    <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Domain\JadeCapital.Trading.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Application\JadeCapital.Trading.Application.csproj" />
+    <!-- Slice 1d.1 PR-2: tests for MinioAttachmentStore require
+         the Shared.Infrastructure project + Minio SDK directly. -->
+    <ProjectReference Include="..\..\..\src\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
+    <!-- Slice 4c — QuoteBroadcastService + QuoteHub live in Infrastructure. -->
+    <ProjectReference Include="..\..\..\src\2.Modules\Trading\JadeCapital.Trading.Infrastructure\JadeCapital.Trading.Infrastructure.csproj" />
+    <!-- Wave 9 slice 9a.1: AIRiskAdvice + CoachingPrompt audit decorator
+         integration tests need AuditDbContext + AuditLogger from
+         Identity.Infrastructure (read + write the audit.events table).
+         Mirrors the Wave 8 8a.3 + 8b.1 PreTradeChecklist + StripeCustomer
+         integration tests precedent; the Trading UnitTests project gains
+         a single extra edge (Trading.UnitTests → Identity.Infrastructure)
+         for the audit-test infra only. -->
+    <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+    <!-- Slice 6d.1: SQLite in-memory for ImportJobSoftDeleteQueryFilterTests.
+         Mirrors the Identity.UnitTests SQLite setup (BackfillTenantsRunnerTests).
+         Lets the EF HasQueryFilter behavior be exercised without a real
+         Postgres or Testcontainers dependency. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
   </ItemGroup>
 </Project>

@@ -32,7 +32,7 @@ public class DeleteInstrumentHandlerTests
         var result = await CreateSut().Handle(new DeleteInstrumentCommand(instrument.Id), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await _instruments.Received(1).RemoveAsync(instrument, Arg.Any<CancellationToken>());
+        await _instruments.Received(1).DeleteAsync(instrument, Arg.Any<CancellationToken>());
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -47,7 +47,7 @@ public class DeleteInstrumentHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("conflict.instrument.has_trades");
-        await _instruments.DidNotReceive().RemoveAsync(Arg.Any<Instrument>(), Arg.Any<CancellationToken>());
+        await _instruments.DidNotReceive().DeleteAsync(Arg.Any<Instrument>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

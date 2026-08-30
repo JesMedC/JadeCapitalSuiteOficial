@@ -1,10 +1,24 @@
 using JadeCapital.Identity.Application.Abstractions;
+using JadeCapital.Identity.Application.Features.Auth.Consent;
+using JadeCapital.Identity.Application.Features.SoftDelete;
+using JadeCapital.Identity.Contracts.Projections;
+using JadeCapital.Identity.Infrastructure.Audit;
+using JadeCapital.Identity.Infrastructure.Audit.Configuration;
 using JadeCapital.Identity.Infrastructure.BackgroundJobs;
+using JadeCapital.Identity.Infrastructure.BackgroundServices;
+using JadeCapital.Identity.Infrastructure.Cascade;
+using JadeCapital.Identity.Infrastructure.Configuration;
+using JadeCapital.Identity.Infrastructure.MultiTenancy;
 using JadeCapital.Identity.Infrastructure.Persistence;
+using JadeCapital.Identity.Infrastructure.Projections;
 using JadeCapital.Identity.Infrastructure.Security;
+using JadeCapital.Shared.Kernel.Audit;
+using JadeCapital.Shared.Kernel.MultiTenancy;
+using JadeCapital.Shared.Kernel.SoftDelete;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JadeCapital.Identity.Infrastructure.DependencyInjection;
 
@@ -26,14 +40,120 @@ public static class IdentityModuleRegistration
                 npg.MigrationsHistoryTable("__ef_migrations", "identity"));
         });
 
+        // ===== Slice 6d.1 — AuditDbContext (separate, write-only) =====
+        // Lives alongside IdentityDbContext in the same Postgres instance,
+        // but uses its own schema (`audit`) and its own __ef_migrations
+        // history table (`audit.__ef_migrations`). Defense-in-depth: a
+        // bug in IdentityDbContext cannot accidentally UPDATE/DELETE on
+        // audit.events — they're structurally separate DbContexts.
+        services.AddDbContext<AuditDbContext>((sp, opts) =>
+        {
+            var cfg = sp.GetRequiredService<IConfiguration>();
+            var pgConn = cfg.GetConnectionString("Postgres")
+                ?? throw new InvalidOperationException("ConnectionStrings:Postgres required.");
+            opts.UseNpgsql(pgConn, npg =>
+                npg.MigrationsHistoryTable("__ef_migrations", "audit"));
+        });
+
         // ===== Repos =====
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
+        // ===== Slice 4d — Attachment quota projection =====
+        // Identity owns identity.users.attachment_quota_bytes + attachment_used_bytes
+        // (migration 0018). The Trading module reads them via the Contracts
+        // projection; this registration wires the EF Core implementation.
+        services.AddScoped<IAttachmentQuotaReader, IdentityAttachmentQuotaReader>();
         services.AddScoped<ITemporaryCredentialRepository, TemporaryCredentialRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
         services.AddScoped<IRefreshTokenRevoker, RefreshTokenRevoker>();
+        // Slice 1a.1b — single-active risk profile per user (Backs both
+        // the API endpoints and the cross-module Identity.Contracts reader).
+        services.AddScoped<IRiskProfileRepository, RiskProfileRepository>();
+        services.AddScoped<IIdentityUserRiskProfileReader, IdentityUserRiskProfileReader>();
+        // Slice 3b — exposes active user Ids to the Trading BackgroundService
+        // without forcing Trading to depend on Identity.Domain.
+        services.AddScoped<IActiveUserIdsReader, IdentityActiveUserIdsReader>();
         services.AddSingleton<IDistributedLock, InMemoryDistributedLock>();
         services.AddScoped<IUnitOfWork, IdentityUnitOfWork>();
+
+        // ===== Slice 6c.1 — Tenants =====
+        // ITenantContext: 6c.2 ships the real HttpContext-bound impl that
+        // resolves tenant_id + user id from the JWT claims. The 6c.1
+        // placeholder is gone (the file was rewritten in 6c.2 to be the
+        // real impl; the registration line stayed the same to keep the
+        // DI seam minimal — see MultiTenancy/TenantContext.cs).
+        services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<ITenantRepository, TenantRepository>();
+        // ===== Slice 6d.2 — Audit decorator (Typed) =====
+        // TenantAuditDecorator wraps TenantRepository via Scrutor's
+        // services.Decorate<>(). Every Add/Update/Delete writes an
+        // audit.events row via IAuditLogger (enriched with
+        // ITenantContext.Current + ICurrentUserId). Reads (GetByIdAsync,
+        // FindBySlugAsync, ListByOwnerAsync) bypass the audit surface.
+        services.Decorate<ITenantRepository, TenantAuditDecorator>();
+        // ===== Slice 7a.1, phase 4 — UserAuditDecorator =====
+        // Wave 7 widens the audit decorator pattern from 3 of 8 user-owned
+        // aggregates (Tenant + ImportJob + Subscription) to 8 of 8
+        // (Strategy + Trade + JournalEntry land in slices 7b.1 + 7b.2;
+        // RiskProfileAuditDecorator lands with this branch in phase 5).
+        // UserAuditDecorator emits AuditAction.Failed before re-throwing
+        // NotSupportedException on DeleteAsync (User deletion is
+        // contractually invalid — use Cancel() or Tenant reassignment).
+        services.Decorate<IUserRepository, UserAuditDecorator>();
+        // ===== Slice 7a.1, phase 5 — RiskProfileAuditDecorator =====
+        // BESPOKE shape: RiskProfile has no UpdateAsync in its canonical
+        // mutation surface (the supersede IS the termination). The
+        // decorator wraps MarkSupersededAsync directly + emits
+        // AuditAction.Deleted with a supersession diff (IsActive true→false
+        // + SupersededAt null→now). DeleteAsync short-circuits to
+        // AuditAction.Failed + re-throws NotSupportedException.
+        services.Decorate<IRiskProfileRepository, RiskProfileAuditDecorator>();
+        // MediatR resolves handlers by interface; register the concrete
+        // types so DI has an entry. (MediatR also scans the Application
+        // assembly, so the runtime binding happens twice — that's fine.)
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.CreateTenant.CreateTenantHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.GetTenant.GetTenantHandler>();
+        // ===== Slice 6c.3 — Tenant admin endpoints =====
+        // 4 handlers + DTO mappers that back PATCH /api/tenants/{id} +
+        // GET /api/tenants/{id}/users + POST /api/tenants/{id}/users +
+        // DELETE /api/tenants/{id}/users/{userId}. Each uses the real
+        // ITenantContext (slice 6c.2) for cross-tenant 404 + capacity
+        // enforcement; the SQL migration 0026_NOT_NULL_tenant_id.sql
+        // closes the loop on the "ONE migration atómica" strategy.
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.UpdateTenant.UpdateTenantHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.ListTenantUsers.ListTenantUsersHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.InviteTenantUser.InviteTenantUserHandler>();
+        services.AddScoped<JadeCapital.Identity.Application.Features.Tenants.RemoveTenantUser.RemoveTenantUserHandler>();
+
+        // ===== Slice 6c.2 — Tenant middleware + backfill =====
+        // BackfillTenantsHostedService fires once, 15s after startup, to
+        // assign NULL users to a Personal tenant. The SQL migration 0026
+        // covers greenfield deploys; the hosted service handles in-place
+        // upgrades of pre-Wave-6 DBs. Both are idempotent against each
+        // other (independent surfaces, same slug).
+        services.AddScoped<IBackfillTenantsRunner, BackfillTenantsRunner>();
+        services.AddHostedService<BackfillTenantsHostedService>();
+
+        // ===== Slice 6d.1 + 6d.2 — Soft-delete + Audit =====
+        // IAuditLogger: 6d.1 shipped the NoOp placeholder; 6d.2 swaps in the
+        // real AuditLogger impl that writes to the dedicated AuditDbContext
+        // (separate schema, separate migration history). The placeholder
+        // pattern matches the 6c.1 ITenantContext precedent — the interface
+        // was wired end-to-end, the real persistence impl landed in the
+        // slice that owns the persistence concern.
+        services.AddScoped<IAuditLogger, AuditLogger>();
+        // ISoftDeleteProviderRegistry: aggregates every ISoftDeleteProvider
+        // registered across all modules (DI auto-collects IEnumerable).
+        services.AddScoped<ISoftDeleteProviderRegistry>(sp =>
+        {
+            var providers = sp.GetRequiredService<IEnumerable<ISoftDeleteProvider>>();
+            return new SoftDeleteProviderRegistry(providers);
+        });
+        // SoftDeleteHandler: MediatR-resolved; register explicitly so DI
+        // has an entry (MediatR also scans the Application assembly, so
+        // the runtime binding happens twice — that's fine).
+        services.AddScoped<SoftDeleteHandler>();
 
         // ===== Security =====
         services.AddSingleton<IPasswordHasher>(_ =>
@@ -42,8 +162,65 @@ public static class IdentityModuleRegistration
         services.AddSingleton<JadeCapital.Identity.Application.Abstractions.IPasswordChangeReuseChecker,
             JadeCapital.Identity.Application.Authentication.PasswordChangeReuseChecker>();
 
+        // ===== Wave 12 slice 12.2 — WelcomeEmailPolicy (IOptions-bound) =====
+        // Wave 11.4 hard-coded the 7-day suppression window inside a static
+        // WelcomeEmailPolicy. Wave 12.2 binds WelcomeEmailPolicyOptions from
+        // appsettings:WelcomeEmailPolicy so per-env tuning (e.g. shorter
+        // suppression for marketing-driven re-engagement, or SendOnRegister=false
+        // during a blackout) is a config change. ValidateOnStart catches a
+        // negative SuppressionDays at host start before any request runs.
+        services.Configure<WelcomeEmailPolicyOptions>(configuration.GetSection(WelcomeEmailPolicyOptions.SectionName));
+        services.AddOptions<WelcomeEmailPolicyOptions>()
+            .Bind(configuration.GetSection(WelcomeEmailPolicyOptions.SectionName))
+            .Validate(o => o.SuppressionDays >= 0, "WelcomeEmailPolicy:SuppressionDays must be >= 0")
+            .ValidateOnStart();
+        services.AddScoped<WelcomeEmailPolicy>();
+
         // ===== Background services =====
         services.AddHostedService<RefreshTokenCleanupService>();
+
+        // ===== Slice 9b.1 — Audit retention BackgroundService (90-day purge) =====
+        // Section name: "AuditRetention" with RetentionDays=90, CleanupIntervalHours=24,
+        // BatchLimit=10000, InitialDelaySeconds=120. Validator ensures all positive.
+        services.Configure<AuditRetentionOptions>(configuration.GetSection(AuditRetentionOptions.SectionName));
+        services.AddOptions<AuditRetentionOptions>()
+            .Bind(configuration.GetSection(AuditRetentionOptions.SectionName))
+            .Validate(o => o.RetentionDays > 0
+                && o.CleanupIntervalHours > 0
+                && o.BatchLimit > 0
+                && o.InitialDelaySeconds >= 0,
+                "AuditRetention: RetentionDays/CleanupIntervalHours/BatchLimit must be > 0; InitialDelaySeconds must be >= 0.")
+            .ValidateOnStart();
+        // Scoped (NOT Singleton) to avoid captive DbContext — BackgroundService.RunOnceAsync
+        // creates its own scope via IServiceScopeFactory per cycle.
+        services.AddScoped<IAuditRetentionService, AuditRetentionService>();
+        services.AddHostedService<AuditRetentionBackgroundService>();
+
+        // ===== Slice 10.5 — GDPR Art. 17 cascade deletor =====
+        // Per-module deletors are auto-collected by `IEnumerable<IUserCascadeDeletor>`
+        // (Identity ships its own; Trading + Billing register theirs in their modules).
+        // The orchestrator composes them and runs the cascade + audit anonymization.
+        services.AddScoped<IGdprAuditAnonymizer, GdprAuditAnonymizer>();
+        services.AddScoped<IUserCascadeDeletor, IdentityUserCascadeDeletor>();
+        services.AddScoped<UserCascadeDeleterOrchestrator>();
+        // Wave 11 slice 11.2b — DeleteAccountHandler depends on the abstraction
+        // (Application layer must not reference Infrastructure). The concrete
+        // UserCascadeDeleterOrchestrator implements IGdprCascadeOrchestrator.
+        services.AddScoped<IGdprCascadeOrchestrator>(sp =>
+            sp.GetRequiredService<UserCascadeDeleterOrchestrator>());
+        // HardDeleteSweepBackgroundService picks up ScheduledHardDelete users daily
+        // and runs CascadeHardDeleteAsync + audit anonymization.
+        // Wave 11 slice 11.3 — bind HardDeleteSweepOptions so per-env tuning is an
+        // appsettings change, not a recompile. The slice duplicates the existing
+        // AuditRetentionOptions pattern (slice 9b.1): `Configure + AddOptions + Bind
+        // + ValidateOnStart`. The validator (IValidateOptions<>) is registered as
+        // a singleton below so `ValidateOnStart` can find it at host-start time.
+        services.Configure<HardDeleteSweepOptions>(configuration.GetSection(HardDeleteSweepOptions.SectionName));
+        services.AddOptions<HardDeleteSweepOptions>()
+            .Bind(configuration.GetSection(HardDeleteSweepOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<HardDeleteSweepOptions>, HardDeleteSweepOptionsValidator>();
+        services.AddHostedService<JadeCapital.Identity.Infrastructure.BackgroundServices.HardDeleteSweepBackgroundService>();
 
         return services;
     }

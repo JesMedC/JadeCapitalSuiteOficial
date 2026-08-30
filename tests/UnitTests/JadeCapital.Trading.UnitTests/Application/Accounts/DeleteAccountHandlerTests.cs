@@ -37,7 +37,7 @@ public class DeleteAccountHandlerTests
         var result = await CreateSut().Handle(new DeleteAccountCommand(account.Id, userId), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        await _accounts.Received(1).RemoveAsync(account, Arg.Any<CancellationToken>());
+        await _accounts.Received(1).DeleteAsync(account, Arg.Any<CancellationToken>());
         await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
@@ -55,7 +55,7 @@ public class DeleteAccountHandlerTests
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("conflict.account.has_trades");
-        await _accounts.DidNotReceive().RemoveAsync(Arg.Any<Account>(), Arg.Any<CancellationToken>());
+        await _accounts.DidNotReceive().DeleteAsync(Arg.Any<Account>(), Arg.Any<CancellationToken>());
         await _uow.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 

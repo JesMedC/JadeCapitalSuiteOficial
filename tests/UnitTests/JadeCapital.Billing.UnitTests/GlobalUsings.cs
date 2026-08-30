@@ -11,3 +11,5 @@ global using JadeCapital.Billing.Domain.Common;
 global using JadeCapital.Billing.Application.Subscriptions;
 global using JadeCapital.Billing.Application.Features.Subscriptions;
 global using JadeCapital.Billing.Contracts.Subscriptions;
+global using JadeCapital.Billing.PublicApi.Contracts;
+global using JadeCapital.Billing.PublicApi.Services;

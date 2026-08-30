@@ -12,10 +12,15 @@ Cada ADR documenta **una** decisión significativa: el contexto, las opciones co
 | [0002](./0002-background-service-over-hangfire.md) | `BackgroundService` para jobs en lugar de Hangfire (V1) | Aceptado | 2026-08-07 |
 | [0003](./0003-remove-tier-field-from-frontend-user.md) | Eliminar campo `tier` de la interface `User` en frontend | Aceptado | 2026-08-07 |
 | [0004](./0004-size-exception-audit-wave-0.md) | Auditar size:exception pattern de Wave 0 antes de Wave 1 | Propuesto | 2026-08-14 |
+| [0005](./0005-multi-tenant-model.md) | Multi-tenant model (tenant_id column + JWT claim + global query filter) | Aceptado | 2026-08-19 |
+| [0006](./0006-audit-decorator-pattern.md) | Audit decorator pattern (IXxxRepositoryAuditDecorator + Scrutor) | Aceptado | 2026-08-19 |
+| [0007](./0007-stripe-integration.md) | Stripe integration (IStripeGateway + stub + webhook idempotency) | Aceptado | 2026-08-19 |
+| [0008](./0008-90-day-audit-retention.md) | 90-day audit retention BackgroundService | Aceptado | 2026-08-19 |
+| [0009](./0009-bespoke-vs-generic-decorators.md) | Bespoke vs generic audit decorators | Aceptado | 2026-08-19 |
 
 ## Convenciones
 
 - Archivos numerados con prefijo `NNNN-titulo-en-kebab-case.md`.
 - Estados: `Propuesto`, `Aceptado`, `Rechazado`, `Superseded` (referenciando al ADR que lo reemplaza).
-- Cada ADR tiene secciones: **Contexto**, **Decisión**, **Consecuencias**, **Alternativas consideradas**.
+- Cada ADR tiene secciones: **Status**, **Context**, **Decision**, **Consequences** (Wave 10+ convention; Wave 0-9 use Spanish: **Estado**/**Contexto**/**Decisión**/**Consecuencias**).
 - Una vez aceptado, no se edita el contenido — se crea un nuevo ADR que lo supersede.

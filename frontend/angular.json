@@ -21,7 +21,12 @@
             "assets": [{ "glob": "**/*", "input": "public" }],
             "styles": ["src/styles.scss"],
             "scripts": [],
-            "stylePreprocessorOptions": { "includePaths": ["src/styles"] }
+            "stylePreprocessorOptions": { "includePaths": ["src/styles"] },
+            "define": {
+              "ngDevMode": "false",
+              "__SENTRY_DSN__": "\"\"",
+              "__APP_ENV__": "\"production\""
+            }
           },
           "configurations": {
             "production": {

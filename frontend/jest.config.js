@@ -20,7 +20,7 @@ module.exports = {
   preset: 'jest-preset-angular',
   setupFilesAfterEnv: ['<rootDir>/src/jest.setup.ts'],
   testEnvironment: 'jsdom',
-  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/e2e/'],
   moduleNameMapper: {
     '^@core/(.*)$': '<rootDir>/src/app/core/$1',
     '^@shared/(.*)$': '<rootDir>/src/app/shared/$1',

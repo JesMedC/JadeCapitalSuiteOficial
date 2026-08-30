@@ -44,7 +44,7 @@ public sealed class DeleteAccountHandler : IRequestHandler<DeleteAccountCommand,
         if (tradeCount > 0)
             return Result.Failure<Unit>(TradingApplicationErrors.Accounts.HasTrades);
 
-        await _accounts.RemoveAsync(account, ct);
+        await _accounts.DeleteAsync(account, ct);
         var saved = await _uow.SaveChangesAsync(ct);
         DomainGuard.EnsureSuccess(saved);
 

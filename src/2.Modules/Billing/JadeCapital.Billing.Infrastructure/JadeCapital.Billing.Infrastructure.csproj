@@ -4,14 +4,31 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="JadeCapital.Billing.UnitTests" />
+    <!-- Slice 6d.2: SubscriptionRepositoryIntegrationTests needs access
+         to the internal SubscriptionConfiguration for the test-only
+         SQLite-compatible BillingDbContext subclass. -->
+    <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Stripe.net" Version="47.0.0" />
+    <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
+         so the Identity.Infrastructure ProjectReference is no longer needed.
+         Scrutor's Decorate<> is now an explicit PackageReference (was transitive
+         via Identity.Infrastructure before). -->
+    <PackageReference Include="Scrutor" Version="4.2.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Application\JadeCapital.Billing.Application.csproj" />
     <ProjectReference Include="..\JadeCapital.Billing.Domain\JadeCapital.Billing.Domain.csproj" />
+    <!-- Wave 10 slice 10.5: BillingUserCascadeDeletor implements
+         IUserCascadeDeletor (Identity.Application.Abstractions). One-way
+         reference (Billing.Infrastructure → Identity.Application) avoids
+         the circular-dep trap. -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,9 @@
 using JadeCapital.Admin.Api.Authorization;
 using JadeCapital.Admin.Api.Endpoints;
 using JadeCapital.Billing.Infrastructure.DependencyInjection;
+using JadeCapital.Billing.PublicApi.Endpoints;
+using JadeCapital.Admin.Infrastructure.DependencyInjection;
+using JadeCapital.Host.Configuration;
 using JadeCapital.Identity.Api;
 using JadeCapital.Identity.Api.Endpoints;
 using JadeCapital.Identity.Application.Abstractions;
@@ -9,16 +12,22 @@ using JadeCapital.Identity.Infrastructure.DependencyInjection;
 using JadeCapital.Identity.Infrastructure.Security;
 using JadeCapital.Shared.Infrastructure.DependencyInjection;
 using JadeCapital.Shared.Infrastructure.Email;
+using JadeCapital.Shared.Infrastructure.Storage;
+using JadeCapital.Shared.Kernel.Ai;
 using JadeCapital.Shared.Kernel.Exceptions;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Trading.Api.Endpoints;
+using JadeCapital.Trading.Infrastructure.Ai;
 using JadeCapital.Trading.Infrastructure.DependencyInjection;
+using JadeCapital.Trading.Infrastructure.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -26,6 +35,36 @@ using Serilog;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ===== Wave 12 slice 12.1 — Sentry (silent skip when Sentry__Dsn is unset) =====
+// Production observability hook. When the operator sets Sentry__Dsn (env var)
+// we attach the Sentry.AspNetCore middleware so unhandled exceptions + 5xx
+// are forwarded to the Sentry project. When the env var is missing (the
+// default for local dev) the registration is a no-op — the host boots and
+// serves requests exactly as it did pre-Wave-12.
+// GDPR Art. 5 — data minimisation: SendDefaultPii=false so we never
+// forward IP / cookies / user identifiers to Sentry by default.
+var sentryDsn = builder.Configuration["Sentry__Dsn"];
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.WebHost.UseSentry(o =>
+    {
+        o.Dsn = sentryDsn;
+        o.Environment = builder.Environment.EnvironmentName;
+        o.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 1.0;
+        o.AttachStacktrace = true;
+        o.SendDefaultPii = false;
+    });
+}
+
+// ===== Wave 10 slice 10.2 — Docker Secrets adapter =====
+// Mounted secrets (read by docker compose `secrets:` blocks at
+// /run/secrets/<name>) become configuration keys under `__Secret:<name>`.
+// MUST be added BEFORE Configure<JwtOptions>(...) so the bound JwtOptions
+// instance can resolve `JWT__AccessTokenSecret__File` -> secret content -> JwtOptions.AccessTokenSecret.
+// Disambiguates against MVC's ApplicationModelConventionExtensions.Add
+// which is also in scope via implicit usings.
+((IConfigurationBuilder)builder.Configuration).Add(new DockerSecretConfigurationSource());
 
 // ===== Logging =====
 builder.Host.UseSerilog((ctx, services, cfg) =>
@@ -44,6 +83,15 @@ builder.Services.AddOptions<JwtOptions>()
     .Validate(o => !string.IsNullOrWhiteSpace(o.AccessTokenSecret) && o.AccessTokenSecret.Length >= 32,
         "Jwt.AccessTokenSecret must be >= 32 chars.")
     .ValidateOnStart();
+
+// Wave 10 slice 10.6 — Stripe options + validator at the host boundary.
+// Mirrors the Wave 9 9b.1 AuditRetentionOptions pattern: bind + ValidateOnStart
+// so misconfiguration fails fast at startup, NOT at first webhook receive.
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
+builder.Services.AddOptions<StripeOptions>()
+    .Bind(builder.Configuration.GetSection(StripeOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<StripeOptions>, StripeOptionsValidator>();
 
 // ===== JWT Auth =====
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -92,8 +140,43 @@ builder.Services.AddMailpitSmtpEmailSender();
 // Uniform-timing gate used by /api/auth/forgot-password.
 builder.Services.AddSingleton<IUniformTimingGate, UniformTimingGate>();
 
+// Slice 2a.1 — HTTP context accessor (consumed by HttpHeaderTimezoneAccessor)
+// and the timezone accessor itself. Singleton because both are stateless
+// thread-safe helpers.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<JadeCapital.Trading.Application.Abstractions.IUserTimezoneAccessor,
+    JadeCapital.Trading.Api.Timezone.HttpHeaderTimezoneAccessor>();
+
 // ===== Trading module =====
 builder.Services.AddTradingInfrastructure(builder.Configuration);
+
+// ===== Slice 5b.1 — AI provider interface + Ollama HTTP client =====
+// Bind AIProviderOptions from the "Ollama" config section (or env vars
+// Ollama__BaseUrl / Ollama__Model / Ollama__Timeout — the project's standard
+// env-var convention). Defaults in the options class cover absent config.
+//
+// Wave 12 slice 12.1 — register the concrete type as a singleton too so
+// MediatR handlers that take AIProviderOptions (not IOptions<AIProviderOptions>)
+// can be resolved from DI. The AddOptions(...) chain is preserved because
+// IHttpClientFactory's typed-client delegate uses IOptions<> to stamp the
+// BaseAddress + Timeout at HttpClient construction time.
+builder.Services.AddOptions<AIProviderOptions>()
+    .Bind(builder.Configuration.GetSection("Ollama"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<AIProviderOptions>>().Value);
+
+// IHttpClientFactory-managed HttpClient so DNS refresh + socket pooling are
+// owned by the host. The factory delegate stamps BaseAddress + Timeout from
+// the resolved options BEFORE the first send. AddHttpClient registers
+// IAIProvider as transient; the typed-client lifetime is fine because
+// OllamaHttpClient is stateless + cheap to construct.
+builder.Services.AddHttpClient<IAIProvider, OllamaHttpClient>((sp, client) =>
+{
+    var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AIProviderOptions>>().Value;
+    client.BaseAddress = new Uri(opts.BaseUrl.TrimEnd('/') + "/");
+    client.Timeout = opts.Timeout;
+});
 
 // ===== Billing module =====
 // Slice 0f — Admin write-path repositories + UoW + plan/owner lookups. Slice 0e
@@ -101,8 +184,23 @@ builder.Services.AddTradingInfrastructure(builder.Configuration);
 // the application abstractions so the Admin API can resolve the handlers.
 builder.Services.AddBillingInfrastructure(builder.Configuration);
 
+// ===== Admin module (Wave 9 slice 9b.1) =====
+// Slice 9b.1 — Admin query surface (IAuditEventQueryStore +
+// ListAuditEventsHandler for GET /api/admin/audit/events). Registers
+// the IAuditEventQueryStore implementation + the MediatR handler so the
+// endpoint can resolve its dependencies. Without this call, the
+// endpoint returns 500 in production because IAuditEventQueryStore is
+// not in the DI container.
+builder.Services.AddAdminInfrastructure();
+
 // ===== Shared infrastructure (IClock + ValidationBehavior) =====
 builder.Services.AddSharedInfrastructure();
+
+// ===== MinIO infrastructure (slice 1d.1) =====
+// Provee IAttachmentStorage + bootstrapea el bucket al startup via
+// MinioInitializerHostedService. La connection string vive en
+// ConnectionStrings__Storage (env var) o .env local.
+builder.Services.AddMinioInfrastructure(builder.Configuration);
 
 // ===== MediatR (handlers de Identity.Application + Trading.Application) =====
 // ValidationBehavior ya queda registrado como IPipelineBehavior<,> via AddSharedInfrastructure.
@@ -111,7 +209,23 @@ builder.Services.AddMediatR(cfg =>
         typeof(JadeCapital.Identity.Application.Features.Auth.Register.RegisterUserHandler).Assembly,
         typeof(JadeCapital.Trading.Application.Features.Trades.OpenTrade.OpenTradeHandler).Assembly,
         // Slice 0f — Billing admin handlers (list/change-tier/cancel/extend-trial).
-        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly));
+        typeof(JadeCapital.Billing.Application.Features.Subscriptions.ListSubscriptionsHandler).Assembly,
+        // Wave 6a.1 — Stripe handlers (create-or-get-customer + handle-webhook).
+        typeof(JadeCapital.Billing.Application.Stripe.CreateOrGetCustomerHandler).Assembly,
+        // Wave-1.3 — Billing public catalog query (GetPublicPlansHandler) so
+        // MediatR can resolve ISender.Send(new GetPublicPlansQuery()) from the
+        // BillingPublicEndpoints minimal-api delegate.
+        typeof(JadeCapital.Billing.PublicApi.Services.GetPublicPlansHandler).Assembly,
+        // Wave 9 slice 9b.1 — Admin audit query handler (ListAuditEventsHandler).
+        typeof(JadeCapital.Admin.Application.Features.Audit.ListAuditEventsHandler).Assembly));
+
+// ===== SignalR (slice 4c — realtime quote broadcast) =====
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    // 32 KB ceiling — the wire shape (QuoteUpdate) is ~120 bytes; generous headroom.
+    options.MaximumReceiveMessageSize = 32 * 1024;
+});
 
 // ===== FluentValidation: validators desde la assembly de Identity.Application =====
 builder.Services.AddAssemblyValidators(typeof(RegisterUserValidator).Assembly);
@@ -133,6 +247,9 @@ builder.Services.AddRateLimiter(options =>
 
     var authPermit = builder.Configuration.GetValue<int?>("RateLimit:AuthPermit") ?? 10;
     var apiPermit = builder.Configuration.GetValue<int?>("RateLimit:ApiPermit") ?? 100;
+    // Slice 4b — /api/quotes es consumido por watchlist pages; permitimos 3x
+    // el general para evitar 429s cuando el FE refresca cada few seconds.
+    var apiQuotesPermit = builder.Configuration.GetValue<int?>("RateLimit:ApiQuotesPermit") ?? 300;
 
     options.AddPolicy("auth-strict", ctx =>
     {
@@ -159,6 +276,41 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = apiPermit,
                 Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("api-quotes", ctx =>
+    {
+        // 300 requests por IP por minuto para /api/quotes — watchlist pages
+        // refrescan agresivo y no queremos que el rate limiter corte UX.
+        var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"api-quotes-{ip}",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = apiQuotesPermit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("api-billing", ctx =>
+    {
+        // Wave 6a.1 — Stripe-backed endpoints (customers, checkout, portal).
+        // Per the spec: 10 calls/hour/user. We use a 1-hour window keyed
+        // by user id when authenticated, by IP otherwise.
+        var partitionKey = ctx.User?.Identity?.IsAuthenticated == true
+            ? $"billing-{ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}"
+            : $"billing-{ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = builder.Configuration.GetValue<int?>("RateLimit:BillingPermit") ?? 10,
+                Window = TimeSpan.FromHours(1),
                 QueueLimit = 0,
                 AutoReplenishment = true
             });
@@ -289,6 +441,11 @@ app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// Slice 6c.2 — enforce tenant_id JWT claim on authenticated requests.
+// Sits AFTER auth so the principal is populated, but BEFORE endpoint
+// resolution so a missing/malformed tenant_id short-circuits with 401
+// before any handler runs. Public endpoints (anonymous) pass through.
+app.UseMiddleware<JadeCapital.Identity.Infrastructure.MultiTenancy.TenantContextMiddleware>();
 
 // ===== Health =====
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
@@ -303,13 +460,67 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 
 // ===== Modules =====
 app.MapIdentityApi();
+// Wave 12 slice 12.1 — public client-IP utility (anonymous; for GDPR consent
+// correlation before the visitor authenticates).
+app.MapClientIpEndpoint();
 app.MapAccountEndpoints();
 app.MapInstrumentEndpoints();
 app.MapTradeEndpoints();
+// Slice 1f — server-side trading metrics (replaces analytics.page.ts mocks).
+app.MapTraderMetricsEndpoints();
+// Slice 1b — read-only position-size calculator (uses IIdentityUserRiskProfileReader).
+app.MapPositionSizeEndpoints();
+// Slice 1d.1 — post-trade review + MinIO attachment endpoints.
+app.MapTradeReviewEndpoints();
+// Slice 2a.1 — daily journal endpoints (GET today, GET range, POST upsert, DELETE).
+app.MapJournalEndpoints();
+// Slice 2b.1 — behavioral analytics (5 detection rules + emotionality buckets).
+app.MapBehavioralEndpoints();
+// Slice 2c — per-trade MFE/MAE approximation + user-aggregate histograms.
+app.MapTradeMfeMaeEndpoints();
+// Slice 2d — rule-based coaching prompts (5 rules registered; aggregates
+// over trades + journals + behavioral events in the requested window).
+app.MapCoachingPromptsEndpoint();
+// Slice 3a — trader strategies (CRUD + analytics) + tag/untag trade.
+ app.MapStrategyEndpoints();
+// Slice 3b — alerts (list, get-by-id, ack) + BackgroundService evaluation.
+app.MapAlertEndpoints();
+// Slice 3c — planner sessions (create, update, list-by-week, status change).
+app.MapPlannerEndpoints();
+// Slice 4a — scanner filters (CRUD + run against instrument universe).
+app.MapScannerEndpoints();
+// Slice 5a.1 — CSV importer (upload + status).
+app.MapImportEndpoints();
+// Slice 5b.1 — AI provider health probe. Future AI endpoints (5b.2 coaching,
+// 5c.1 risk-advice) extend the same AiEndpoints class; no extra MapXxx call.
+app.MapAiEndpoints();
+// Slice 4b — market data quotes (single + bulk, cache-backed).
+// NOTE: QuoteEndpoints handles the `api-quotes` rate limit internally via
+// RequireRateLimiting on the endpoints group (added in QuoteEndpoints.cs).
+// The endpoint group uses the higher `api-quotes` policy instead of
+// `api-general` because watchlist pages refresh aggressively.
+app.MapQuoteEndpoints();
+// Slice 4c — SignalR /hubs/quotes endpoint. Auth via [Authorize] on the hub
+// class (rejects unauthenticated handshakes with 401 before WebSocket upgrade).
+// The broadcast loop runs in QuoteBroadcastService (BackgroundService, 5s tick).
+app.MapHub<QuoteHub>("/hubs/quotes");
 // Slice 0f — Admin API endpoints (subscriptions only). Deny-by-default via
 // the AdminOnly policy + RequireAdminPolicyHandler: no subscription existence,
 // owner, plan, or history information leaks to non-Admins.
 app.MapAdminSubscriptionEndpoints();
+// Wave 9 slice 9b.1 — admin audit query endpoint (GET /api/admin/audit/events).
+app.MapAdminAuditEndpoints();
+// Wave-1.3 — Public Billing catalog endpoints (AllowAnonymous; pricing page
+// must load the plan list before the visitor authenticates).
+app.MapBillingPublicEndpoints();
+// Wave 6a.1 — Stripe-backed Billing endpoints (Customer create/fetch +
+// webhook receiver). 4 endpoints total; 6a.1 ships customers + webhooks,
+// 6a.2 adds checkout + portal.
+app.MapBillingStripeEndpoints();
+// Wave 6b.1 — Self-service billing portal read endpoints (subscription +
+// payment-methods + invoices). All require the JWT-derived userId; cross-user
+// access returns 404. The portal read DTOs are in Billing.Contracts/Portal.
+app.MapBillingPortalEndpoints();
 
 app.Run();
 

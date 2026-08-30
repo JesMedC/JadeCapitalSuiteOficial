@@ -1,0 +1,126 @@
+# Wave 10 slice 10.3 — Caddy auto-TLS configuration.
+#
+# Why Caddy (vs nginx + certbot):
+#   - Built-in Let's Encrypt auto-renewal (no cron, no `certbot renew`).
+#   - DNS-01 challenge via Cloudflare token (works for wildcard `*.jadecapital.com`).
+#   - Zero-downtime cert rotation (Caddy hot-swaps the cert in memory).
+#   - HTTP→HTTPS redirect + HSTS preload out of the box.
+#
+# Replace `jadecapital.com` + the DNS provider block with the project's actual domain
+# at deploy time (see docs/runbooks/deployment.md §2.4). The wildcard requires a
+# provider that supports DNS-01 — Cloudflare, Route53, DigitalOcean, and Gandi all
+# work. Let's Encrypt's HTTP-01 challenge does NOT issue wildcard certs.
+#
+# Reverse proxy:
+#   - `api:8080`       — Jade Capital Host (ASP.NET Core, slice 10.2 compose).
+#   - `frontend:80`    — Angular SPA served by nginx (slice 10.2 Dockerfile.frontend.prod).
+#   - `/hubs/*`        — SignalR websockets, proxied to the API host.
+#
+# Header hardening (CSP / HSTS / Permissions-Policy) is handled by the `frontend`
+# service's nginx (infrastructure/nginx/nginx.conf). Caddy adds its own:
+#   - Strict-Transport-Security: with the same `max-age=63072000; preload` value,
+#     so Caddy-only deployments (when nginx is bypassed) keep the same posture.
+#   - X-Content-Type-Options nosniff — defense in depth (nginx also sets it).
+#
+# USAGE
+#   docker compose -f docker-compose.prod.yml up -d caddy
+#   # Caddy reads this file via the compose volume mount; no manual reload needed.
+#
+# DEV
+#   caddy run --config infrastructure/caddy/Caddyfile.dev (self-signed via `caddy trust`).
+#   jest sets `NODE_EXTRA_CA_CERTS=$(mkcert -CAROOT)/rootCA.pem` to trust it.
+
+{
+    # Admin API on localhost only — ops proxy via SSH tunnel.
+    admin localhost:2019
+
+    # Cloudflare DNS plugin for wildcard cert issuance. CLOUDFLARE_API_TOKEN is
+    # injected via Docker secret (mounted as `/run/secrets/caddy_cloudflare_token`
+    # + read by Caddy's `env_file:` directive in docker-compose.prod.yml).
+    # The DNS plugin requires the corresponding `xcaddy` build at image build time;
+    # the project's Dockerfile.caddy.prod (slice 10.2) compiles it in.
+    email ops@jadecapital.example.com
+}
+
+# Wildcard + apex + www — single cert covers all subdomains.
+jadecapital.com, *.jadecapital.com {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+
+    # Defense in depth: Caddy also emits HSTS so even if the frontend nginx
+    # is removed from the topology, the security posture is preserved.
+    header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    # Wave 12 slice 12.2 — Content-Security-Policy (defense in depth).
+    # The frontend nginx (infrastructure/nginx/nginx.conf) emits the strict
+    # version with `'nonce-{request_nonce}'` (per-request nonce via nginx-njs);
+    # Caddy's equivalent directive is intentionally NONCE-FREE because Caddy
+    # has no native per-request nonce generator that runs before Angular's
+    # bundled JS executes. The static CSP here is the safety net so a direct
+    # Caddy→origin path (no nginx) still rejects cross-origin scripts. The
+    # `<meta http-equiv="Content-Security-Policy">` in frontend/src/index.html
+    # is the dev-mode (`ng serve`) fallback that mirrors this policy with a
+    # per-page-load nonce generated client-side.
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+    # SignalR hubs — explicit reverse proxy to the API host. Caddy 2.x handles
+    # the WebSocket upgrade automatically; the `header_up` directive strips the
+    # hop-by-hop Connection header that some proxies mis-handle.
+    reverse_proxy /hubs/* api:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # API routes (everything under /api).
+    reverse_proxy /api/* api:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Health probes (no auth, no rate limit). Used by docker-compose healthcheck.
+    reverse_proxy /health/* api:8080
+
+    # Static assets (Angular build output) — served directly by the frontend
+    # nginx, but Caddy routes here so the frontend service can stay in the
+    # internal network (no need to expose port 80 publicly).
+    @frontend_static path /assets/* /favicon.ico /robots.txt /sitemap.xml
+    handle @frontend_static {
+        reverse_proxy frontend:80
+    }
+
+    # Everything else — single-page app. Caddy transparently serves the index.html
+    # and lets Angular's router handle client-side navigation.
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    # Security headers that Caddy adds on top of the frontend nginx (defense in depth).
+    header {
+        # deny clickjacking (frontend nginx also sets X-Frame-Options: DENY).
+        X-Frame-Options "DENY"
+        # referer leakage defense.
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # remove the Server header (Caddy normally sets `Server: Caddy`).
+        -Server
+    }
+
+    # Encode responses (Caddy adds gzip automatically; brotli requires a custom build).
+    encode gzip zstd
+
+    # Logging — JSON access log to stdout (collected by docker compose logs).
+    log {
+        output stdout
+        format json
+        level INFO
+    }
+}
+
+# Redirect apex www → bare domain (single canonical hostname for SEO).
+www.jadecapital.com {
+    redir https://jadecapital.com{uri} permanent
+}

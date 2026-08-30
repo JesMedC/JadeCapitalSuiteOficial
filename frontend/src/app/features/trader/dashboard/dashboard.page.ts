@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DecimalPipe, DatePipe, NgClass } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthState } from '@core/state/auth.state';
 import {
   ASSET_CLASS_LABEL,
@@ -9,6 +9,10 @@ import {
   TradeApiService,
   TradeDto,
 } from '@core/api/trade-api.service';
+import { CoachingPromptsComponent } from '../coaching/coaching-prompts.component';
+import { CoachingState } from '../coaching/state/coaching.state';
+import { WatchlistState } from '@core/realtime/state/watchlist.state';
+import { WatchlistPage } from '../watchlist/watchlist-page';
 
 // Construye una serie de equity curve (P&L acumulado) a partir de trades
 // cerrados ordenados por fecha. Devuelve `number[]` con un punto por trade.
@@ -30,7 +34,7 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
 @Component({
   selector: 'jcs-dashboard',
   standalone: true,
-  imports: [DecimalPipe, DatePipe, NgClass, RouterLink],
+  imports: [DecimalPipe, DatePipe, NgClass, RouterLink, CoachingPromptsComponent, WatchlistPage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="dash">
@@ -72,6 +76,18 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
           <button type="button" class="dash-error-retry" (click)="reload()">Reintentar</button>
         </div>
       }
+
+      <!-- ============== Coaching prompts (slice 2d embed) ============== -->
+      <jcs-coaching-prompts [prompts]="coachingState.prompts()"></jcs-coaching-prompts>
+
+      <!-- ============== Watchlist (slice 4c embed) ============== -->
+      <section class="jcs-card watchlist-card" data-testid="dash-watchlist">
+        <header class="watchlist-card-head">
+          <h2>Watchlist</h2>
+          <a routerLink="/app/watchlist" class="watchlist-card-link">Ver todas →</a>
+        </header>
+        <jcs-watchlist-page [symbols]="dashboardWatchlist"></jcs-watchlist-page>
+      </section>
 
       <!-- ============== KPIs ============== -->
       <section class="kpi-row">
@@ -246,6 +262,45 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
             }
           </div>
         </div>
+      </section>
+
+      <section class="link-cards-grid" data-testid="dash-shortcuts">
+        @for (s of shortcuts; track s.link) {
+          <button
+            type="button"
+            class="jcs-card jcs-card--hover link-card"
+            [attr.data-testid]="'dash-shortcut-' + s.label.toLowerCase()"
+            (click)="goTo(s.link)">
+            <span class="link-card-icon" aria-hidden="true">
+              @switch (s.icon) {
+                @case ('list') {
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 4h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3z"/>
+                    <line x1="11" y1="6" x2="21" y2="6"/>
+                    <line x1="11" y1="12" x2="21" y2="12"/>
+                    <line x1="11" y1="18" x2="21" y2="18"/>
+                  </svg>
+                }
+                @case ('tag') {
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                    <line x1="7" y1="7" x2="7.01" y2="7"/>
+                  </svg>
+                }
+                @case ('calendar') {
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                }
+              }
+            </span>
+            <span class="link-card-title">Ver {{ s.label.toLowerCase() }} →</span>
+            <span class="link-card-desc jcs-muted">{{ s.description }}</span>
+          </button>
+        }
       </section>
     </div>
   `,
@@ -577,11 +632,73 @@ type StatusLabel = 'Open' | 'Closed' | 'Cancelled';
       from { opacity: 0; transform: translateY(8px); }
       to   { opacity: 1; transform: translateY(0); }
     }
+
+    .link-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--sp-4);
+      margin-top: var(--sp-6);
+    }
+    .link-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--sp-2);
+      padding: var(--sp-5);
+      cursor: pointer;
+      font: inherit;
+      color: var(--text-main);
+      text-align: left;
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+    }
+    .link-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-soft);
+    }
+    .link-card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      background: var(--green-soft);
+      color: var(--green);
+      flex-shrink: 0;
+    }
+    .link-card-title {
+      font-weight: 600;
+      font-size: var(--fs-base);
+      color: var(--green);
+      letter-spacing: -0.01em;
+    }
+    .link-card-desc {
+      font-size: var(--fs-xs);
+      line-height: 1.5;
+    }
   `],
 })
 export class DashboardPage {
   readonly auth = inject(AuthState);
   private readonly api = inject(TradeApiService);
+  private readonly router = inject(Router);
+  readonly coachingState = inject(CoachingState);
+  private readonly watchlistState = inject(WatchlistState);
+
+  // Slice 4c — first 5 watchlist symbols embedded as compact cards on the
+  // dashboard. Full page lives at /app/watchlist.
+  readonly dashboardWatchlist: string[] = ['EURUSD', 'GBPJPY', 'BTCUSD', 'USDJPY', 'AUDUSD'];
+
+  readonly shortcuts: ReadonlyArray<{
+    readonly label: string;
+    readonly link: string;
+    readonly description: string;
+    readonly icon: 'list' | 'tag' | 'calendar';
+  }> = [
+    { label: 'Strategies', link: '/app/strategies', description: 'Setups nombrados y sus reglas.', icon: 'list' },
+    { label: 'Alertas',    link: '/app/alerts',     description: 'Señales activas del motor de reglas.', icon: 'tag' },
+    { label: 'Planner',    link: '/app/planner',    description: 'Sesiones semanales plan vs realidad.', icon: 'calendar' },
+  ];
 
   readonly refreshing = signal(false);
   readonly loading = signal(true);
@@ -706,6 +823,11 @@ export class DashboardPage {
 
   constructor() {
     void this.reload();
+    void this.coachingState.load('30d');
+  }
+
+  goTo(link: string): void {
+    void this.router.navigateByUrl(link);
   }
 
   async reload(): Promise<void> {

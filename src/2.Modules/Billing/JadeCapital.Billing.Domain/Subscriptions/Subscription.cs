@@ -2,6 +2,7 @@ using JadeCapital.Billing.Domain.Common;
 using JadeCapital.Billing.Domain.Subscriptions.Events;
 using JadeCapital.Shared.Kernel.Primitives;
 using JadeCapital.Shared.Kernel.Results;
+using JadeCapital.Shared.Kernel.Stripe;
 
 namespace JadeCapital.Billing.Domain.Subscriptions;
 
@@ -30,6 +31,14 @@ public sealed class Subscription : AggregateRoot<Guid>
     public SubscriptionStatus Status { get; private set; }
     public DateTimeOffset? TrialEndsAt { get; private set; }
     public SubscriptionPeriod CurrentPeriod { get; private set; } = default!;
+
+    /// <summary>
+    /// Wave 6a.2: Stripe subscription id (e.g. <c>sub_...</c>). NULL until
+    /// the first webhook syncs it. The DB column is nullable + has a UNIQUE
+    /// partial index (one Stripe subscription per local row). The handler
+    /// MUST NOT regress a non-null value to null.
+    /// </summary>
+    public string? StripeSubscriptionId { get; private set; }
 
     /// <summary>
     /// Optimistic-concurrency token. Bumped atomically on every successful
@@ -241,6 +250,75 @@ public sealed class Subscription : AggregateRoot<Guid>
     /// </summary>
     public bool IsCancellable()
         => Status is SubscriptionStatus.Active or SubscriptionStatus.Trial;
+
+    /// <summary>
+    /// Wave 6a.2: applies a Stripe webhook event to this subscription. Sets
+    /// the Stripe subscription id (one-time, never nulled), updates the
+    /// status if it changed, bumps the version, and appends a
+    /// <see cref="SubscriptionAction.WebhookSynced"/> history entry. No-op
+    /// (no history, no version bump) when the resulting status equals the
+    /// current status.
+    /// <para>
+    /// The caller is the <c>HandleWebhookHandler</c> after it has verified
+    /// the signature and appended the webhook event to
+    /// <c>billing.stripe_webhook_events</c>. The actor is hard-coded to
+    /// <c>"stripe-webhook"</c> for auditability.
+    /// </para>
+    /// <para>
+    /// <b>Why no <c>observedVersion</c> check here</b>: the handler reads
+    /// the subscription with its current version, captures it, and calls
+    /// <see cref="SyncFromStripe"/>. If the admin mutated the row in
+    /// between, the handler retries up to 3 times with jitter by refetching
+    /// (see <c>HandleWebhookHandler.SyncSubscriptionAsync</c>). The aggregate
+    /// itself stays a pure state-transition boundary; retry is a handler
+    /// concern.
+    /// </para>
+    /// </summary>
+    public Result SyncFromStripe(
+        StripeSubscriptionDto stripeSub,
+        SubscriptionStatus mappedStatus,
+        DateTimeOffset utcNow)
+    {
+        if (stripeSub is null)
+            return Result.Failure(
+                Error.Validation("validation.subscription.stripe_dto_required",
+                    "Stripe subscription DTO is required."));
+
+        // 1. Set StripeSubscriptionId (one-time). If a different stripe id
+        // is already set, reject — this is a safety net for accidental
+        // cross-tenant remapping.
+        if (string.IsNullOrEmpty(StripeSubscriptionId))
+        {
+            StripeSubscriptionId = stripeSub.StripeSubscriptionId;
+        }
+        else if (!string.Equals(StripeSubscriptionId, stripeSub.StripeSubscriptionId, StringComparison.Ordinal))
+        {
+            return Result.Failure(
+                Error.Conflict("subscription.stripe_id_mismatch",
+                    "Subscription is already mapped to a different Stripe id."));
+        }
+
+        // 2. Status transition. No-op when status is unchanged (consistent
+        // with ChangeTier's no-op rejection rule).
+        if (Status == mappedStatus)
+            return Result.Success();
+
+        var priorPlan = PlanCode;
+        var priorStatus = Status;
+        Status = mappedStatus;
+        Version++;
+        Touch();
+
+        AppendHistory(
+            SubscriptionAction.WebhookSynced,
+            priorPlan, priorPlan,
+            priorStatus, Status,
+            actor: "stripe-webhook",
+            utcNow: utcNow,
+            reason: $"stripe_event:{stripeSub.Status}");
+
+        return Result.Success();
+    }
 
     private void AppendHistory(
         SubscriptionAction action,

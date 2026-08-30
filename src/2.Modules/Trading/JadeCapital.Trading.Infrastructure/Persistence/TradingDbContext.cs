@@ -1,5 +1,13 @@
 using JadeCapital.Trading.Domain.Accounts;
+using JadeCapital.Trading.Domain.AttachmentAudits;
+using JadeCapital.Trading.Domain.Ai;
+using JadeCapital.Trading.Domain.Imports;
 using JadeCapital.Trading.Domain.Instruments;
+using JadeCapital.Trading.Domain.Journal;
+using JadeCapital.Trading.Domain.Planner;
+using JadeCapital.Trading.Domain.PreTradeChecklists;
+using JadeCapital.Trading.Domain.Scanner;
+using JadeCapital.Trading.Domain.Strategies;
 using JadeCapital.Trading.Domain.Trades;
 using JadeCapital.Trading.Infrastructure.Persistence.Configurations;
 using JadeCapital.Trading.Infrastructure.Persistence.Converters;
@@ -10,9 +18,11 @@ namespace JadeCapital.Trading.Infrastructure.Persistence;
 
 /// <summary>
 /// DbContext del modulo Trading. Esquema dedicado "trading".
-/// Tablas: trading.accounts, trading.instruments, trading.trades.
+/// Tablas: trading.accounts, trading.instruments, trading.trades,
+/// trading.pre_trade_checklists, trading.trade_reviews,
+/// trading.trade_attachments, trading.journal_entries.
 /// </summary>
-public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
+public class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
 {
     public TradingDbContext(Microsoft.EntityFrameworkCore.DbContextOptions<TradingDbContext> options)
         : base(options) { }
@@ -20,6 +30,38 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
     public Microsoft.EntityFrameworkCore.DbSet<Trade> Trades => Set<Trade>();
     public Microsoft.EntityFrameworkCore.DbSet<Account> Accounts => Set<Account>();
     public Microsoft.EntityFrameworkCore.DbSet<Instrument> Instruments => Set<Instrument>();
+    public Microsoft.EntityFrameworkCore.DbSet<PreTradeChecklist> PreTradeChecklists => Set<PreTradeChecklist>();
+    // Slice 1d.1 — post-trade reviews + attachments.
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeReviews.TradeReview> TradeReviews => Set<JadeCapital.Trading.Domain.TradeReviews.TradeReview>();
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment> TradeAttachments => Set<JadeCapital.Trading.Domain.TradeAttachments.TradeAttachment>();
+    // Slice 2a.1 — daily journal entries.
+    public Microsoft.EntityFrameworkCore.DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    // Slice 3a — trader strategies (named setups + analytics).
+    public Microsoft.EntityFrameworkCore.DbSet<Strategy> Strategies => Set<Strategy>();
+    // Slice 3b — persistent alerts (BackgroundService writes; API reads).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.Alerts.Alert> Alerts
+        => Set<JadeCapital.Trading.Domain.Alerts.Alert>();
+    // Slice 3c — trader planner sessions (weekly planned-vs-actual).
+    public Microsoft.EntityFrameworkCore.DbSet<PlannerSession> PlannerSessions
+        => Set<PlannerSession>();
+    // Slice 4a — trader scanner filters (user-owned, ranked scan results).
+    public Microsoft.EntityFrameworkCore.DbSet<ScannerFilter> ScannerFilters
+        => Set<ScannerFilter>();
+    // Slice 4b — market data quote cache (per-symbol snapshot of Quote).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry> QuoteCacheEntries
+        => Set<JadeCapital.Trading.Domain.MarketData.QuoteCacheEntry>();
+    // Slice 4d — attachment quota audit (daily lifecycle sweep log).
+    public Microsoft.EntityFrameworkCore.DbSet<AttachmentQuotaAudit> AttachmentQuotaAudits
+        => Set<AttachmentQuotaAudit>();
+    // Slice 5a.1 — trader import jobs (CSV uploads).
+    public Microsoft.EntityFrameworkCore.DbSet<ImportJob> ImportJobs
+        => Set<ImportJob>();
+    // Slice 5b.2 — AI coaching prompts (daily BG service + manual triggers).
+    public Microsoft.EntityFrameworkCore.DbSet<CoachingPrompt> CoachingPrompts
+        => Set<CoachingPrompt>();
+    // Slice 5c.1 — AI risk advisories (pre-trade + manual).
+    public Microsoft.EntityFrameworkCore.DbSet<JadeCapital.Trading.Domain.Ai.AIRiskAdvice> AIRiskAdvices
+        => Set<JadeCapital.Trading.Domain.Ai.AIRiskAdvice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +69,23 @@ public sealed class TradingDbContext : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AccountConfiguration());
         modelBuilder.ApplyConfiguration(new InstrumentConfiguration());
         modelBuilder.ApplyConfiguration(new TradeConfiguration());
+        modelBuilder.ApplyConfiguration(new PreTradeChecklistConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeReviewConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeAttachmentConfiguration());
+        modelBuilder.ApplyConfiguration(new JournalEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new StrategyConfiguration());
+        modelBuilder.ApplyConfiguration(new AlertConfiguration());
+        modelBuilder.ApplyConfiguration(new PlannerSessionConfiguration());
+        modelBuilder.ApplyConfiguration(new ScannerFilterConfiguration());
+        modelBuilder.ApplyConfiguration(new QuoteCacheConfiguration());
+        modelBuilder.ApplyConfiguration(new AttachmentQuotaAuditConfiguration());
+// Slice 5a.1 — import jobs. Registered ONCE here (Wave 4 lesson:
+// do NOT also register via DI; ApplyConfiguration is the single source).
+        modelBuilder.ApplyConfiguration(new ImportJobConfiguration());
+        // Slice 5b.2 — AI coaching prompts. Same single-source pattern.
+        modelBuilder.ApplyConfiguration(new CoachingPromptConfiguration());
+        // Slice 5c.1 — AI risk advisories. Same single-source pattern.
+        modelBuilder.ApplyConfiguration(new AIRiskAdviceConfiguration());
     }
 }
 
@@ -58,6 +117,24 @@ internal sealed class TradeConfiguration : IEntityTypeConfiguration<Trade>
         b.Property(t => t.AccountCurrency).HasColumnName("account_currency").HasMaxLength(3).IsRequired();
         b.Property(t => t.CreatedAt).HasColumnName("created_at").IsRequired();
         b.Property(t => t.UpdatedAt).HasColumnName("updated_at");
+
+        // Slice 2c — MFE/MAE columns (migration 0014). Nullable: open trades
+        // no tienen MFE/MAE computados. La invariante de signo (MFE >= 0,
+        // MAE <= 0) vive en el dominio (MfeMaeCalculator + ApplyMfeMae);
+        // la DB no enforce CHECK para mantener la migracion additive-only.
+        b.Property(t => t.MfeAmount).HasColumnName("mfe_amount").HasColumnType("numeric(24,8)");
+        b.Property(t => t.MaeAmount).HasColumnName("mae_amount").HasColumnType("numeric(24,8)");
+        b.Property(t => t.MfeCurrency).HasColumnName("mfe_currency").HasMaxLength(3).IsFixedLength();
+        b.Property(t => t.MaeCurrency).HasColumnName("mae_currency").HasMaxLength(3).IsFixedLength();
+
+        // Slice 3a — Strategy FK additive nullable (migration 0015a).
+        // La shadow navigation HasOne<Strategy>().WithMany() mapea la FK
+        // logica sin requerir navigation property en el aggregate Trade.
+        // ON DELETE SET NULL en la DB; la DB hace el SET NULL si Wave 4+
+        // algun dia hard-delete una strategy.
+        b.Property(t => t.StrategyId).HasColumnName("strategy_id").IsRequired(false);
+        b.HasOne<Strategy>().WithMany().HasForeignKey(t => t.StrategyId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Money value objects via OwnsOne — Volume, EntryPrice son required.
         // ExitPrice y PnL son nullable y la columna queda NULL cuando el

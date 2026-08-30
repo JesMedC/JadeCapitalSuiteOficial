@@ -65,6 +65,72 @@ public class MailKitSmtpEmailSender : IEmailSender
             $"SMTP delivery failed after {_opts.MaxAttempts} attempts.", last);
     }
 
+    /// <summary>
+    /// Slice 6c.3 — STUB. The Spanish/Jade-branded invite mime composition
+    /// is deferred to a follow-up slice. Production wiring logs a warning
+    /// so the operator notices the gap; tests use the
+    /// <c>InMemoryCapturingEmailSender</c> to assert the message payload.
+    /// </summary>
+    public Task SendTenantInviteAsync(TenantInviteEmailMessage message, CancellationToken ct = default)
+    {
+        _logger.LogWarning(
+            "SendTenantInviteAsync is a stub in slice 6c.3 — invite to {Tenant} ({To}) NOT delivered. " +
+            "Wire the Spanish/Jade-branded invite template in the follow-up slice.",
+            message.TenantName, message.To);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Sends the post-registration welcome email. The
+    /// mime composition is delegated to <see cref="WelcomeEmailTemplate"/>
+    /// (Spanish / Jade-branded); the SMTP transport retry loop matches the
+    /// recovery flow (initial + 2 retries, 250/750 ms jitter) per design.md.
+    ///
+    /// <para>
+    /// <b>Failure isolation</b>: this method throws on a non-recoverable
+    /// SMTP failure (matches the recovery-flow contract). The
+    /// <c>RegisterUserHandler</c> is responsible for wrapping the call in
+    /// <c>try { ... } catch { log + continue }</c> so a flaky transport
+    /// cannot undo an already-committed user row.
+    /// </para>
+    /// </summary>
+    public async Task SendWelcomeEmailAsync(WelcomeEmailMessage message, CancellationToken ct = default)
+    {
+        var mime = BuildWelcomeMime(message, _opts.From);
+        var attempt = 0;
+        Exception? last = null;
+        while (attempt < _opts.MaxAttempts)
+        {
+            attempt++;
+            try
+            {
+                using var client = new SmtpClient();
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(_opts.TimeoutMs);
+                await client.ConnectAsync(_opts.Host, _opts.Port, _opts.UseStartTls, cts.Token);
+                if (!string.IsNullOrEmpty(_opts.Username))
+                    await client.AuthenticateAsync(_opts.Username, _opts.Password, cts.Token);
+                await client.SendAsync(mime, cts.Token);
+                await client.DisconnectAsync(true, cts.Token);
+                _logger.LogInformation(
+                    "Welcome email delivered to {To} (attempt {Attempt}, latency budget ok).",
+                    message.To, attempt);
+                return;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                _logger.LogWarning(
+                    "Welcome email attempt {Attempt} for {To} failed: {Error}",
+                    attempt, message.To, ex.GetType().Name);
+                if (attempt < _opts.MaxAttempts)
+                    await Task.Delay(attempt == 1 ? 250 : 750, ct);
+            }
+        }
+        throw new InvalidOperationException(
+            $"SMTP delivery failed after {_opts.MaxAttempts} attempts.", last);
+    }
+
     /// <summary>Builds the Spanish Jade-branded recovery mime. Public for subclass override.</summary>
     protected static MimeMessage BuildRecoveryMime(RecoveryEmailMessage m, string from)
     {
@@ -85,6 +151,27 @@ public class MailKitSmtpEmailSender : IEmailSender
                 Tu contraseña temporal es: {m.TemporaryPassword}
                 Caduca el {m.ExpiresAt:u}. Si no solicitaste este cambio, ignora este correo.
                 """
+        }.ToMessageBody();
+        return message;
+    }
+
+    /// <summary>
+    /// Wave 11 slice 11.4 — Builds the Spanish / Jade-branded welcome mime.
+    /// Body composition is delegated to <see cref="WelcomeEmailTemplate"/>
+    /// (single source of truth for the canonical copy). The transport
+    /// remains a pure SMTP wrapper so the template can be revised without
+    /// touching retry / TLS / authentication logic.
+    /// </summary>
+    private static MimeMessage BuildWelcomeMime(WelcomeEmailMessage m, string from)
+    {
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse(from));
+        message.To.Add(MailboxAddress.Parse(m.To));
+        message.Subject = WelcomeEmailTemplate.Subject;
+        message.Body = new BodyBuilder
+        {
+            HtmlBody = WelcomeEmailTemplate.RenderHtml(m),
+            TextBody = WelcomeEmailTemplate.RenderText(m),
         }.ToMessageBody();
         return message;
     }

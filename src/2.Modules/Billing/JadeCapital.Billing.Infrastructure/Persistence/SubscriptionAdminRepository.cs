@@ -48,6 +48,45 @@ public sealed class SubscriptionAdminRepository : ISubscriptionAdminRepository
             .Include("_history")
             .FirstOrDefaultAsync(s => s.Id == subscriptionId, ct);
 
+    /// <summary>
+    /// Wave 6a.2: looks up a subscription by its Stripe subscription id
+    /// (<c>sub_...</c>). The webhook handler uses this to resolve a
+    /// <c>customer.subscription.*</c> event to the local subscription
+    /// without an admin lookup. The DB has a UNIQUE partial index on
+    /// <c>stripe_subscription_id</c> (created by migration 0023), so the
+    /// query is a fast equality lookup with at most one row.
+    /// </summary>
+    public Task<Subscription?> FindByStripeSubscriptionIdAsync(
+        string stripeSubscriptionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(stripeSubscriptionId))
+            return Task.FromResult<Subscription?>(null);
+
+        return _db.Subscriptions
+            .Include("_history")
+            .FirstOrDefaultAsync(
+                s => s.StripeSubscriptionId == stripeSubscriptionId,
+                ct);
+    }
+
+    /// <summary>
+    /// Wave 6b.1: looks up a subscription by the owning user's id. The
+    /// billing portal read API uses this to resolve the caller's local
+    /// subscription from the JWT-derived userId. The DB has a UNIQUE index
+    /// on <c>user_id</c> (mirrored in <c>SubscriptionConfiguration</c>), so
+    /// the query is a fast equality lookup with at most one row.
+    /// </summary>
+    public Task<Subscription?> FindByUserIdAsync(
+        Guid userId, CancellationToken ct = default)
+    {
+        if (userId == Guid.Empty)
+            return Task.FromResult<Subscription?>(null);
+
+        return _db.Subscriptions
+            .Include("_history")
+            .FirstOrDefaultAsync(s => s.UserId == userId, ct);
+    }
+
     private static SubscriptionStatus ParseStatus(string status)
         => Enum.TryParse<SubscriptionStatus>(status, ignoreCase: true, out var parsed)
             ? parsed
@@ -79,4 +118,11 @@ public sealed class PlanLookup : IPlanLookup
     public Task<Plan?> FindByCodeAsync(string planCode, CancellationToken ct = default)
         => _db.Plans
             .FirstOrDefaultAsync(p => p.Code.Value == planCode.ToLowerInvariant(), ct);
+
+    public async Task<IReadOnlyList<Plan>> ListEligibleForSelfServiceAsync(CancellationToken ct = default)
+        => await _db.Plans
+            .AsNoTracking()
+            .Where(p => p.IsEligibleForSelfService && !p.IsDeprecated)
+            .OrderBy(p => p.MonthlyPrice.Amount)
+            .ToListAsync(ct);
 }

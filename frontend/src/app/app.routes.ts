@@ -16,6 +16,13 @@ export const routes: Routes = [
     path: 'auth',
     loadChildren: () => import('./features/auth/auth.routes').then((m) => m.authRoutes),
   },
+  // Wave 11 slice 11.4 — Terms of Service + Privacy Policy (anonymous,
+  // reachable from the registration form's consent checkboxes).
+  {
+    path: 'legal',
+    loadChildren: () =>
+      import('./features/legal/legal-routing.module').then((m) => m.LEGAL_ROUTES),
+  },
   {
     path: 'app',
     canMatch: [authGuard],

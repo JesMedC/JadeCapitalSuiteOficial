@@ -1,3 +1,5 @@
+using JadeCapital.Identity.Application.Features.Auth.Consent;
+using JadeCapital.Shared.Infrastructure.Email;
 using JadeCapital.Shared.Kernel.Results;
 using JadeCapital.Shared.Kernel.Time;
 using Microsoft.Extensions.Options;
@@ -14,6 +16,8 @@ public class RegisterUserHandlerTests
     private readonly IUnitOfWork _uow = Substitute.For<IUnitOfWork>();
     private readonly IClock _clock = Substitute.For<IClock>();
     private readonly IOptions<JwtOptions> _jwtOptions = Substitute.For<IOptions<JwtOptions>>();
+    private readonly IEmailSender _email = Substitute.For<IEmailSender>();
+    private readonly WelcomeEmailPolicy _welcomeEmailPolicy = new(Options.Create(new WelcomeEmailPolicyOptions()));
     private readonly ILogger<RegisterUserHandler> _logger = Substitute.For<ILogger<RegisterUserHandler>>();
 
     public RegisterUserHandlerTests()
@@ -30,7 +34,7 @@ public class RegisterUserHandlerTests
     }
 
     private RegisterUserHandler CreateSut() => new(
-        _users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _logger);
+        _users, _refresh, _hasher, _tokens, _uow, _clock, _jwtOptions, _email, _welcomeEmailPolicy, _logger);
 
     private static string Email() => "user" + "@" + "test.com";
 
@@ -49,7 +53,10 @@ public class RegisterUserHandlerTests
         _uow.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns(Result.Success(1));
 
-        var cmd = new RegisterUserCommand(Email(), "Valid Name", "Passw0rd!Str");
+        var cmd = new RegisterUserCommand(
+            Email(), "Valid Name", "Passw0rd!Str",
+            AcceptTerms: true, AcceptPrivacy: true, ConsentIp: "203.0.113.42",
+            AcceptedTermsVersion: "v1.0", AcceptedPrivacyVersion: "v1.0");
         var result = await CreateSut().Handle(cmd, CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -58,7 +65,12 @@ public class RegisterUserHandlerTests
         result.Value.RefreshToken.Should().Be("opaque_refresh_abc");
         await _users.Received(1).AddAsync(Arg.Is<User>(u => u.Email == Email()), Arg.Any<CancellationToken>());
         await _refresh.Received(1).AddAsync(Arg.Any<RefreshToken>(), Arg.Any<CancellationToken>());
-        await _uow.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await _uow.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+
+        // The welcome email must fire on a fresh registration.
+        await _email.Received(1).SendWelcomeEmailAsync(
+            Arg.Is<WelcomeEmailMessage>(m => m.To == Email()),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -67,11 +79,15 @@ public class RegisterUserHandlerTests
         _users.FindByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(User.Register(Guid.NewGuid(), Email(), "Existing", "h", UserRole.Trader).Value);
 
-        var cmd = new RegisterUserCommand(Email(), "New Name", "Passw0rd!Str");
+        var cmd = new RegisterUserCommand(
+            Email(), "New Name", "Passw0rd!Str",
+            AcceptTerms: true, AcceptPrivacy: true, ConsentIp: "203.0.113.42",
+            AcceptedTermsVersion: "v1.0", AcceptedPrivacyVersion: "v1.0");
         var result = await CreateSut().Handle(cmd, CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("conflict.auth.email_already_registered");
         await _users.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        await _email.DidNotReceiveWithAnyArgs().SendWelcomeEmailAsync(default!, default);
     }
 }

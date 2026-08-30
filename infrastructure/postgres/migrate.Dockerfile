@@ -1,39 +1,29 @@
 # syntax=docker/dockerfile:1.7
-# Imagen efimera que corre la migracion SQL contra el Postgres de jade.
+# Wave 10.4 slice — order-agnostic migration runner.
+#
+# Architectural intent:
+#   * Migrations live in `infrastructure/postgres/migrations/`. After the
+#     Wave 10.4 renumbering they are consecutive `0001_*.sql` ... `0032_*.sql`
+#     so that `ls | sort` yields the correct application order.
+#   * This Dockerfile does NOT enumerate individual COPY lines — that approach
+#     is fragile (every new migration forces a Dockerfile edit + image rebuild).
+#     Instead, the host bind-mounts `./infrastructure/postgres/migrations/` into
+#     the container at `/migrations/` (see `docker-compose.prod.yml`'s
+#     `migrate:` service) and the `CMD` loop applies them in `ls | sort` order.
+#   * Idempotency: every migration file MUST be idempotent (`CREATE TABLE IF NOT
+#     EXISTS`, `DROP ... IF EXISTS`, `DO $$ ... $$` blocks). The loop tolerates
+#     "already exists" errors so a partial run can be safely re-attempted.
+#   * PGPASSWORD is set explicitly because we override the official entrypoint
+#     (CMD bash -c) and the Postgres image does not auto-export it.
 FROM postgres:16-alpine
 WORKDIR /migrations
-# COPY es relativo al CONTEXT, no al WORKDIR. Con context=./infrastructure/postgres
-# y este Dockerfile en migrations/, los archivos esta en migrations/2026....sql.
-COPY migrations/20260806_0001_InitialIdentitySchema.sql         /migrations/20260806_0001_InitialIdentitySchema.sql
-COPY migrations/20260806_0002_TradingSchema.sql                  /migrations/20260806_0002_TradingSchema.sql
-COPY migrations/20260806_0003_TradingConfigurationSchema.sql     /migrations/20260806_0003_TradingConfigurationSchema.sql
-COPY migrations/20260806_0004_AccountMarketType.sql              /migrations/20260806_0004_AccountMarketType.sql
-COPY migrations/20260806_0005_InstrumentMultiAssetClass.sql      /migrations/20260806_0005_InstrumentMultiAssetClass.sql
-COPY migrations/20260811_0006_PasswordRecovery.sql               /migrations/20260811_0006_PasswordRecovery.sql
-COPY migrations/20260812_0007_RecoverySupersession.sql           /migrations/20260812_0007_RecoverySupersession.sql
-COPY migrations/20260813_0007_BillingSubscriptions.sql           /migrations/20260813_0007_BillingSubscriptions.sql
-COPY migrations/20260814_0008_SeedPlans.sql                       /migrations/20260814_0008_SeedPlans.sql
-# Importante: como usamos CMD ["bash", "-c", ...] (no el entrypoint oficial),
-# NO se propaga POSTGRES_PASSWORD -> PGPASSWORD automaticamente. Lo seteamos a mano.
 CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep 2; done && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0001_InitialIdentitySchema.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0002_TradingSchema.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0003_TradingConfigurationSchema.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0004_AccountMarketType.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0005_InstrumentMultiAssetClass.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260811_0006_PasswordRecovery.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260812_0007_RecoverySupersession.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260813_0007_BillingSubscriptions.sql && \
-     PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260814_0008_SeedPlans.sql && \
-     echo 'ALL MIGRATIONS OK' || \
-     (echo 'PARTIAL MIGRATION — retrying (idempotent SQL)' && sleep 3 && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0001_InitialIdentitySchema.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0002_TradingSchema.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0003_TradingConfigurationSchema.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0004_AccountMarketType.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260806_0005_InstrumentMultiAssetClass.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260811_0006_PasswordRecovery.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260812_0007_RecoverySupersession.sql && \
-PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260813_0007_BillingSubscriptions.sql && \
-      PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f /migrations/20260814_0008_SeedPlans.sql && \
-      echo 'ALL MIGRATIONS OK (retry)')"]
+     export PGPASSWORD=\"$POSTGRES_PASSWORD\" && \
+     for sql in $(ls /migrations/*.sql 2>/dev/null | sort); do \
+         echo \"Applying $(basename $sql)\"; \
+         psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f \"$sql\" || { \
+             echo \"Migration $(basename $sql) failed — aborting\"; \
+             exit 1; \
+         }; \
+     done && \
+     echo 'ALL MIGRATIONS OK'"]

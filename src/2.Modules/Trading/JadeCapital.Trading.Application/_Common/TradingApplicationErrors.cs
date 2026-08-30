@@ -52,4 +52,20 @@ public static class TradingApplicationErrors
         public static readonly Error HasTrades =
             Error.Conflict("instrument.has_trades", "Cannot delete instrument with associated trades.");
     }
+
+    /// <summary>
+    /// Errores de orquestacion del recurso Strategy (slice 3a): ownership
+    /// cross-user y reglas de aplicacion (no del dominio).
+    ///
+    /// NotFound se prefiere sobre Forbidden para colapsar missing +
+    /// foreign-ownership en una sola respuesta (no leak existencia).
+    /// </summary>
+    public static class Strategies
+    {
+        public static readonly Error NotFound =
+            Error.NotFound("strategy", "Strategy not found.");
+
+        public static readonly Error TradeNotFound =
+            Error.NotFound("trade", "Trade not found.");
+    }
 }

@@ -1,0 +1,160 @@
+<section class="ptr-shell" [class.ptr-shell--saving]="isSaving()">
+  <header class="ptr-header">
+    <h2 class="ptr-title">Post-trade review</h2>
+    <p class="ptr-muted">Reflexion post-cierre: emocionalidad, setup, lecciones y adjuntos.</p>
+  </header>
+
+  <!-- Banner de error -->
+  @if (errorMessage(); as msg) {
+    <div class="ptr-banner ptr-banner--error" role="alert">
+      {{ msg }}
+    </div>
+  }
+
+  <form class="ptr-form" (ngSubmit)="onSubmit()" novalidate>
+    <!-- Emotionality 1..5 -->
+    <fieldset class="ptr-field">
+      <legend>Estado emocional al cierre</legend>
+      <div class="ptr-pills" role="radiogroup" aria-label="Estado emocional">
+        @for (v of [1,2,3,4,5]; track v) {
+          <button type="button" class="ptr-pill"
+                  [class.ptr-pill--active]="emotionality() === v"
+                  role="radio"
+                  [attr.aria-checked]="emotionality() === v"
+                  (click)="setEmotionality(v)">
+            @switch (v) {
+              @case (1) { Confident }
+              @case (2) { Calm }
+              @case (3) { Anxious }
+              @case (4) { Neutral }
+              @case (5) { Tilted }
+            }
+          </button>
+        }
+      </div>
+    </fieldset>
+
+    <!-- Rating 1..5 -->
+    <fieldset class="ptr-field">
+      <legend>Rating del trade <span class="ptr-muted">(opcional)</span></legend>
+      <div class="ptr-pills" role="radiogroup" aria-label="Rating">
+        @for (v of [1,2,3,4,5]; track v) {
+          <button type="button" class="ptr-pill"
+                  [class.ptr-pill--active]="rating() === v"
+                  role="radio"
+                  [attr.aria-checked]="rating() === v"
+                  (click)="setRating(v)">{{ v }}</button>
+        }
+        <button type="button" class="ptr-pill ptr-pill--clear"
+                [class.ptr-pill--active]="rating() === null"
+                (click)="setRating(null)">Sin rating</button>
+      </div>
+    </fieldset>
+
+    <!-- Setup tag -->
+    <label class="ptr-field">
+      <span>Setup tag</span>
+      <input class="ptr-input"
+             [class.ptr-input--error]="!!fieldErrors()['setupUsed']"
+             type="text"
+             maxlength="64"
+             placeholder="e.g. London breakout"
+             [value]="setupUsed()"
+             (input)="onSetupChange($any($event.target).value)" />
+      <small class="ptr-muted">{{ setupUsed().length }} / 64</small>
+      @if (fieldErrors()['setupUsed']; as err) {
+        <small class="ptr-error">{{ err }}</small>
+      }
+    </label>
+
+    <!-- Lessons -->
+    <label class="ptr-field">
+      <span>Lecciones aprendidas</span>
+      <textarea class="ptr-input ptr-input--area"
+                [class.ptr-input--error]="!!fieldErrors()['lessons']"
+                rows="5"
+                maxlength="5000"
+                placeholder="Que funciono, que no, que repetirias / evitarias..."
+                [value]="lessons()"
+                (input)="onLessonsChange($any($event.target).value)"></textarea>
+      <small class="ptr-muted">{{ lessons().length }} / 5000</small>
+      @if (fieldErrors()['lessons']; as err) {
+        <small class="ptr-error">{{ err }}</small>
+      }
+    </label>
+
+    <!-- Actions -->
+    <div class="ptr-actions">
+      <button type="submit" class="ptr-btn ptr-btn--primary"
+              [disabled]="!canSubmit() || isSaving()">
+        @if (isSaving()) { Guardando... } @else { Guardar review }
+      </button>
+      <button type="button" class="ptr-btn ptr-btn--ghost"
+              (click)="onCancel()" [disabled]="isSaving()">
+        Cancelar
+      </button>
+    </div>
+  </form>
+
+  <!-- Attachments -->
+  <section class="ptr-attach">
+    <header class="ptr-attach-header">
+      <h3>Adjuntos</h3>
+      <span class="ptr-muted">
+        {{ currentAttachmentsCount() }} / {{ MAX_ATTACHMENTS }}
+        — hasta {{ MAX_SIZE_BYTES / (1024 * 1024) }} MB c/u (PNG, JPEG, WebP, PDF)
+      </span>
+    </header>
+
+    <!-- Drop zone -->
+    @if (canUploadMore()) {
+      <div class="ptr-drop"
+           (dragover)="onDragOver($event)"
+           (drop)="onDrop($event)">
+        <p class="ptr-muted">Arrastra un archivo aca o
+          <label class="ptr-link">
+            selecciona uno
+            <input type="file"
+                   accept="image/png,image/jpeg,image/webp,application/pdf"
+                   hidden
+                   (change)="onFileSelected($event)" />
+          </label>
+        </p>
+        @if (isUploadingFile()) {
+          <p class="ptr-muted">Subiendo a MinIO...</p>
+        }
+      </div>
+    } @else {
+      <p class="ptr-muted">Alcanzaste el maximo de {{ MAX_ATTACHMENTS }} adjuntos por review.</p>
+    }
+
+    @if (uploadErrorMessage(); as msg) {
+      <div class="ptr-banner ptr-banner--error" role="alert">{{ msg }}</div>
+    }
+
+    <!-- List -->
+    <ul class="ptr-list">
+      @for (att of attachments(); track att.id) {
+        <li class="ptr-list-item">
+          <span class="ptr-list-name">{{ att.objectKey.split('/').pop() }}</span>
+          <span class="ptr-list-meta">
+            {{ formatSize(att.sizeBytes) }}
+            @if (att.status === 'uploaded') {
+              <span class="ptr-tag ptr-tag--ok">Subido</span>
+            } @else if (att.status === 'pending') {
+              <span class="ptr-tag ptr-tag--pending">Pendiente</span>
+            } @else {
+              <span class="ptr-tag ptr-tag--err">Fallido</span>
+            }
+          </span>
+          <button type="button" class="ptr-btn ptr-btn--ghost ptr-btn--sm"
+                  (click)="onDeleteAttachment(att.id)">
+            Quitar
+          </button>
+        </li>
+      } @empty {
+        <li class="ptr-muted ptr-list-empty">Sin adjuntos todavia.</li>
+      }
+    </ul>
+  </section>
+</section>

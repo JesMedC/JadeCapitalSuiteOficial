@@ -37,5 +37,31 @@ public static class IdentityApplicationErrors
 
         public static readonly Error ConcurrentUpdate =
             Error.Conflict("auth.concurrent_update", "Another change is in progress for this user.");
+
+        // Wave 11 slice 11.4 — cookie consent tier validation.
+        public static readonly Error CookieConsentChoiceInvalid =
+            Error.Validation("auth.cookie_consent_choice_invalid",
+                "Cookie choice must be one of: 'all' or 'essential'.");
+
+        // Wave 11 slice 11.4 — GDPR Art. 7 consent capture at registration.
+        public static readonly Error TermsNotAccepted =
+            Error.Validation("auth.terms_required",
+                "Terms of Service must be accepted to register.");
+
+        public static readonly Error PrivacyNotAccepted =
+            Error.Validation("auth.privacy_required",
+                "Privacy Policy must be accepted to register.");
+
+        public static readonly Error ConsentIpRequired =
+            Error.Validation("auth.consent_ip_required",
+                "Consent IP is required for GDPR Art. 7 audit trail.");
+
+        // Wave 12 slice 12.2 — WelcomeEmailPolicy validation. Surfaced when the
+        // bound options fail ValidateOnStart (e.g., SuppressionDays < 0). The
+        // host-start validator catches this in dev/CI; the error code exists
+        // so any future runtime override can surface the same contract.
+        public static readonly Error WelcomeEmailPolicyInvalid =
+            Error.Validation("auth.welcome_email_policy_invalid",
+                "WelcomeEmailPolicy: SuppressionDays must be >= 0.");
     }
 }

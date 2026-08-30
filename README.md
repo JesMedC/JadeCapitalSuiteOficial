@@ -9,7 +9,7 @@ SaaS profesional de **Trading Journal** para registrar, analizar y controlar ope
 3. **Portal Administrador** — Gestión de usuarios, métricas SaaS, control de suscripciones.
 4. **Flujo de Suscripción, Pago y Activación** — Stripe, webhooks, facturas.
 
-> 📌 **Estado actual (2026-08-14):** Wave 0 cerrado en `feature/0f-billing-admin-api`. Implementados de punta a punta: **Identity** (auth, JWT, refresh tokens rotativos, recovery flow), **Trading** (Trade + Account + Instrument + Dashboard/Calendar), **Billing** (Subscription/Plan aggregates + 5 MediatR handlers), **Admin** (Admin.Api + RequireAdminPolicyHandler + IUserOwnerProjection). **PublicPortal** sigue como scaffold. Falta solo el slice **0g** (Angular Admin List/Detail/History/State). Ver [`docs/PROJECT-STATUS.md`](./PROJECT-STATUS.md) para el mapa completo y [`docs/adr/`](./adr/) para las decisiones arquitectónicas.
+> 📌 **Estado actual (2026-08-15):** Wave 0 cerrado y archivado. Implementados de punta a punta: **Identity** (auth, JWT, refresh tokens rotativos, recovery flow + rotación forzada), **Trading** (Trade + Account + Instrument + Dashboard/Calendar), **Billing** (Subscription/Plan aggregates + handlers + endpoint público de planes), **Admin** (Admin.Api + RequireAdminPolicyHandler + IUserOwnerProjection + Angular List/Detail/History). **PublicPortal** sigue con la landing/FAQ/pricing funcionales pero PublicPortal.Application/Infrastructure son scaffolds para Wave 2+. Stack end-to-end corriendo en Docker Compose. Ver [`docs/PROJECT-STATUS.md`](./PROJECT-STATUS.md) para el mapa completo, [`openspec/changes/`](./openspec/changes/) para Wave 0 archivada, y [`docs/adr/`](./adr/) para las decisiones arquitectónicas.
 
 ## Arquitectura
 

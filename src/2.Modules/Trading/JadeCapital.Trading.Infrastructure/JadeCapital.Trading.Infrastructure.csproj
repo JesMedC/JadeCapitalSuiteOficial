@@ -4,14 +4,39 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+<!-- Slice 6d.1: tests exercise the EF Core configuration in
+         IsolationImportJobOnlyDbContext (ImportJobSoftDeleteQueryFilterTests);
+         InternalsVisibleTo is the cleanest seam (matches the Billing.Infrastructure precedent)
+         rather than widening ImportJobConfiguration to public. -->
+  <InternalsVisibleTo Include="JadeCapital.Trading.UnitTests" />
+  <!-- Slice 6d.2: ImportJobRepositoryIntegrationTests needs access to the
+       internal ImportJobConfiguration to wire a SQLite-compatible
+       TradingDbContext subclass (the full TradingDbContext applies
+       Npgsql-specific array converters for JournalEntry.Tags that fail
+       to compose on SQLite). -->
+  <InternalsVisibleTo Include="JadeCapital.Identity.UnitTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <!-- Wave 7 slice 7a.0: DecoratedRepository<T> moved to Shared.Infrastructure,
+         so the Identity.Infrastructure ProjectReference is no longer needed.
+         Scrutor's Decorate<> is now an explicit PackageReference (was transitive
+         via Identity.Infrastructure before). -->
+    <PackageReference Include="Scrutor" Version="4.2.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Kernel\JadeCapital.Shared.Kernel.csproj" />
     <ProjectReference Include="..\..\..\3.Shared\JadeCapital.Shared.Infrastructure\JadeCapital.Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Application\JadeCapital.Trading.Application.csproj" />
     <ProjectReference Include="..\JadeCapital.Trading.Domain\JadeCapital.Trading.Domain.csproj" />
+    <!-- Wave 10 slice 10.5: TradingUserCascadeDeletor implements
+         IUserCascadeDeletor (Identity.Application.Abstractions). The
+         reference is one-way (Trading.Infrastructure → Identity.Application)
+         to avoid the circular-dep trap that Identity.Infrastructure →
+         Trading.Infrastructure → Identity.Infrastructure would create. -->
+    <ProjectReference Include="..\..\Identity\JadeCapital.Identity.Application\JadeCapital.Identity.Application.csproj" />
   </ItemGroup>
 </Project>

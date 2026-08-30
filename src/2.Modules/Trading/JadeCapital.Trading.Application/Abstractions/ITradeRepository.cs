@@ -42,6 +42,18 @@ public interface ITradeRepository
         CancellationToken ct);
 
     /// <summary>
+    /// Lista TODOS los trades cerrados del usuario sin limite inferior ni
+    /// superior. Usado por el behavioral analyzer con <c>period=all</c>.
+    /// El analyzer filtra por <c>ClosedAt</c> en memoria — esta query es
+    /// la red de seguridad para no paginar accidentalmente el historial
+    /// completo del usuario. Wave 3 introducira un cursor si algun user
+    /// pasa de ~10k trades.
+    /// </summary>
+    Task<IReadOnlyList<Trade>> ListClosedByUserIdAsync(
+        Guid userId,
+        CancellationToken ct);
+
+    /// <summary>
     /// Cuenta cuantos trades (de cualquier usuario) apuntan a un instrumento.
     /// Usado por DeleteInstrument para el pre-check de FK RESTRICT.
     /// </summary>
@@ -55,5 +67,13 @@ public interface ITradeRepository
     /// Borra fisicamente un trade. Solo aplica a trades Open/Cancelled
     /// (los Closed quedan como registro historico — validacion a nivel handler).
     /// </summary>
-    Task RemoveAsync(Trade trade, CancellationToken ct);
+    /// <remarks>
+    /// Wave 7 slice 7b.1 — BREAKING rename from <c>RemoveAsync</c> to
+    /// <c>DeleteAsync</c> to align with the canonical
+    /// <c>IRepository&lt;T&gt;.DeleteAsync(T, ct)</c> surface from
+    /// <c>Shared.Kernel/Repository/IRepository.cs</c>. No <c>[Obsolete]</c>,
+    /// no overload, no deprecation period. All call sites are updated
+    /// atomically in slice 7b.1.
+    /// </remarks>
+    Task DeleteAsync(Trade trade, CancellationToken ct);
 }

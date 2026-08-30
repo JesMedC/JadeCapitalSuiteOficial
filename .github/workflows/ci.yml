@@ -1,0 +1,294 @@
+# .github/workflows/ci.yml — Jade Capital Suite CI
+#
+# Wave 10 slice 10.1 — 4 parallel jobs (lint-backend, test-backend,
+# test-integration, test-frontend). Triggers on pull_request + push to
+# the v1 readiness branch.
+#
+# Concurrency cancels superseded runs on the same ref so PR feedback stays
+# responsive without burning runner minutes.
+
+name: ci
+
+on:
+  pull_request:
+    branches:
+      - feature/0a-identity-model
+      - feature/wave10-*
+  push:
+    branches:
+      - feature/0a-identity-model
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: lint-backend — quick fail-fast on style + build warnings.
+  # ---------------------------------------------------------------------------
+  lint-backend:
+    name: Lint backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json', 'Directory.Build.props', 'Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore JadeCapital.slnx --locked-mode --nologo --verbosity minimal
+
+      - name: Verify formatting
+        run: dotnet format JadeCapital.slnx --verify-no-changes --verbosity minimal
+
+      - name: Build (warnings-as-errors)
+        run: dotnet build JadeCapital.slnx --nologo --verbosity minimal --no-restore
+
+  # ---------------------------------------------------------------------------
+  # Job 2: test-backend — fast unit-test loop (no Postgres / Redis).
+  # ---------------------------------------------------------------------------
+  test-backend:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json', 'Directory.Build.props', 'Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore JadeCapital.slnx --locked-mode --nologo --verbosity minimal
+
+      - name: Build
+        run: dotnet build JadeCapital.slnx --nologo --verbosity minimal --no-restore
+
+      - name: Shared.Kernel unit tests
+        run: >-
+          dotnet test tests/UnitTests/JadeCapital.Shared.Kernel.UnitTests/JadeCapital.Shared.Kernel.UnitTests.csproj
+          --nologo --verbosity minimal --no-build
+      - name: Identity unit tests
+        run: >-
+          dotnet test tests/UnitTests/JadeCapital.Identity.UnitTests/JadeCapital.Identity.UnitTests.csproj
+          --nologo --verbosity minimal --no-build
+      - name: Billing unit tests
+        run: >-
+          dotnet test tests/UnitTests/JadeCapital.Billing.UnitTests/JadeCapital.Billing.UnitTests.csproj
+          --nologo --verbosity minimal --no-build
+      - name: Trading unit tests
+        run: >-
+          dotnet test tests/UnitTests/JadeCapital.Trading.UnitTests/JadeCapital.Trading.UnitTests.csproj
+          --nologo --verbosity minimal --no-build
+      - name: Admin unit tests
+        run: >-
+          dotnet test tests/UnitTests/JadeCapital.Admin.UnitTests/JadeCapital.Admin.UnitTests.csproj
+          --nologo --verbosity minimal --no-build
+
+# Wave 10 slice 10.6 — OpenAPI export.
+      # Boots the API in the background, pulls swagger.json from
+      # /swagger/v1/swagger.json (Swashbuckle auto-generates the spec
+      # when AddSwaggerGen() is registered in Program.cs), then uploads
+      # it as a workflow artifact (30-day retention). The `kill $API_PID`
+      # is best-effort — the runner garbage-collects the dotnet process
+      # on job exit even if SIGTERM fails (e.g. mid-startup).
+      - name: Export OpenAPI spec
+        run: |
+          dotnet run --project src/1.Api/JadeCapital.Host --no-build --urls http://localhost:8080 &
+          API_PID=$!
+          sleep 30
+          curl -sS http://localhost:8080/swagger/v1/swagger.json -o openapi.json || true
+          kill $API_PID 2>/dev/null || true
+          ls -la openapi.json
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+          retention-days: 30
+          if-no-uses-found: ignore
+  # ---------------------------------------------------------------------------
+  # Job 3: test-integration — Postgres via GitHub-hosted services block.
+  # No Testcontainers: the service hostnames match what Testcontainers
+  # provisions locally, saving ~30s of container startup.
+  # ---------------------------------------------------------------------------
+  test-integration:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=jadecapital;Username=jade;Password=secret"
+      ConnectionStrings__Redis: "redis:6379"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jadecapital
+          POSTGRES_USER: jade
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jade -d jadecapital"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json', 'Directory.Build.props', 'Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore JadeCapital.slnx --locked-mode --nologo --verbosity minimal
+
+      - name: Build
+        run: dotnet build JadeCapital.slnx --nologo --verbosity minimal --no-restore
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if (echo > /dev/tcp/postgres/5432) >/dev/null 2>&1; then
+              echo "postgres ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "postgres never became ready"
+          exit 1
+
+      - name: API integration tests
+        run: >-
+          dotnet test tests/IntegrationTests/JadeCapital.Api.IntegrationTests/JadeCapital.Api.IntegrationTests.csproj
+          --nologo --verbosity minimal --no-build
+
+  # ---------------------------------------------------------------------------
+  # Job 4: test-frontend — Angular 19 unit tests + prod build sanity.
+  # ---------------------------------------------------------------------------
+  test-frontend:
+    name: Frontend unit tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies (locked)
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Unit tests (headless)
+        run: npm test -- --watch=false --browsers=ChromeHeadlessCI
+
+      - name: Production build
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Job 5: test-a11y — Wave 12 slice 12.2 — axe-core / WCAG 2.1 AA.
+  # Runs @axe-core/playwright against the anonymous-accessible surface
+  # (landing / pricing / auth / legal) with the dev server spun up via
+  # Playwright's `webServer` directive in playwright.config.ts. Critical
+  # violations fail the job; serious/moderate are reported via the HTML
+  # reporter (artifact below).
+  # ---------------------------------------------------------------------------
+  test-a11y:
+    name: A11y (axe-core / WCAG 2.1 AA)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies (locked)
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run axe-core a11y suite
+        run: npm run test:a11y
+
+      - name: Upload Playwright HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-a11y-report
+          path: frontend/playwright-report
+          retention-days: 7
+          if-no-uses-found: ignore

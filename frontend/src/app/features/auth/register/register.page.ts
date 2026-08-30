@@ -199,6 +199,17 @@ import { AuthState } from '@core/state/auth.state';
                   [class.jcs-input--error]="form.controls.password.touched && form.controls.password.invalid">
               </div>
 
+              <div class="consent-block" data-testid="register-consent">
+                <label class="consent-row">
+                  <input type="checkbox" formControlName="acceptTerms" data-testid="accept-terms">
+                  <span>Acepto los <a routerLink="/legal/terms">Términos de servicio</a>.</span>
+                </label>
+                <label class="consent-row">
+                  <input type="checkbox" formControlName="acceptPrivacy" data-testid="accept-privacy">
+                  <span>Acepto la <a routerLink="/legal/privacy">Política de privacidad</a>.</span>
+                </label>
+              </div>
+
               @if (error()) {
                 <div class="jcs-error register-error">{{ error() }}</div>
               }
@@ -219,8 +230,8 @@ import { AuthState } from '@core/state/auth.state';
 
             <p class="register-foot jcs-muted">
               Al registrarte, aceptas nuestros
-              <a href="#">Términos de servicio</a> y
-              <a href="#">Política de privacidad</a>.
+              <a routerLink="/legal/terms">Términos de servicio</a> y
+              <a routerLink="/legal/privacy">Política de privacidad</a>.
             </p>
           </div>
         </aside>
@@ -618,6 +629,37 @@ import { AuthState } from '@core/state/auth.state';
       line-height: 1.6;
     }
 
+    .consent-block {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+      padding: var(--sp-3);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: var(--bg-soft, transparent);
+    }
+
+    .consent-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sp-2);
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+      cursor: pointer;
+      color: var(--text-muted, currentColor);
+    }
+
+    .consent-row input[type='checkbox'] {
+      margin-top: 0.25em;
+      flex-shrink: 0;
+      accent-color: var(--green, #2FDB78);
+    }
+
+    .consent-row a {
+      color: var(--green, #2FDB78);
+      text-decoration: underline;
+    }
+
     /* ===== Trial preview strip ===== */
     .stats-strip {
       position: relative;
@@ -697,6 +739,8 @@ export default class RegisterPage {
     email: ['', [Validators.required, Validators.email]],
     displayName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
     password: ['', [Validators.required, Validators.minLength(10), Validators.maxLength(128)]],
+    acceptTerms: [false, [Validators.requiredTrue]],
+    acceptPrivacy: [false, [Validators.requiredTrue]],
   });
 
   async submit(): Promise<void> {
@@ -704,7 +748,13 @@ export default class RegisterPage {
     this.loading.set(true);
     this.error.set(null);
     try {
-      await this.auth.register(this.form.value.email!, this.form.value.displayName!, this.form.value.password!);
+      await this.auth.register(
+        this.form.value.email!,
+        this.form.value.displayName!,
+        this.form.value.password!,
+        this.form.value.acceptTerms!,
+        this.form.value.acceptPrivacy!,
+      );
       await this.router.navigateByUrl('/app/dashboard');
     } catch {
       this.error.set('No se pudo crear la cuenta.');

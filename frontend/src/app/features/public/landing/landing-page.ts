@@ -1,5 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { from } from 'rxjs';
+import { PlanApiService } from '@core/api/plan-api.service';
+import { PlanInfo } from '@core/api/plan-info';
 import { AuthState } from '@core/state/auth.state';
 
 interface Feature {
@@ -8,15 +12,26 @@ interface Feature {
   iconPath: string;
 }
 interface Plan {
-  code: 'inicial' | 'profesional' | 'elite';
+  code: string;
   name: string;
   monthly: number;
   annual: number;
   blurb: string;
   features: readonly string[];
-  highlight?: boolean;
+  highlight: boolean;
 }
 interface Faq { q: string; a: string; }
+
+// Marketing copy per plan code. Backend exposes only price/name/currency
+// via GET /api/billing/plans — the bullet lists, highlight flag and blurb
+// are owned by the landing-page and merged at render time. Annual price is
+// a marketing-derived number (20% off monthly) computed locally; the
+// backend does not (yet) expose it.
+const PLAN_MARKETING: Record<string, { features: readonly string[]; blurb: string; highlight: boolean; annualDiscount: number }> = {
+  starter: { features: ['1 cuenta', 'Registro ilimitado de operaciones', 'Reportes basicos', 'Soporte por email'],         blurb: 'Para traders que comienzan.',     highlight: false, annualDiscount: 0.20 },
+  pro:     { features: ['Hasta 5 cuentas', 'Metricas avanzadas y filtros', 'Reportes personalizados', 'Exportacion de datos (CSV)', 'Soporte prioritario'], blurb: 'Para traders que quieren crecer.', highlight: true,  annualDiscount: 0.20 },
+  elite:   { features: ['Cuentas ilimitadas', 'Analisis avanzado de rendimiento', 'Backtesting de estrategias', 'Alertas y objetivos personalizados', 'Soporte VIP'],     blurb: 'Para traders exigentes.',         highlight: false, annualDiscount: 0.20 },
+};
 
 @Component({
   selector: 'jcs-landing-page',
@@ -43,14 +58,52 @@ interface Faq { q: string; a: string; }
           <a routerLink="/" fragment="contacto">Contacto</a>
         </nav>
         <div class="nav-cta">
-          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost jcs-btn--sm">Login</a>
+          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost jcs-btn--sm nav-cta-login">Login</a>
           @if (auth.isAuthenticated()) {
             <a routerLink="/app/dashboard" class="jcs-btn jcs-btn--primary jcs-btn--sm">Dashboard</a>
           } @else {
             <a routerLink="/auth/register" class="jcs-btn jcs-btn--primary jcs-btn--sm">Registrarse</a>
           }
+          <!-- Hamburger button — mobile only. -->
+          <button
+            type="button"
+            class="hamburger"
+            (click)="toggleMobileNav()"
+            [attr.aria-expanded]="mobileNavOpen()"
+            aria-controls="landing-mobile-nav"
+            [attr.aria-label]="mobileNavOpen() ? 'Cerrar menú' : 'Abrir menú'">
+            @if (mobileNavOpen()) {
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            }
+          </button>
         </div>
       </div>
+      <!-- Mobile drawer — hidden on tablet+. Closes on backdrop click. -->
+      @if (mobileNavOpen()) {
+        <div class="mobile-drawer-backdrop" (click)="closeMobileNav()" aria-hidden="true"></div>
+        <nav id="landing-mobile-nav" class="mobile-drawer" aria-label="Menú principal">
+          <a routerLink="/" fragment="top" class="mobile-drawer-link" (click)="closeMobileNav()">Home</a>
+          <a routerLink="/" fragment="nosotros" class="mobile-drawer-link" (click)="closeMobileNav()">Nosotros</a>
+          <a routerLink="/" fragment="planes" class="mobile-drawer-link" (click)="closeMobileNav()">Planes</a>
+          <a routerLink="/" fragment="contacto" class="mobile-drawer-link" (click)="closeMobileNav()">Contacto</a>
+          <div class="mobile-drawer-divider"></div>
+          <a routerLink="/auth/login" class="jcs-btn jcs-btn--ghost" (click)="closeMobileNav()">Login</a>
+          @if (auth.isAuthenticated()) {
+            <a routerLink="/app/dashboard" class="jcs-btn jcs-btn--primary" (click)="closeMobileNav()">Dashboard</a>
+          } @else {
+            <a routerLink="/auth/register" class="jcs-btn jcs-btn--primary" (click)="closeMobileNav()">Registrarse</a>
+          }
+        </nav>
+      }
     </header>
 
     <!-- ============== Hero ============== -->
@@ -235,13 +288,25 @@ interface Faq { q: string; a: string; }
         <header class="section-head section-head--center">
           <h2>Elige el plan que se adapta a tu operativa</h2>
         </header>
-        <div class="billing-toggle" role="tablist">
-          <button class="toggle" [class.on]="!annual()" (click)="annual.set(false)">Mensual</button>
-          <button class="toggle" [class.on]="annual()" (click)="annual.set(true)">Anual <span class="save">-20%</span></button>
-          <span class="hint">Ahorra 2 meses con el plan anual</span>
+        <div class="billing-toggle" role="tablist" aria-label="Frecuencia de facturación">
+          <button
+            type="button"
+            role="tab"
+            class="toggle"
+            [class.on]="!annual()"
+            [attr.aria-selected]="!annual()"
+            (click)="annual.set(false)">Mensual</button>
+          <button
+            type="button"
+            role="tab"
+            class="toggle"
+            [class.on]="annual()"
+            [attr.aria-selected]="annual()"
+            (click)="annual.set(true)">Anual <span class="save">-20%</span></button>
+          <span class="hint" role="presentation">Ahorra 2 meses con el plan anual</span>
         </div>
         <div class="plans-grid">
-          @for (p of plans; track p.code) {
+          @for (p of plans(); track p.code) {
             <article class="plan" [class.plan--highlight]="p.highlight">
               @if (p.highlight) { <span class="plan-flag">MÁS ELEGIDO</span> }
               <header class="plan-head">
@@ -381,8 +446,78 @@ interface Faq { q: string; a: string; }
     .nav-links a:hover { color: var(--text-main); }
     .nav-links a.active { color: var(--green); }
     .nav-links a.active::after { content: ''; position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); width: 22px; height: 2px; background: var(--green); border-radius: 2px; }
-    .nav-cta { display: flex; gap: var(--sp-2); }
-    @media (max-width: 768px) { .nav-links { display: none; } }
+    .nav-cta { display: flex; gap: var(--sp-2); align-items: center; }
+
+    /* Hamburger button — hidden on tablet+. */
+    .hamburger {
+      display: none;
+      width: 40px;
+      height: 40px;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      cursor: pointer;
+      padding: 0;
+    }
+    .hamburger:hover { background: var(--bg-hover); border-color: var(--border-active); }
+    .hamburger:focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
+
+    /* Mobile drawer (hamburger menu). */
+    .mobile-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      z-index: calc(var(--z-mobile-nav) - 1);
+    }
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: min(320px, 85vw);
+      padding: var(--sp-16) var(--sp-6) var(--sp-6);
+      background: var(--bg-sidebar);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+      z-index: var(--z-mobile-nav);
+      box-shadow: -8px 0 24px rgba(0,0,0,0.32);
+      animation: drawer-slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes drawer-slide-in {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    .mobile-drawer-link {
+      color: var(--text-main);
+      text-decoration: none;
+      padding: var(--sp-3) var(--sp-4);
+      border-radius: var(--radius-sm);
+      font-size: var(--fs-base);
+      font-weight: 500;
+      transition: background 150ms ease;
+    }
+    .mobile-drawer-link:hover { background: var(--bg-hover); }
+    .mobile-drawer-divider {
+      height: 1px;
+      background: var(--border);
+      margin: var(--sp-2) 0;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .nav-cta-login { display: none; }
+      .hamburger { display: inline-flex; }
+    }
+    @media (min-width: 769px) {
+      .mobile-drawer,
+      .mobile-drawer-backdrop { display: none !important; }
+    }
 
     /* ============== Hero ============== */
     .hero { padding: var(--sp-16) 0 var(--sp-24); }
@@ -528,8 +663,21 @@ interface Faq { q: string; a: string; }
   `],
 })
 export class LandingPage {
+  /** Mobile hamburger drawer state. */
+  readonly mobileNavOpen = signal(false);
+
+  toggleMobileNav(): void {
+    this.mobileNavOpen.update(v => !v);
+  }
+
+  closeMobileNav(): void {
+    this.mobileNavOpen.set(false);
+  }
   readonly auth = inject(AuthState);
+  private readonly api = inject(PlanApiService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly annual = signal(false);
+  readonly plans = signal<readonly Plan[]>([]);
 
   readonly features: readonly Feature[] = [
     { title: 'Controla tus cuentas', body: 'Gestiona multiples cuentas, visualiza saldos en tiempo real y sigue la evolucion de tu capital.', iconPath: 'M3 7h18M3 12h18M3 17h18' },
@@ -538,11 +686,28 @@ export class LandingPage {
     { title: 'Mejora tu disciplina', body: 'Detecta patrones, controla el riesgo y toma decisiones basadas en datos, no en emociones.', iconPath: 'M12 2l3 7h7l-7 3 3 7-3-7-7 3 7-7-3 3-7 7z' },
   ];
 
-  readonly plans: readonly Plan[] = [
-    { code: 'inicial', name: 'Inicial', monthly: 9, annual: 7, blurb: 'Para traders que comienzan.', features: ['1 cuenta', 'Registro ilimitado de operaciones', 'Reportes basicos', 'Soporte por email'] },
-    { code: 'profesional', name: 'Profesional', monthly: 19, annual: 15, blurb: 'Para traders que quieren crecer.', features: ['Hasta 5 cuentas', 'Metricas avanzadas y filtros', 'Reportes personalizados', 'Exportacion de datos (CSV)', 'Soporte prioritario'], highlight: true },
-    { code: 'elite', name: 'Elite', monthly: 29, annual: 23, blurb: 'Para traders exigentes.', features: ['Cuentas ilimitadas', 'Analisis avanzado de rendimiento', 'Backtesting de estrategias', 'Alertas y objetivos personalizados', 'Soporte VIP'] },
-  ];
+  constructor() {
+    from(this.api.list())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(api => this.plans.set(this.mergeWithMarketing(api)));
+  }
+
+  private mergeWithMarketing(api: readonly PlanInfo[]): readonly Plan[] {
+    return api.map(p => {
+      const meta = PLAN_MARKETING[p.code] ?? { features: [], blurb: '', highlight: false, annualDiscount: 0.20 };
+      const monthly = p.monthlyPrice;
+      const annual = Math.round(monthly * (1 - meta.annualDiscount));
+      return {
+        code: p.code,
+        name: p.name,
+        monthly,
+        annual,
+        blurb: meta.blurb,
+        features: meta.features,
+        highlight: meta.highlight,
+      };
+    });
+  }
 
   readonly faqs: readonly Faq[] = [
     { q: '¿Que tipos de operaciones puedo registrar?', a: 'Forex, binarias, indices, cripto y futuros. Cada tipo con sus campos especificos.' },
