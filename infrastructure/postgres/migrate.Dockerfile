@@ -18,11 +18,11 @@
 FROM postgres:16-alpine
 WORKDIR /migrations
 CMD ["bash", "-c", "until pg_isready -h postgres -U \"$POSTGRES_USER\"; do sleep 2; done && \
-     export PGPASSWORD=\"$$(cat /run/secrets/postgres_password)\" && \
-     for sql in $$(ls /migrations/*.sql 2>/dev/null | sort); do \
-         echo \"Applying $$(basename $$sql)\"; \
-         psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f \"$$sql\" || { \
-             echo \"Migration $$(basename $$sql) failed — aborting\"; \
+     export PGPASSWORD=\"$POSTGRES_PASSWORD\" && \
+     for sql in $(ls /migrations/*.sql 2>/dev/null | sort); do \
+         echo \"Applying $(basename $sql)\"; \
+         psql -h postgres -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -v ON_ERROR_STOP=1 -f \"$sql\" || { \
+             echo \"Migration $(basename $sql) failed — aborting\"; \
              exit 1; \
          }; \
      done && \
