@@ -3,6 +3,6 @@
     <RootNamespace>JadeCapital.Shared.Kernel</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="11.10.0" />
+    <PackageReference Include="FluentValidation" Version="11.12.0" />
   </ItemGroup>
 </Project>

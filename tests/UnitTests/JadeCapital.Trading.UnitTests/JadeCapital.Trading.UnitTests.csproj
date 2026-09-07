@@ -5,14 +5,14 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <PackageReference Include="FluentAssertions" Version="7.0.0" />
+    <PackageReference Include="FluentAssertions" Version="7.2.2" />
     <PackageReference Include="NSubstitute" Version="5.3.0" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
-    <PackageReference Include="coverlet.collector" Version="6.0.2" />
-    <PackageReference Include="coverlet.msbuild" Version="6.0.2">
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.4">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -35,11 +35,11 @@
     <ProjectReference Include="..\..\..\src\2.Modules\Identity\JadeCapital.Identity.Infrastructure\JadeCapital.Identity.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.12" />
     <!-- Slice 6d.1: SQLite in-memory for ImportJobSoftDeleteQueryFilterTests.
          Mirrors the Identity.UnitTests SQLite setup (BackfillTenantsRunnerTests).
          Lets the EF HasQueryFilter behavior be exercised without a real
          Postgres or Testcontainers dependency. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.19" />
   </ItemGroup>
 </Project>
