@@ -22,7 +22,7 @@
          pattern mirrors JadeCapital.Admin.UnitTests/Endpoints. -->
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.0" />
     <!-- Wave 10 slice 10.6 — test coverage gate (coverlet). -->
-    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+    <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="coverlet.msbuild" Version="6.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
