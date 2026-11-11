@@ -135,7 +135,7 @@ jobs:
           kill $API_PID 2>/dev/null || true
           ls -la openapi.json
       - name: Upload OpenAPI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openapi-spec
           path: openapi.json
@@ -286,7 +286,7 @@ jobs:
 
       - name: Upload Playwright HTML report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-a11y-report
           path: frontend/playwright-report
